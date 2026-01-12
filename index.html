@@ -10,6 +10,8 @@
         .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
         .header-bg { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
         .nav-tabs .nav-link.active { font-weight: bold; color: #1e3c72; border-bottom: 3px solid #1e3c72; }
+        .player-badge { font-size: 0.9rem; margin: 2px; cursor: pointer; }
+        .player-badge:hover { opacity: 0.8; text-decoration: line-through; }
     </style>
 </head>
 <body>
@@ -69,7 +71,7 @@
 
             <div class="tab-pane fade" id="admin" role="tabpanel">
                 <div class="card p-4">
-                    <h4>Add New Match</h4>
+                    <h4 class="mb-3">Add New Match Result</h4>
                     <form id="addMatchForm">
                         <div class="row mb-3">
                             <div class="col-md-6">
@@ -86,8 +88,8 @@
                             </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label">Match Type</label>
+                        <div class="mb-4">
+                            <label class="form-label">Match Format</label>
                             <div class="btn-group w-100" role="group">
                                 <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
                                 <label class="btn btn-outline-primary" for="typeStandard">Standard (Team A vs B)</label>
@@ -97,28 +99,57 @@
                             </div>
                         </div>
 
-                        <div id="teamsArea" class="row">
-                            <div class="col-md-6 mb-3">
-                                <div class="card bg-light">
+                        <div id="teamsContainer" class="row">
+                            <div class="col-md-6 mb-3 team-card">
+                                <div class="card bg-light h-100">
+                                    <div class="card-header fw-bold">Team A</div>
                                     <div class="card-body">
-                                        <h6>Team A</h6>
-                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreA">
-                                        <textarea class="form-control" placeholder="Players (comma separated, e.g. Can, Mark)" id="playersA"></textarea>
+                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreA" required>
+                                        
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control player-input" list="playerList" placeholder="Type name..." id="inputPlayerA">
+                                            <button class="btn btn-secondary" type="button" onclick="addPlayerToTeam('A')">Add</button>
+                                        </div>
+                                        <div id="listTeamA" class="d-flex flex-wrap gap-1"></div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="card bg-light">
+
+                            <div class="col-md-6 mb-3 team-card">
+                                <div class="card bg-light h-100">
+                                    <div class="card-header fw-bold">Team B</div>
                                     <div class="card-body">
-                                        <h6>Team B</h6>
-                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreB">
-                                        <textarea class="form-control" placeholder="Players (comma separated)" id="playersB"></textarea>
+                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreB" required>
+                                        
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control player-input" list="playerList" placeholder="Type name..." id="inputPlayerB">
+                                            <button class="btn btn-secondary" type="button" onclick="addPlayerToTeam('B')">Add</button>
+                                        </div>
+                                        <div id="listTeamB" class="d-flex flex-wrap gap-1"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-12 mb-3 team-card d-none" id="teamCContainer">
+                                <div class="card bg-light h-100">
+                                    <div class="card-header fw-bold">Team C (Tournament)</div>
+                                    <div class="card-body">
+                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreC">
+                                        
+                                        <div class="input-group mb-2">
+                                            <input type="text" class="form-control player-input" list="playerList" placeholder="Type name..." id="inputPlayerC">
+                                            <button class="btn btn-secondary" type="button" onclick="addPlayerToTeam('C')">Add</button>
+                                        </div>
+                                        <div id="listTeamC" class="d-flex flex-wrap gap-1"></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-success w-100 mt-3">Save Match Record</button>
+                        <datalist id="playerList">
+                            </datalist>
+
+                        <button type="submit" class="btn btn-success w-100 py-2 fw-bold mt-2">💾 SAVE MATCH</button>
                     </form>
                 </div>
             </div>
@@ -127,9 +158,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
     <script src="app.js"></script>
 </body>
 </html>
