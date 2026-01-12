@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elderly Support League</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
+        .header-bg { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 2rem 0; margin-bottom: 2rem; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #1e3c72; border-bottom: 3px solid #1e3c72; }
+    </style>
+</head>
+<body>
+
+    <div class="header-bg text-center">
+        <h1>👴 Elderly Support League</h1>
+        <p>Est. 2021 | Amsterdam</p>
+    </div>
+
+    <div class="container">
+        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="leaderboard-tab" data-bs-toggle="tab" data-bs-target="#leaderboard" type="button">🏆 Leaderboard</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="matches-tab" data-bs-toggle="tab" data-bs-target="#matches" type="button">⚽ Match History</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button">📝 Add Match</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            
+            <div class="tab-pane fade show active" id="leaderboard" role="tabpanel">
+                <div class="card p-3">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Player</th>
+                                    <th>P</th>
+                                    <th>W</th>
+                                    <th>D</th>
+                                    <th>L</th>
+                                    <th>GD</th>
+                                    <th>Pts</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-body">
+                                <tr><td colspan="8" class="text-center">Loading stats...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="matches" role="tabpanel">
+                <div class="card p-3">
+                    <h5 class="card-title">Recent Matches</h5>
+                    <div id="match-history-list" class="list-group">
+                        <div class="text-center">Loading matches...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="admin" role="tabpanel">
+                <div class="card p-4">
+                    <h4>Add New Match</h4>
+                    <form id="addMatchForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Date</label>
+                                <input type="date" class="form-control" id="matchDate" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Location</label>
+                                <select class="form-select" id="matchLocation">
+                                    <option value="Sporthal Wibaut">Sporthal Wibaut</option>
+                                    <option value="Vondelpark">Vondelpark</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Match Type</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
+                                <label class="btn btn-outline-primary" for="typeStandard">Standard (Team A vs B)</label>
+                                
+                                <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
+                                <label class="btn btn-outline-primary" for="typeTournament">Tournament (3 Teams)</label>
+                            </div>
+                        </div>
+
+                        <div id="teamsArea" class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6>Team A</h6>
+                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreA">
+                                        <textarea class="form-control" placeholder="Players (comma separated, e.g. Can, Mark)" id="playersA"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6>Team B</h6>
+                                        <input type="number" placeholder="Score" class="form-control mb-2" id="scoreB">
+                                        <textarea class="form-control" placeholder="Players (comma separated)" id="playersB"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100 mt-3">Save Match Record</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="app.js"></script>
+</body>
+</html>
