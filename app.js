@@ -35,17 +35,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function updateAuthUI() {
     const navEntry = document.getElementById('navNewEntry');
-    const authBtn = document.querySelector('.auth-lock');
+    const authBtn = document.querySelector('.btn-icon.auth-active');
     
     if (currentUser) {
         navEntry.classList.remove('d-none');
-        authBtn.classList.add('active');
+        if(authBtn) authBtn.classList.add('auth-active');
         document.getElementById('loginForm').classList.add('d-none');
         document.getElementById('userInfo').classList.remove('d-none');
         document.getElementById('userEmailDisplay').innerText = currentUser.email;
     } else {
         navEntry.classList.add('d-none');
-        authBtn.classList.remove('active');
+        if(authBtn) authBtn.classList.remove('auth-active');
         document.getElementById('loginForm').classList.remove('d-none');
         document.getElementById('userInfo').classList.add('d-none');
     }
@@ -69,7 +69,7 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
-// RENDER (DARK SOFASCORE)
+// RENDER (MIDNIGHT SOFASCORE)
 function renderData() {
     const year = parseInt(document.getElementById('filterYear').value);
     const month = document.getElementById('filterMonth').value;
@@ -99,36 +99,41 @@ function renderData() {
                 </div>`;
             }
 
-            // YOUTUBE (Main Card)
-            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" class="yt-small"><i class="fab fa-youtube"></i> Watch</a>` : '';
+            // YOUTUBE LINK (Small in header)
+            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" class="yt-link-small"><i class="fab fa-youtube"></i> Watch</a>` : '';
 
             let html = "";
             if(m.type === 'Standard') {
                 const tA=m.teams[0], tB=m.teams[1];
                 const cA=m.colors?.[0]||'blue', cB=m.colors?.[1]||'red';
-                const winClassA = tA.score > tB.score ? 'text-white' : 'text-muted';
-                const winClassB = tB.score > tA.score ? 'text-white' : 'text-muted';
+                const winA = tA.score > tB.score ? 'text-primary' : 'score-loser';
+                const winB = tB.score > tA.score ? 'text-primary' : 'score-loser';
+                // Truncate player list for card view
+                const pA = tA.players.join(', '); const pB = tB.players.join(', ');
 
                 html = `
                 <div class="match-card" onclick="openMatchModal('${m.id}')">
-                    <div class="card-top">
-                        <span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="ms-2 opacity-50">|</span> <span class="ms-2">${m.location}</span></span>
+                    <div class="card-header-strip">
+                        <span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span>
                         ${ytLink}
                     </div>
-                    <div class="card-main">
-                        <div class="team-col">
-                            <span class="badge rounded-pill bg-${cA}" style="width:8px; height:8px; display:inline-block; margin-bottom:2px"></span>
-                            <span class="team-name ${winClassA}">${tA.teamName||'A'}</span>
-                            <div class="team-squad">${tA.players.join(', ')}</div>
+                    <div class="card-body-strip">
+                        <div class="team-block">
+                            <div class="team-row mb-2">
+                                <div class="team-name"><span class="dot bg-${cA.charAt(0)}"></span>${tA.teamName||'A'}</div>
+                                <div class="team-score ${winA}">${tA.score}</div>
+                            </div>
+                            <div class="team-players">${pA}</div>
                         </div>
-                        <div class="score-col">
-                            <div class="score-val">${tA.score}-${tB.score}</div>
-                            <span class="score-dash">FT</span>
+                        <div class="match-meta-strip">
+                            <span class="ft-badge">FT</span>
                         </div>
-                        <div class="team-col">
-                            <span class="badge rounded-pill bg-${cB}" style="width:8px; height:8px; display:inline-block; margin-bottom:2px"></span>
-                            <span class="team-name ${winClassB}">${tB.teamName||'B'}</span>
-                            <div class="team-squad">${tB.players.join(', ')}</div>
+                        <div class="team-block text-end">
+                            <div class="team-row mb-2 justify-content-end">
+                                <div class="team-score ${winB} me-2">${tB.score}</div>
+                                <div class="team-name justify-content-end">${tB.teamName||'B'}<span class="dot bg-${cB.charAt(0)} ms-2"></span></div>
+                            </div>
+                            <div class="team-players text-end ms-0 me-3">${pB}</div>
                         </div>
                     </div>
                     ${adminBtns}
@@ -137,17 +142,16 @@ function renderData() {
                 const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
                 const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
                 const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
-                
                 html = `
                 <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #facc15;">
-                    <div class="card-top">
+                    <div class="card-header-strip">
                         <span class="text-warning"><i class="fas fa-trophy me-1"></i> ${dateStr}</span>
                         ${ytLink}
                     </div>
-                    <div class="p-3">
-                        <div class="tourn-rank-row"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> ${r1.teamName}</span></div>
-                        <div class="tourn-rank-row"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> ${r2.teamName}</span></div>
-                        <div class="tourn-rank-row"><span class="text-muted opacity-50"><span class="rank-badge bg-dark border border-secondary">3</span> ${r3.teamName}</span></div>
+                    <div class="p-3 bg-main">
+                        <div class="tourn-row"><span class="text-primary fw-bold"><span class="rank-badge rank-1">1</span> ${r1.teamName}</span><span class="small text-muted">${r1.players.join(', ')}</span></div>
+                        <div class="tourn-row"><span class="text-muted"><span class="rank-badge bg-dark border border-secondary">2</span> ${r2.teamName}</span></div>
+                        <div class="tourn-row"><span class="text-muted opacity-50"><span class="rank-badge bg-dark border border-secondary">3</span> ${r3.teamName}</span></div>
                     </div>
                     ${adminBtns}
                 </div>`;
@@ -178,9 +182,9 @@ function renderData() {
     if(players.length === 0) tbody.innerHTML = "<tr><td colspan='5' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
     
     players.forEach((p, i) => {
-        const color = i===0?"text-warning":(i<3?"text-light":"text-muted");
-        const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; // zebra
-        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold ${color}">${i+1}</td><td class="fw-bold text-light">${p.name}</td><td class="text-center text-secondary">${p.played}</td><td class="text-center text-secondary">${p.won}</td><td class="text-center pe-3 fw-bold text-info">${p.points}</td></tr>`;
+        const color = i===0?"text-warning":(i<3?"text-primary":"text-muted");
+        const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
+        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold"><span class="rank-circle ${i===0?'r-1':(i===1?'r-2':(i===2?'r-3':''))}">${i+1}</span></td><td class="fw-bold text-light">${p.name}</td><td class="text-center text-secondary">${p.played}</td><td class="text-center text-secondary">${p.won}</td><td class="text-center pe-3 fw-bold text-info">${p.points}</td></tr>`;
     });
 }
 
@@ -192,28 +196,29 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
     });
 }
 
-// CANVAS GENERATOR (Using DOM Image to fix CORS)
+// --- CANVAS GENERATOR (Fix for Logo) ---
 window.downloadMatchImage = () => {
     const m = currentMatchForImage;
     if(!m) return;
     const canvas = document.getElementById('shareCanvas');
     const ctx = canvas.getContext('2d');
     
-    // We grab the image element that is ALREADY loaded in the HTML header
-    // This bypasses the need to reload it and risk CORS errors
+    // Use the image ALREADY loaded on the page to avoid re-fetching and CORS issues
     const logoImg = document.getElementById('pageLogo');
     
     // BG
     ctx.fillStyle = "#121212"; ctx.fillRect(0, 0, 1080, 1920);
     
-    // Header
-    if (logoImg.complete) {
+    // Header with Logo Clip
+    if (logoImg.complete && logoImg.naturalHeight !== 0) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(540, 200, 100, 0, Math.PI * 2, true); // Circular clip
+        ctx.arc(540, 200, 100, 0, Math.PI * 2, true);
         ctx.closePath();
         ctx.clip();
-        ctx.drawImage(logoImg, 440, 100, 200, 200);
+        try {
+            ctx.drawImage(logoImg, 440, 100, 200, 200);
+        } catch (e) { console.log("Canvas logo error (CORS rules in Firebase?):", e); }
         ctx.restore();
     }
 
@@ -251,21 +256,13 @@ window.downloadMatchImage = () => {
     ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#444444";
     ctx.fillText("Elderly Support League", 540, 1800);
 
-    const link = document.createElement('a');
-    link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    try {
+        const link = document.createElement('a');
+        link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    } catch(e) { alert("Gorsel hatasi. Firebase Storage kurallarini kontrol et."); }
 };
-
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' '); let line = '';
-    for(let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        if (ctx.measureText(testLine).width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; }
-        else { line = testLine; }
-    }
-    ctx.fillText(line, x, y);
-}
 
 // REST OF LOGIC (SAVE, EDIT, ETC)
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
@@ -322,7 +319,6 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         await docRef.set(matchData);
 
         cancelEditMode();
-        document.getElementById('addMatchForm').reset();
         document.getElementById('loadingOverlay').classList.add('d-none');
         alert("Saved!");
         bootstrap.Tab.getInstance(document.querySelector('button[data-bs-target="#matches"]')).show();
@@ -390,5 +386,56 @@ function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
 function renderList(k) { document.getElementById(`listTeam${k}`).innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times ms-1 text-secondary" onclick="removePlayer('${k}','${p}')" style="cursor:pointer"></i></span>`).join(''); }
-window.openPlayerStats = openPlayerStats; 
 window.exportToCSV = () => { let c="Date,Type,Loc,Score,TeamA,TeamB\n"; allMatches.forEach(m=>{c+=`${formatDate(m.date.toDate())},${m.type},${m.location},${m.type==='Standard'?m.teams[0].score+'-'+m.teams[1].score:'Win: '+m.teams[0].teamName},${m.teams[0].teamName},${m.teams[1].teamName}\n`}); const l=document.createElement("a"); l.href=encodeURI("data:text/csv;charset=utf-8,"+c); l.download="data.csv"; l.click(); };
+// --- PLAYER STATS (MONTHLY) ---
+window.openPlayerStats = (name) => {
+    const year = parseInt(document.getElementById('filterYear').value);
+    const pMatches = allMatches.filter(m => {
+        const hasP = m.teams.some(t => t.players.includes(name));
+        return hasP && m.date.toDate().getFullYear() === year;
+    }).sort((a,b) => b.date - a.date);
+
+    if(pMatches.length === 0) return;
+
+    let w=0, played=0, pts=0;
+    let monthly = {};
+
+    pMatches.forEach(m => {
+        played++;
+        const monthIdx = m.date.toDate().getMonth();
+        if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0, form:[]};
+        
+        let matchPts=0, result='L';
+        if(m.type==='Standard') {
+            const tA=m.teams[0]; const inA=tA.players.includes(name);
+            const myS=inA?tA.score:m.teams[1].score;
+            const opS=inA?m.teams[1].score:tA.score;
+            if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
+        } else {
+            const r = m.teams.find(t=>t.players.includes(name)).rank;
+            if(r===1) {w++; matchPts=3; result='W';} else if(r===2) {matchPts=1; result='D';}
+        }
+        pts += matchPts;
+        monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
+        monthly[monthIdx].form.push(result);
+    });
+
+    const winRate = Math.round((w/played)*100);
+    const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    
+    let monthRows = "";
+    Object.keys(monthly).sort((a,b)=>a-b).forEach(mIdx => {
+        const d = monthly[mIdx];
+        const formDots = d.form.slice(0,5).map(r => `<span class="dot bg-${r==='W'?'r':(r==='D'?'b':'secondary')}"></span>`).join('');
+        monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-primary">${d.pts}</div><div class="text-end" style="flex:1">${formDots}</div></div>`;
+    });
+
+    document.getElementById('psName').innerText = name.toUpperCase();
+    document.getElementById('psBody').innerHTML = `
+        <div class="text-center mb-3"><h1 class="display-4 fw-bold text-primary mb-0" style="letter-spacing:-2px">${pts}</h1><small class="text-muted text-uppercase fw-bold" style="font-size:0.65rem; letter-spacing:1px">Season ${year}</small></div>
+        <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm"><div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div><div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div><div class="col-4 bg-dark p-2"><div class="fw-bold">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div></div>
+        <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>
+        <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div><div class="text-end" style="flex:1">FORM</div></div>
+        ${monthRows}`;
+    new bootstrap.Modal(document.getElementById('playerStatsModal')).show();
+};
