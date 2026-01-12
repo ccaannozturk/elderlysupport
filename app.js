@@ -35,21 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function updateAuthUI() {
     const navEntry = document.getElementById('navNewEntry');
-    const authBtn = document.getElementById('authBtn');
+    const authIcon = document.querySelector('.auth-icon');
     
     if (currentUser) {
         navEntry.classList.remove('d-none');
-        authBtn.innerHTML = '<i class="fas fa-user-check text-success"></i>';
+        authIcon.classList.add('active');
         document.getElementById('loginForm').classList.add('d-none');
         document.getElementById('userInfo').classList.remove('d-none');
         document.getElementById('userEmailDisplay').innerText = currentUser.email;
     } else {
         navEntry.classList.add('d-none');
-        authBtn.innerHTML = '<i class="fas fa-lock text-white"></i>';
+        authIcon.classList.remove('active');
         document.getElementById('loginForm').classList.remove('d-none');
         document.getElementById('userInfo').classList.add('d-none');
     }
-    renderData();
+    renderData(); // Re-render to enforce button visibility logic
 }
 
 function fetchMatches() {
@@ -69,6 +69,7 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
+// --- RENDER ENGINE (SOFASCORE STYLE) ---
 function renderData() {
     const year = parseInt(document.getElementById('filterYear').value);
     const month = document.getElementById('filterMonth').value;
@@ -84,17 +85,17 @@ function renderData() {
     list.innerHTML = "";
     
     if(filtered.length === 0) {
-        list.innerHTML = "<div class='text-center py-5 text-muted'>No matches found.</div>";
+        list.innerHTML = "<div class='text-center py-5 text-muted small'>No matches found for this period.</div>";
     } else {
         filtered.forEach(m => {
             const dateStr = formatDate(m.date.toDate());
-            const yt = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" class="youtube-link"><i class="fab fa-youtube text-danger me-1"></i>Watch</a>` : '';
             
+            // SUPER ADMIN CHECK
             let adminBtns = "";
-            if (currentUser && currentUser.email === SUPER_ADMIN) {
-                adminBtns = `<div class="admin-actions">
-                    <button class="btn btn-sm btn-light border text-primary" onclick="editMatch('${m.id}', event)">Edit</button> 
-                    <button class="btn btn-sm btn-light border text-danger" onclick="deleteMatch('${m.id}', event)">Delete</button>
+            if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN) {
+                adminBtns = `<div class="admin-controls">
+                    <button class="btn btn-sm btn-light border text-primary py-0" onclick="editMatch('${m.id}', event)">Edit</button> 
+                    <button class="btn btn-sm btn-light border text-danger py-0 ms-2" onclick="deleteMatch('${m.id}', event)">Delete</button>
                 </div>`;
             }
 
@@ -102,32 +103,47 @@ function renderData() {
             if(m.type === 'Standard') {
                 const tA=m.teams[0], tB=m.teams[1];
                 const cA=m.colors?.[0]||'blue', cB=m.colors?.[1]||'red';
+                const winA = tA.score > tB.score ? 't-winner' : 't-loser';
+                const winB = tB.score > tA.score ? 't-winner' : 't-loser';
+
                 html = `
-                    <div class="custom-card match-card" onclick="openMatchModal('${m.id}')">
-                        <div class="match-header"><span>${dateStr} @ ${m.location}</span> ${yt}</div>
-                        <div class="d-flex align-items-center justify-content-between p-3">
-                            <div class="text-center w-25"><div class="badge-dot bg-${cA}"></div><span class="fw-bold d-block small">${tA.teamName||'A'}</span></div>
-                            <div class="fs-2 fw-bold">${tA.score}-${tB.score}</div>
-                            <div class="text-center w-25"><div class="badge-dot bg-${cB}"></div><span class="fw-bold d-block small">${tB.teamName||'B'}</span></div>
+                <div class="sofa-card" onclick="openMatchModal('${m.id}')">
+                    <div class="sofa-header"><span><i class="far fa-calendar me-1"></i> ${dateStr}</span><span>${m.location}</span></div>
+                    <div class="sofa-body">
+                        <div class="match-content">
+                            <div class="team-row">
+                                <div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${tA.teamName||'A'}</div>
+                                <div class="t-score ${winA}">${tA.score}</div>
+                            </div>
+                            <div class="team-row">
+                                <div class="t-name ${winB}"><span class="dot bg-${cB.charAt(0)}"></span>${tB.teamName||'B'}</div>
+                                <div class="t-score ${winB}">${tB.score}</div>
+                            </div>
                         </div>
-                        ${adminBtns}
-                    </div>`;
+                        <div class="match-meta"><span class="ft-badge">FT</span></div>
+                    </div>
+                    ${adminBtns}
+                </div>`;
             } else {
                 const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
+                const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
+                const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
                 html = `
-                    <div class="custom-card match-card" onclick="openMatchModal('${m.id}')" style="border-left:4px solid #facc15">
-                        <div class="match-header"><span>${dateStr} (Tourn)</span> ${yt}</div>
-                        <div class="p-3 text-center">
-                            <span class="badge bg-warning text-dark mb-1">Winner</span><br>
-                            <span class="fw-bold">${r1.teamName}</span>
-                        </div>
-                        ${adminBtns}
-                    </div>`;
+                <div class="sofa-card" onclick="openMatchModal('${m.id}')" style="border-left: 4px solid #facc15">
+                    <div class="sofa-header"><span><i class="fas fa-trophy me-1 text-warning"></i> ${dateStr}</span><span>Tournament</span></div>
+                    <div class="sofa-body d-block pt-2 pb-2">
+                        <div class="tourn-item"><span class="text-dark fw-bold"><span class="rank-box rank-1">1</span>${r1.teamName}</span></div>
+                        <div class="tourn-item"><span class="text-muted"><span class="rank-box">2</span>${r2.teamName}</span></div>
+                        <div class="tourn-item"><span class="text-muted opacity-75"><span class="rank-box">3</span>${r3.teamName}</span></div>
+                    </div>
+                    ${adminBtns}
+                </div>`;
             }
             list.innerHTML += html;
         });
     }
 
+    // LEADERBOARD
     let stats = {};
     filtered.forEach(m => {
         if(m.type === 'Standard') {
@@ -146,11 +162,13 @@ function renderData() {
     tbody.innerHTML = "";
     const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.won-a.won));
 
-    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='5' class='text-center py-3 text-muted'>No stats.</td></tr>";
+    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='5' class='text-center py-3 text-muted small'>No data available.</td></tr>";
+    
     players.forEach((p, i) => {
         const icon = i===0?"🥇":(i===1?"🥈":(i===2?"🥉":i+1));
         const color = i===0?"text-warning":(i<3?"text-secondary":"text-muted");
-        tbody.innerHTML += `<tr onclick="openPlayerStats('${p.name}')" style="cursor:pointer"><td class="ps-3 fw-bold ${color}">${icon}</td><td class="fw-bold">${p.name}</td><td class="text-center">${p.played}</td><td class="text-center">${p.won}</td><td class="text-center pe-3 fw-bold text-primary">${p.points}</td></tr>`;
+        const rowClass = i%2===0 ? "" : "table-light";
+        tbody.innerHTML += `<tr onclick="openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold ${color}"><span class="rank-circle ${i===0?'r-1':(i===1?'r-2':(i===2?'r-3':''))}">${i+1}</span></td><td class="fw-bold text-dark">${p.name}</td><td class="text-center">${p.played}</td><td class="text-center">${p.won}</td><td class="text-center pe-3 fw-bold text-primary">${p.points}</td></tr>`;
     });
 }
 
@@ -159,89 +177,132 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
         if(!stats[name]) stats[name] = { name:name, played:0, won:0, drawn:0, lost:0, points:0, form:[] };
         stats[name].played++; stats[name].points += pts;
         if(pts===3) stats[name].won++; else if(pts===1) stats[name].drawn++; else stats[name].lost++;
-        stats[name].form.push(pts===3?'W':(pts===1?'D':'L'));
     });
 }
 
-// CANVAS GENERATOR (WITH LOGO)
+// --- PLAYER STATS (MONTHLY) ---
+window.openPlayerStats = (name) => {
+    const year = parseInt(document.getElementById('filterYear').value);
+    const pMatches = allMatches.filter(m => {
+        const hasP = m.teams.some(t => t.players.includes(name));
+        return hasP && m.date.toDate().getFullYear() === year;
+    }).sort((a,b) => b.date - a.date);
+
+    if(pMatches.length === 0) return;
+
+    let w=0, played=0, pts=0;
+    let monthly = {};
+
+    pMatches.forEach(m => {
+        played++;
+        const monthIdx = m.date.toDate().getMonth();
+        if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0, form:[]};
+        
+        let matchPts=0, result='L';
+        if(m.type==='Standard') {
+            const tA=m.teams[0]; const inA=tA.players.includes(name);
+            const myS=inA?tA.score:m.teams[1].score;
+            const opS=inA?m.teams[1].score:tA.score;
+            if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
+        } else {
+            const r = m.teams.find(t=>t.players.includes(name)).rank;
+            if(r===1) {w++; matchPts=3; result='W';} else if(r===2) {matchPts=1; result='D';}
+        }
+        pts += matchPts;
+        monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
+        monthly[monthIdx].form.push(result);
+    });
+
+    const winRate = Math.round((w/played)*100);
+    const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    
+    let monthRows = "";
+    Object.keys(monthly).sort((a,b)=>a-b).forEach(mIdx => {
+        const d = monthly[mIdx];
+        const formDots = d.form.slice(0,5).map(r => `<span class="form-dot f-${r.toLowerCase()}">${r}</span>`).join('');
+        monthRows += `<div class="stat-row"><div class="fw-bold text-muted small" style="width:40px">${months[mIdx]}</div><div class="text-center" style="width:30px">${d.p}</div><div class="text-center" style="width:30px">${d.w}</div><div class="text-center fw-bold text-dark" style="width:30px">${d.pts}</div><div class="text-end" style="flex:1">${formDots}</div></div>`;
+    });
+
+    document.getElementById('psName').innerText = name.toUpperCase();
+    document.getElementById('psBody').innerHTML = `
+        <div class="text-center mb-3"><h1 class="display-4 fw-bold text-primary mb-0" style="letter-spacing:-2px">${pts}</h1><small class="text-muted text-uppercase fw-bold" style="font-size:0.65rem; letter-spacing:1px">Season ${year}</small></div>
+        <div class="row text-center mb-3 g-0 border rounded overflow-hidden shadow-sm"><div class="col-4 bg-light p-2 border-end"><div class="fw-bold">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div><div class="col-4 bg-light p-2 border-end"><div class="fw-bold">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div><div class="col-4 bg-light p-2"><div class="fw-bold">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div></div>
+        <h6 class="small fw-bold text-muted border-bottom pb-2 mb-0">MONTHLY BREAKDOWN</h6>
+        <div class="stat-row text-muted small" style="border:none; font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div><div class="text-end" style="flex:1">FORM</div></div>
+        ${monthRows}`;
+    new bootstrap.Modal(document.getElementById('playerStatsModal')).show();
+};
+
+// --- CANVAS GENERATOR ---
 window.downloadMatchImage = () => {
     const m = currentMatchForImage;
     if(!m) return;
     const canvas = document.getElementById('shareCanvas');
     const ctx = canvas.getContext('2d');
-    const logoImg = document.getElementById('leagueLogo');
     
-    // BG
-    ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, 1080, 1920);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = "https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49";
     
-    // LOGO - Top Center
-    if (logoImg && logoImg.complete) {
-        const logoWidth = 220;
-        const scale = logoWidth / logoImg.naturalWidth;
-        const logoHeight = logoImg.naturalHeight * scale;
-        ctx.drawImage(logoImg, 430, 80, logoWidth, logoHeight);
-    }
+    img.onload = () => {
+        ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, 1080, 1920);
+        ctx.drawImage(img, 430, 100, 220, 220); // Logo
 
-    // Header
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
-    ctx.fillText("ELDERLY SUPPORT", 540, 360);
-    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#94a3b8";
-    ctx.fillText(formatDate(m.date.toDate()), 540, 430);
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("ELDERLY SUPPORT", 540, 400);
+        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#94a3b8";
+        ctx.fillText(formatDate(m.date.toDate()), 540, 470);
 
-    // Content
-    if(m.type === 'Standard') {
-        const tA=m.teams[0], tB=m.teams[1];
-        ctx.font = "bold 250px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${tA.score} - ${tB.score}`, 540, 700);
+        if(m.type === 'Standard') {
+            const tA=m.teams[0], tB=m.teams[1];
+            ctx.font = "bold 250px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
+            ctx.fillText(`${tA.score} - ${tB.score}`, 540, 750);
+            
+            ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#60a5fa";
+            ctx.fillText(tA.teamName || "TEAM A", 540, 950);
+            ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
+            wrapText(ctx, tA.players.join(", "), 540, 1010, 900, 50);
+
+            ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#64748b"; ctx.fillText("VS", 540, 1200);
+
+            ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#f87171";
+            ctx.fillText(tB.teamName || "TEAM B", 540, 1350);
+            ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
+            wrapText(ctx, tB.players.join(", "), 540, 1410, 900, 50);
+        } else {
+            const r1 = m.teams.find(t=>t.rank===1);
+            ctx.font = "bold 120px Inter, sans-serif"; ctx.fillStyle = "#facc15";
+            ctx.fillText("TOURNAMENT WINNER", 540, 750);
+            
+            ctx.font = "bold 150px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
+            ctx.fillText(r1.teamName, 540, 950);
+            
+            ctx.font = "50px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
+            wrapText(ctx, r1.players.join(", "), 540, 1050, 900, 60);
+        }
         
-        ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#60a5fa";
-        ctx.fillText(tA.teamName || "TEAM A", 540, 900);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
-        wrapText(ctx, tA.players.join(", "), 540, 960, 900, 50);
+        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#475569";
+        ctx.fillText("Elderly Support League", 540, 1800);
 
-        ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#64748b"; ctx.fillText("VS", 540, 1150);
-
-        ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#f87171";
-        ctx.fillText(tB.teamName || "TEAM B", 540, 1300);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
-        wrapText(ctx, tB.players.join(", "), 540, 1360, 900, 50);
-
-    } else {
-        const r1 = m.teams.find(t=>t.rank===1);
-        ctx.font = "bold 120px Inter, sans-serif"; ctx.fillStyle = "#facc15";
-        ctx.fillText("WINNER", 540, 700);
-        
-        ctx.font = "bold 150px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
-        ctx.fillText(r1.teamName, 540, 900);
-        
-        ctx.font = "50px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
-        wrapText(ctx, r1.players.join(", "), 540, 1000, 900, 60);
-    }
-    
-    // Footer
-    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#475569";
-    ctx.fillText("Elderly Support League", 540, 1800);
-
-    try {
         const link = document.createElement('a');
         link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
         link.href = canvas.toDataURL("image/png");
         link.click();
-    } catch(e) { alert("Image Error (CORS)."); }
+    };
+    img.onerror = () => alert("Logo Load Error");
 };
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' '); let line = '';
     for(let n = 0; n < words.length; n++) {
         const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; }
+        if (ctx.measureText(testLine).width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; }
         else { line = testLine; }
     }
     ctx.fillText(line, x, y);
 }
 
-// LOGIC REMAINS SAME
+// SAVE + AUTH
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     if(!currentUser) return alert("Login needed");
@@ -249,10 +310,8 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
     
     const isEdit = document.getElementById('editMatchId').value !== "";
     const editingId = document.getElementById('editMatchId').value;
-    const batch = db.batch(); // Legacy logic keeper
 
     try {
-        // No reverse stats needed as we calc dynamic. Just overwrite doc.
         const type = document.querySelector('input[name="matchType"]:checked').value;
         const common = {
             date: new Date(document.getElementById('matchDate').value),
@@ -281,7 +340,6 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
                 m5:{a:v('t_m5_a'),c:v('t_m5_c')}, m6:{b:v('t_m6_b'),c:v('t_m6_c')}
             };
             let t = {A:{pts:0}, B:{pts:0}, C:{pts:0}};
-            // Calc internal simple ranks
             const proc = (k1,s1,k2,s2) => { if(s1>s2)t[k1].pts+=3; else if(s2>s1)t[k2].pts+=3; else {t[k1].pts++; t[k2].pts++;} };
             proc('A',f.m1.a,'B',f.m1.b); proc('A',f.m2.a,'C',f.m2.c); proc('B',f.m3.b,'C',f.m3.c);
             proc('A',f.m4.a,'B',f.m4.b); proc('A',f.m5.a,'C',f.m5.c); proc('B',f.m6.b,'C',f.m6.c);
@@ -299,7 +357,6 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         await docRef.set(matchData);
 
         cancelEditMode();
-        document.getElementById('addMatchForm').reset();
         document.getElementById('loadingOverlay').classList.add('d-none');
         alert("Saved!");
         bootstrap.Tab.getInstance(document.querySelector('button[data-bs-target="#matches"]')).show();
@@ -311,7 +368,7 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
     }
 });
 
-// Helpers
+// HELPERS
 document.getElementById('loginForm').addEventListener('submit', (e) => { e.preventDefault(); auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPass').value).then(()=>bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide()).catch(e=>alert(e.message)); });
 document.getElementById('logoutBtn').addEventListener('click', ()=>auth.signOut().then(()=>bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide()));
 
@@ -319,9 +376,9 @@ window.editMatch = (id, e) => {
     e.stopPropagation();
     const m = allMatches.find(x=>x.id===id); if(!m)return;
     new bootstrap.Tab(document.querySelector('button[data-bs-target="#admin"]')).show();
-    document.getElementById('formTitle').innerText = "Edit Match";
-    document.getElementById('saveBtn').innerText = "UPDATE";
-    document.getElementById('saveBtn').classList.replace('btn-primary', 'btn-warning');
+    document.getElementById('formTitle').innerText = "EDIT MATCH";
+    document.getElementById('saveBtn').innerText = "UPDATE RECORD";
+    document.getElementById('saveBtn').classList.replace('btn-dark', 'btn-warning');
     document.getElementById('cancelEditBtn').classList.remove('d-none');
     document.getElementById('editMatchId').value = id;
     document.getElementById('matchDate').value = m.date.toDate().toISOString().split('T')[0];
@@ -347,7 +404,11 @@ window.editMatch = (id, e) => {
     }
 };
 window.deleteMatch = (id, e) => { e.stopPropagation(); if(confirm("Delete?")) db.collection("matches").doc(id).delete(); };
-window.cancelEditMode = () => { document.getElementById('formTitle').innerText="New Entry"; document.getElementById('saveBtn').innerText="SAVE"; document.getElementById('saveBtn').classList.replace('btn-warning','btn-primary'); document.getElementById('cancelEditBtn').classList.add('d-none'); document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset(); selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k)); };
+window.cancelEditMode = () => { 
+    document.getElementById('formTitle').innerText="NEW MATCH ENTRY"; document.getElementById('saveBtn').innerText="SAVE RECORD"; document.getElementById('saveBtn').classList.replace('btn-warning','btn-dark'); document.getElementById('cancelEditBtn').classList.add('d-none'); document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset(); selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k));
+    // Clear Matrix Inputs Manually as reset() might miss them depending on dynamic values
+    document.querySelectorAll('.border input[type="number"]').forEach(i => i.value = "");
+};
 window.openMatchModal = (id) => { currentMatchForImage=allMatches.find(x=>x.id===id); openMatchModalLogic(id); }; 
 function openMatchModalLogic(id) { 
     const m=allMatches.find(x=>x.id===id); 
@@ -355,10 +416,10 @@ function openMatchModalLogic(id) {
     const date=formatDate(m.date.toDate());
     if(m.type==='Standard') {
         const tA=m.teams[0], tB=m.teams[1];
-        body.innerHTML=`<div class="text-center mb-3 text-muted">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${tA.teamName||'A'}</span><div class="display-4 fw-bold">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${tB.teamName||'B'}</span><div class="display-4 fw-bold">${tB.score}</div></div></div><div class="row text-center small"><div class="col-6 text-muted">${tA.players.join(', ')}</div><div class="col-6 text-muted">${tB.players.join(', ')}</div></div>`;
+        body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${tA.teamName||'A'}</span><div class="display-4 fw-bold">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${tB.teamName||'B'}</span><div class="display-4 fw-bold">${tB.score}</div></div></div><div class="row text-center small"><div class="col-6 text-muted">${tA.players.join(', ')}</div><div class="col-6 text-muted">${tB.players.join(', ')}</div></div>`;
     } else {
         const r1=m.teams.find(t=>t.rank===1),r2=m.teams.find(t=>t.rank===2),r3=m.teams.find(t=>t.rank===3);
-        body.innerHTML=`<div class="text-center mb-3 text-muted">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold">${r1.teamName}</h3><small class="text-muted">${r1.players.join(', ')}</small></div><ul class="list-group list-group-flush small"><li class="list-group-item d-flex justify-content-between"><span>2. ${r2.teamName}</span><span>${r2.players.join(', ')}</span></li><li class="list-group-item d-flex justify-content-between"><span>3. ${r3.teamName}</span><span>${r3.players.join(', ')}</span></li></ul>`;
+        body.innerHTML=`<div class="text-center mb-3 text-muted small">${date}</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold">${r1.teamName}</h3><small class="text-muted">${r1.players.join(', ')}</small></div><ul class="list-group list-group-flush small"><li class="list-group-item d-flex justify-content-between"><span>2. ${r2.teamName}</span><span>${r2.players.join(', ')}</span></li><li class="list-group-item d-flex justify-content-between"><span>3. ${r3.teamName}</span><span>${r3.players.join(', ')}</span></li></ul>`;
     }
     new bootstrap.Modal(document.getElementById('matchDetailModal')).show(); 
 }

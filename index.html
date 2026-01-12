@@ -9,45 +9,92 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root { --bg-color: #f8fafc; --primary: #0f172a; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: #1e293b; padding-bottom: 80px; }
+        :root { --bg: #f3f4f6; --dark: #111827; --card-bg: #ffffff; --primary: #2563eb; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--dark); padding-bottom: 80px; }
         
-        .hero { background: var(--primary); color: white; padding: 2rem 1rem 4rem; border-radius: 0 0 30px 30px; position: relative; }
-        .hero-title { font-weight: 800; letter-spacing: -0.5px; margin: 0; line-height: 1.1; }
+        /* HEADER RE-DESIGNED */
+        .brand-header { 
+            background: white; 
+            padding: 12px 20px; 
+            border-bottom: 1px solid #e5e7eb; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            position: sticky; top: 0; z-index: 100; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
         
-        /* Filters */
-        .filter-bar { background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: inline-flex; gap: 10px; position: relative; top: -25px; margin-bottom: -15px; align-items: center; }
-        .form-select-sm { border-radius: 8px; border: 1px solid #e2e8f0; font-weight: 600; color: #475569; }
+        .brand-left { display: flex; align-items: center; gap: 12px; }
+        .brand-logo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #f3f4f6; }
+        .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: #111; letter-spacing: -0.5px; line-height: 1.1; }
+        .brand-info small { font-size: 0.7rem; color: #6b7280; font-weight: 600; letter-spacing: 0.5px; }
 
-        /* Nav */
-        .nav-pills .nav-link { color: #64748b; font-weight: 600; border-radius: 10px; margin: 0 5px; }
-        .nav-pills .nav-link.active { background-color: var(--primary); color: white; }
+        .brand-right { display: flex; align-items: center; gap: 15px; }
+        .yt-icon { color: #dc2626; font-size: 1.8rem; transition: transform 0.2s; display: flex; align-items: center; }
+        .yt-icon:hover { transform: scale(1.1); color: #b91c1c; }
+        .auth-icon { color: #9ca3af; font-size: 1.2rem; cursor: pointer; transition: color 0.2s; }
+        .auth-icon:hover { color: #4b5563; }
+        .auth-icon.active { color: #10b981; }
 
-        /* Cards */
-        .custom-card { background: white; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; margin-bottom: 15px; }
-        .match-card { cursor: pointer; transition: transform 0.2s; }
-        .match-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        /* FILTERS */
+        .filter-container { padding: 15px 0; display: flex; gap: 8px; justify-content: center; }
+        .custom-select { border: 1px solid #e5e7eb; background: white; padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; color: #374151; cursor: pointer; }
+
+        /* NAV TABS */
+        .nav-pills { background: #e5e7eb; padding: 4px; border-radius: 10px; display: inline-flex; }
+        .nav-pills .nav-link { color: #6b7280; font-weight: 600; border-radius: 8px; padding: 6px 16px; font-size: 0.85rem; transition: all 0.2s; }
+        .nav-pills .nav-link.active { background-color: white; color: #111; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+        /* SOFASCORE CARDS */
+        .sofa-card { background: white; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; cursor: pointer; border: 1px solid #e5e7eb; transition: transform 0.15s; }
+        .sofa-card:active { transform: scale(0.98); background-color: #fafafa; }
         
-        /* Stats & Badges */
-        .form-badge { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.7rem; color: white; margin-right: 3px; }
-        .form-w { background: #22c55e; } .form-d { background: #94a3b8; } .form-l { background: #ef4444; }
+        .sofa-header { background: #f9fafb; padding: 8px 16px; font-size: 0.7rem; color: #6b7280; font-weight: 600; display: flex; justify-content: space-between; border-bottom: 1px solid #f3f4f6; text-transform: uppercase; letter-spacing: 0.5px; }
         
-        .admin-actions { padding: 8px; background: #f8fafc; border-top: 1px solid #eee; text-align: right; }
-        .badge-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-        .bg-yellow { background-color: #facc15; } .bg-blue { background-color: #3b82f6; } .bg-red { background-color: #ef4444; }
+        .sofa-body { padding: 12px 16px; display: flex; align-items: center; }
+        .match-content { flex: 1; }
         
-        /* Loading & Canvas */
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .team-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+        .t-name { font-weight: 600; font-size: 0.95rem; color: #374151; display: flex; align-items: center; }
+        .t-score { font-weight: 700; font-size: 1.1rem; color: #111; width: 30px; text-align: right; }
+        .t-winner { color: #000; } 
+        .t-loser { color: #9ca3af; }
+        
+        .match-meta { width: 50px; text-align: center; border-left: 1px solid #f3f4f6; margin-left: 12px; padding-left: 12px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+        .ft-badge { font-size: 0.65rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px; }
+        
+        /* Tournament Rows */
+        .tourn-item { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 2px 0; border-bottom: 1px dashed #f3f4f6; }
+        .tourn-item:last-child { border: none; }
+        .rank-box { width: 18px; height: 18px; background: #f3f4f6; color: #6b7280; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.65rem; margin-right: 8px; font-weight: bold; }
+        .rank-1 { background: #fef08a; color: #854d0e; }
+
+        /* Dots & Colors */
+        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; display: inline-block; }
+        .bg-y { background: #facc15; } .bg-b { background: #3b82f6; } .bg-r { background: #ef4444; }
+
+        /* Leaderboard */
+        .table-custom th { font-size: 0.7rem; color: #9ca3af; font-weight: 600; text-transform: uppercase; padding-top: 12px; padding-bottom: 12px; }
+        .table-custom td { vertical-align: middle; font-weight: 500; font-size: 0.9rem; padding: 10px 8px; }
+        .rank-circle { width: 24px; height: 24px; background: #f3f4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #6b7280; }
+        .r-1 { background: #fef08a; color: #854d0e; } .r-2 { background: #e5e7eb; color: #374151; } .r-3 { background: #fed7aa; color: #9a3412; }
+
+        /* Admin & Controls */
+        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .admin-controls { text-align: right; padding: 8px 16px; background: #f9fafb; border-top: 1px solid #f3f4f6; display: none; }
+        .show-admin .admin-controls { display: block; }
+        
         #shareCanvas { display: none; }
-        .youtube-link { color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; }
-        .youtube-link:hover { text-decoration: underline; }
         
-        /* Color Input */
+        /* Stats Modal */
+        .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
+        .form-dot { width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 0.6rem; font-weight: bold; margin-left: 2px; }
+        .f-w { background: #22c55e; } .f-d { background: #94a3b8; } .f-l { background: #ef4444; }
+        
+        /* Color Radio */
         .color-opt { display: none; }
         .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
-        .color-opt:checked + .color-label { opacity: 1; border-color: #333; transform: scale(1.1); }
-        
-        .player-tag { font-size:0.7rem; background:#fff; border:1px solid #ddd; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; }
+        .color-opt:checked + .color-label { opacity: 1; border-color: #111; transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -56,51 +103,48 @@
         <div class="spinner-border text-primary" role="status"></div>
     </div>
 
-    <div class="hero text-center">
-        <div class="position-absolute top-0 end-0 p-3" style="cursor: pointer; opacity: 0.8;" data-bs-toggle="modal" data-bs-target="#loginModal" id="authBtn">
-            <i class="fas fa-lock text-white"></i>
+    <div class="brand-header">
+        <div class="brand-left">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="brand-logo" id="leagueLogo" crossorigin="anonymous">
+            <div class="brand-info">
+                <h1>Elderly Support</h1>
+                <small>EST. 2020 | AMSTERDAM</small>
+            </div>
         </div>
-
-        <div class="d-flex justify-content-center align-items-center gap-3 pt-2">
-            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" 
-                 id="leagueLogo" 
-                 alt="Logo" 
-                 crossorigin="anonymous" 
-                 style="height: 65px; width: 65px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.2); object-fit: cover;">
-            
-            <div class="text-start">
-                <h2 class="hero-title">Elderly Support</h2>
-                <small class="opacity-75 d-block" style="font-size: 0.8rem; letter-spacing: 0.5px;">EST. 2020 | AMSTERDAM</small>
+        <div class="brand-right">
+            <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="yt-icon" title="Watch on YouTube">
+                <i class="fab fa-youtube"></i>
+            </a>
+            <div class="auth-icon" id="authBtn" data-bs-toggle="modal" data-bs-target="#loginModal" title="Admin Login">
+                <i class="fas fa-lock"></i>
             </div>
         </div>
     </div>
 
-    <div class="container text-center">
-        <div class="filter-bar">
-            <select id="filterYear" class="form-select form-select-sm" style="width: 90px;">
-                <option value="2026" selected>2026</option>
-                <option value="2027">2027</option>
-            </select>
-            <select id="filterMonth" class="form-select form-select-sm" style="width: 120px;">
-                <option value="all">All Year</option>
-                <option value="0">January</option>
-                <option value="1">February</option>
-                <option value="2">March</option>
-                <option value="3">April</option>
-                <option value="4">May</option>
-                <option value="5">June</option>
-                <option value="6">July</option>
-                <option value="7">August</option>
-                <option value="8">September</option>
-                <option value="9">October</option>
-                <option value="10">November</option>
-                <option value="11">December</option>
-            </select>
-        </div>
+    <div class="filter-container">
+        <select id="filterYear" class="custom-select">
+            <option value="2026" selected>2026</option>
+            <option value="2027">2027</option>
+        </select>
+        <select id="filterMonth" class="custom-select">
+            <option value="all">All Months</option>
+            <option value="0">January</option>
+            <option value="1">February</option>
+            <option value="2">March</option>
+            <option value="3">April</option>
+            <option value="4">May</option>
+            <option value="5">June</option>
+            <option value="6">July</option>
+            <option value="7">August</option>
+            <option value="8">September</option>
+            <option value="9">October</option>
+            <option value="10">November</option>
+            <option value="11">December</option>
+        </select>
     </div>
 
-    <div class="container mt-3 mb-3">
-        <ul class="nav nav-pills justify-content-center" id="myTab" role="tablist">
+    <div class="text-center mb-4">
+        <ul class="nav nav-pills" id="myTab" role="tablist">
             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#matches">Matches</button></li>
             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#leaderboard">Table</button></li>
             <li class="nav-item d-none" id="navNewEntry"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin">Admin</button></li>
@@ -112,43 +156,40 @@
             
             <div class="tab-pane fade show active" id="matches">
                 <div id="match-history-list">
-                    <div class="text-center py-5 text-muted">Loading matches...</div>
+                    <div class="text-center py-5 text-muted small"><i class="fas fa-circle-notch fa-spin me-2"></i>Loading matches...</div>
                 </div>
             </div>
 
             <div class="tab-pane fade" id="leaderboard">
-                <div class="custom-card shadow-sm">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="table-light small text-uppercase text-muted">
+                <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+                    <table class="table table-custom table-hover mb-0">
+                        <thead class="table-light">
                             <tr><th class="ps-3">#</th><th>Player</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center pe-3">Pts</th></tr>
                         </thead>
                         <tbody id="leaderboard-body"></tbody>
                     </table>
                 </div>
-                <div class="text-center mt-2 small text-muted"><i class="fas fa-info-circle"></i> Click player for details</div>
+                <div class="text-center mt-3 small text-muted"><i class="fas fa-chart-bar me-1"></i> Tap on a player for monthly analysis</div>
             </div>
 
             <div class="tab-pane fade" id="admin">
-                <div class="custom-card p-3 mb-3 bg-light border-primary border-opacity-25">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-primary"><i class="fas fa-database me-2"></i>Backup</span>
-                        <button class="btn btn-sm btn-outline-primary bg-white" onclick="exportToCSV()"><i class="fas fa-file-csv me-1"></i> Download CSV</button>
-                    </div>
+                <div class="d-flex justify-content-end mb-3">
+                    <button class="btn btn-sm btn-outline-dark bg-white shadow-sm" onclick="exportToCSV()"><i class="fas fa-file-csv me-1"></i> Download Data</button>
                 </div>
 
-                <div class="custom-card p-3">
+                <div class="card border-0 shadow-sm p-3">
                     <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                        <h5 class="fw-bold m-0" id="formTitle">New Entry</h5>
-                        <button class="btn btn-sm btn-outline-danger d-none" id="cancelEditBtn" onclick="cancelEditMode()">Cancel</button>
+                        <h6 class="fw-bold m-0" id="formTitle">NEW MATCH ENTRY</h6>
+                        <button class="btn btn-sm btn-outline-danger d-none py-0" id="cancelEditBtn" onclick="cancelEditMode()">Cancel Edit</button>
                     </div>
                     
                     <form id="addMatchForm">
                         <input type="hidden" id="editMatchId">
                         
                         <div class="row g-2 mb-3">
-                            <div class="col-6"><input type="date" class="form-control" id="matchDate" required></div>
+                            <div class="col-6"><input type="date" class="form-control form-control-sm" id="matchDate" required></div>
                             <div class="col-6">
-                                <input class="form-control" list="locList" id="matchLocation" placeholder="Location" required>
+                                <input class="form-control form-control-sm" list="locList" id="matchLocation" placeholder="Location" required>
                                 <datalist id="locList">
                                     <option value="Sporthal ROC Europaboulevard">
                                     <option value="Sporthal Calvijn">
@@ -156,10 +197,10 @@
                                     <option value="Sporthallen Zuid">
                                 </datalist>
                             </div>
-                            <div class="col-12"><input type="url" class="form-control" id="matchYoutube" placeholder="YouTube Link (Optional)"></div>
+                            <div class="col-12"><input type="url" class="form-control form-control-sm" id="matchYoutube" placeholder="YouTube Link (Optional)"></div>
                         </div>
 
-                        <div class="btn-group w-100 mb-3">
+                        <div class="btn-group w-100 mb-3 btn-group-sm">
                             <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
                             <label class="btn btn-outline-dark" for="typeStandard">Standard</label>
                             <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
@@ -167,34 +208,34 @@
                         </div>
 
                         <div id="standardSection">
-                            <div class="p-2 border rounded bg-light mb-2">
+                            <div class="p-2 border rounded mb-2 bg-light bg-opacity-50">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <div class="d-flex gap-1">
-                                        <input type="radio" name="colorA" value="yellow" class="btn-check" id="ca_y"><label class="btn btn-sm btn-outline-warning p-1" for="ca_y"></label>
-                                        <input type="radio" name="colorA" value="blue" class="btn-check" id="ca_b" checked><label class="btn btn-sm btn-outline-primary p-1" for="ca_b"></label>
-                                        <input type="radio" name="colorA" value="red" class="btn-check" id="ca_r"><label class="btn btn-sm btn-outline-danger p-1" for="ca_r"></label>
+                                        <input type="radio" name="colorA" value="yellow" class="color-opt" id="ca_y"><label class="color-label bg-y" for="ca_y"></label>
+                                        <input type="radio" name="colorA" value="blue" class="color-opt" id="ca_b" checked><label class="color-label bg-b" for="ca_b"></label>
+                                        <input type="radio" name="colorA" value="red" class="color-opt" id="ca_r"><label class="color-label bg-r" for="ca_r"></label>
                                     </div>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamA" placeholder="Team A">
+                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamA" placeholder="Team A Name">
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <input type="number" class="form-control fw-bold text-center" style="width:60px" id="scoreA" placeholder="0">
-                                    <input type="text" class="form-control" list="playerList" id="inputPlayerA" placeholder="+ Player">
+                                    <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreA" placeholder="0">
+                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerA" placeholder="+ Player">
                                 </div>
                                 <div id="listTeamA" class="d-flex flex-wrap mt-1"></div>
                             </div>
                             
-                            <div class="p-2 border rounded bg-light">
+                            <div class="p-2 border rounded bg-light bg-opacity-50">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <div class="d-flex gap-1">
-                                        <input type="radio" name="colorB" value="yellow" class="btn-check" id="cb_y"><label class="btn btn-sm btn-outline-warning p-1" for="cb_y"></label>
-                                        <input type="radio" name="colorB" value="blue" class="btn-check" id="cb_b"><label class="btn btn-sm btn-outline-primary p-1" for="cb_b"></label>
-                                        <input type="radio" name="colorB" value="red" class="btn-check" id="cb_r" checked><label class="btn btn-sm btn-outline-danger p-1" for="cb_r"></label>
+                                        <input type="radio" name="colorB" value="yellow" class="color-opt" id="cb_y"><label class="color-label bg-y" for="cb_y"></label>
+                                        <input type="radio" name="colorB" value="blue" class="color-opt" id="cb_b"><label class="color-label bg-b" for="cb_b"></label>
+                                        <input type="radio" name="colorB" value="red" class="color-opt" id="cb_r" checked><label class="color-label bg-r" for="cb_r"></label>
                                     </div>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamB" placeholder="Team B">
+                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamB" placeholder="Team B Name">
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <input type="number" class="form-control fw-bold text-center" style="width:60px" id="scoreB" placeholder="0">
-                                    <input type="text" class="form-control" list="playerList" id="inputPlayerB" placeholder="+ Player">
+                                    <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreB" placeholder="0">
+                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerB" placeholder="+ Player">
                                 </div>
                                 <div id="listTeamB" class="d-flex flex-wrap mt-1"></div>
                             </div>
@@ -202,22 +243,22 @@
 
                         <div id="tournamentSection" class="d-none">
                             <div class="row g-1 mb-2">
-                                <div class="col-4"><div class="p-1 border rounded text-center bg-warning bg-opacity-25"><small class="fw-bold">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border rounded text-center bg-primary bg-opacity-25"><small class="fw-bold">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border rounded text-center bg-danger bg-opacity-25"><small class="fw-bold">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border rounded text-center bg-warning bg-opacity-10"><small class="fw-bold d-block">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border rounded text-center bg-primary bg-opacity-10"><small class="fw-bold d-block">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border rounded text-center bg-danger bg-opacity-10"><small class="fw-bold d-block">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
                             </div>
-                            <div class="border rounded p-2 bg-white small">
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border" style="width:25px" id="t_m1_a">-<input type="number" class="text-center border" style="width:25px" id="t_m1_b"><span class="badge bg-primary">B</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border" style="width:25px" id="t_m2_a">-<input type="number" class="text-center border" style="width:25px" id="t_m2_c"><span class="badge bg-danger">R</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center border" style="width:25px" id="t_m3_b">-<input type="number" class="text-center border" style="width:25px" id="t_m3_c"><span class="badge bg-danger">R</span></div>
+                            <div class="border rounded p-2 bg-light small">
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m1_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m1_b"><span class="badge bg-primary">B</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m2_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m2_c"><span class="badge bg-danger">R</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m3_b">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m3_c"><span class="badge bg-danger">R</span></div>
                                 <hr class="my-1">
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border" style="width:25px" id="t_m4_a">-<input type="number" class="text-center border" style="width:25px" id="t_m4_b"><span class="badge bg-primary">B</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border" style="width:25px" id="t_m5_a">-<input type="number" class="text-center border" style="width:25px" id="t_m5_c"><span class="badge bg-danger">R</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center border" style="width:25px" id="t_m6_b">-<input type="number" class="text-center border" style="width:25px" id="t_m6_c"><span class="badge bg-danger">R</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m4_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m4_b"><span class="badge bg-primary">B</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m5_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m5_c"><span class="badge bg-danger">R</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m6_b">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m6_c"><span class="badge bg-danger">R</span></div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary w-100 mt-3 py-2 fw-bold rounded-pill shadow" id="saveBtn">Save Match</button>
+                        <button type="submit" class="btn btn-dark w-100 mt-3 py-2 fw-bold rounded-pill shadow-sm" id="saveBtn">SAVE RECORD</button>
                     </form>
                     <datalist id="playerList"></datalist>
                 </div>
@@ -228,28 +269,15 @@
     <div class="modal fade" id="loginModal" tabindex="-1">
         <div class="modal-dialog modal-sm modal-dialog-centered">
             <div class="modal-content rounded-4 border-0 p-4">
-                <h5 class="fw-bold text-center">Staff Access</h5>
+                <h6 class="fw-bold text-center mb-3 text-muted">ADMIN AREA</h6>
                 <form id="loginForm">
                     <input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required>
                     <input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required>
-                    <button type="submit" class="btn btn-dark w-100">Login</button>
+                    <button type="submit" class="btn btn-primary w-100 rounded-pill">Login</button>
                 </form>
                 <div id="userInfo" class="d-none text-center">
-                    <small id="userEmailDisplay" class="d-block mb-2 text-muted"></small>
-                    <button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="matchDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0">
-                <div class="modal-body" id="modalBody"></div>
-                <div class="modal-footer border-0 pt-0">
-                    <button class="btn btn-success w-100 rounded-pill fw-bold shadow-sm" onclick="downloadMatchImage()">
-                        <i class="fab fa-instagram me-2"></i>Download Story Image
-                    </button>
+                    <small id="userEmailDisplay" class="d-block mb-3 text-muted"></small>
+                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill" id="logoutBtn">Logout</button>
                 </div>
             </div>
         </div>
@@ -262,7 +290,20 @@
                     <h5 class="modal-title fw-bold" id="psName">Player</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body pt-2" id="psBody"></div>
+                <div class="modal-body pt-3" id="psBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="matchDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0">
+                <div class="modal-body" id="modalBody"></div>
+                <div class="modal-footer border-0 pt-0">
+                    <button class="btn btn-success w-100 rounded-pill fw-bold" onclick="downloadMatchImage()">
+                        <i class="fab fa-instagram me-2"></i> Download Story Image
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -274,5 +315,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app.js"></script>
+    <style>.player-tag { font-size:0.7rem; background:#fff; border:1px solid #e5e7eb; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; font-weight: 500; }</style>
 </body>
 </html>
