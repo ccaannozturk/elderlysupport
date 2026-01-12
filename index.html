@@ -2,217 +2,199 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Elderly Support League</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root { --primary-bg: #f2f4f8; --card-bg: #ffffff; --accent-blue: #00112c; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--primary-bg); color: #1a1f36; padding-bottom: 80px; }
+        :root { --bg-color: #f4f6f8; --primary: #00112c; --accent: #3b82f6; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: #1e293b; padding-bottom: 80px; }
         
-        .hero-section { background: var(--accent-blue); color: white; padding: 2rem 1rem 3.5rem 1rem; border-radius: 0 0 24px 24px; }
+        /* Header */
+        .hero { background: var(--primary); color: white; padding: 2rem 1rem 3rem; border-radius: 0 0 24px 24px; position: relative; }
+        .hero-stats { font-size: 0.8rem; opacity: 0.8; letter-spacing: 1px; text-transform: uppercase; }
         
-        .nav-pills { background: white; padding: 0.4rem; border-radius: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: inline-flex; position: relative; top: -20px; margin-bottom: 0; }
-        .nav-pills .nav-link { border-radius: 10px; color: #6c757d; font-weight: 600; padding: 8px 20px; font-size: 0.9rem; }
-        .nav-pills .nav-link.active { background-color: var(--accent-blue); color: white; }
+        /* Navigation */
+        .nav-float { background: white; padding: 0.5rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: inline-flex; position: relative; top: -25px; margin-bottom: -10px; }
+        .nav-pills .nav-link { color: #64748b; font-weight: 600; border-radius: 10px; padding: 8px 20px; transition: all 0.2s; }
+        .nav-pills .nav-link.active { background-color: var(--primary); color: white; }
+        .nav-pills .nav-link i { margin-right: 6px; }
 
-        .custom-card { background: var(--card-bg); border-radius: 16px; border: none; box-shadow: 0 2px 8px rgba(0,0,0,0.03); padding: 1.2rem; margin-bottom: 1rem; }
+        /* Match History Cards (NEW) */
+        .match-card { background: white; border-radius: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 1rem; overflow: hidden; position: relative; border: 1px solid #e2e8f0; transition: transform 0.1s; }
+        .match-card:active { transform: scale(0.99); }
+        .match-header { background: #f8fafc; padding: 8px 15px; font-size: 0.75rem; color: #64748b; font-weight: 600; display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; }
+        .match-body { padding: 15px; display: flex; align-items: center; justify-content: space-between; }
         
-        /* Leaderboard */
-        .table-custom th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: #8898aa; background: transparent; border-bottom: 1px solid #eee; }
-        .table-custom td { vertical-align: middle; padding: 0.8rem 0.4rem; font-weight: 500; font-size: 0.9rem; border-bottom: 1px solid #f9f9f9; }
-        .rank-circle { width: 26px; height: 26px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
-        .rank-1 { background: #FFD700; color: white; } .rank-2 { background: #C0C0C0; color: white; } .rank-3 { background: #CD7F32; color: white; }
-
-        /* Matches History */
-        .match-card { cursor: pointer; transition: transform 0.15s; position: relative; overflow: hidden; }
-        .match-card:active { transform: scale(0.98); }
-        .match-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #ddd; }
-        .match-card.type-Standard::before { background: #0d6efd; }
-        .match-card.type-Tournament::before { background: #ffc107; }
+        .team-display { display: flex; flex-direction: column; align-items: center; width: 35%; text-align: center; }
+        .team-name { font-weight: 700; font-size: 0.9rem; line-height: 1.2; margin-bottom: 4px; }
+        .team-players { font-size: 0.7rem; color: #64748b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .score-display { font-size: 1.8rem; font-weight: 800; color: var(--primary); width: 30%; text-align: center; letter-spacing: -1px; }
         
-        .score-display { font-size: 1.5rem; font-weight: 800; letter-spacing: -1px; }
-
-        /* Tournament Inputs */
-        .team-section { border-radius: 12px; padding: 12px; margin-bottom: 10px; border: 1px solid #eee; }
-        .team-blue { background: #e7f1ff; border-color: #b6d4fe; }
-        .team-red { background: #ffe7e7; border-color: #ffb6b6; }
-        .team-yellow { background: #fff9e6; border-color: #ffecb5; }
+        /* Color Badges */
+        .badge-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+        .bg-yellow { background-color: #fbbf24; } .bg-blue { background-color: #3b82f6; } .bg-red { background-color: #ef4444; }
         
-        .fixture-input { width: 50px; text-align: center; border: 1px solid #ccc; border-radius: 6px; padding: 4px; font-weight: bold; }
+        /* Tournament Rank List */
+        .tourn-rank-row { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 4px 0; border-bottom: 1px dashed #f1f5f9; }
+        .tourn-rank-row:last-child { border: none; }
+        
+        /* Auth Button */
+        .auth-btn { position: absolute; top: 15px; right: 15px; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 1.2rem; }
+        .auth-btn:hover { color: white; }
 
-        /* Player Tags */
-        .player-tag { background: white; border: 1px solid #eee; padding: 4px 10px; border-radius: 50px; font-size: 0.8rem; display: inline-flex; align-items: center; margin: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        /* Edit/Delete Buttons */
+        .admin-controls { display: none; padding-top: 10px; border-top: 1px solid #eee; margin-top: 10px; text-align: right; }
+        .show-admin .admin-controls { display: block; }
+
+        /* Color Selector for Input */
+        .color-selector input[type="radio"] { display: none; }
+        .color-selector label { width: 30px; height: 30px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.5; margin: 0 5px; }
+        .color-selector input:checked + label { border-color: #000; opacity: 1; transform: scale(1.1); }
     </style>
 </head>
 <body>
 
-    <div class="hero-section text-center">
+    <div class="hero text-center">
+        <div class="auth-btn" id="authBtn" data-bs-toggle="modal" data-bs-target="#loginModal"><i class="fas fa-lock"></i></div>
         <h2 class="fw-bold m-0"><i class="fas fa-futbol me-2"></i>Elderly Support</h2>
-        <small class="opacity-75">League Manager</small>
+        <div class="hero-stats mt-2">Amstelveen League</div>
     </div>
 
-    <div class="container">
-        <div class="d-flex justify-content-center">
+    <div class="container text-center">
+        <div class="nav-float">
             <ul class="nav nav-pills" id="myTab" role="tablist">
-                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#leaderboard">Table</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#matches">Matches</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin">New Entry</button></li>
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#matches"><i class="fas fa-history"></i>Matches</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#leaderboard"><i class="fas fa-trophy"></i>Table</button></li>
+                <li class="nav-item d-none" id="navNewEntry"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin"><i class="fas fa-plus-circle"></i>Entry</button></li>
             </ul>
         </div>
+    </div>
 
-        <div class="tab-content pt-3">
+    <div class="container pt-4">
+        <div class="tab-content">
             
-            <div class="tab-pane fade show active" id="leaderboard">
-                <div class="custom-card p-0 overflow-hidden">
-                    <table class="table table-custom table-hover m-0">
-                        <thead>
-                            <tr>
-                                <th class="ps-3">#</th> <th>Player</th> <th class="text-center">P</th> <th class="text-center">W</th> <th class="text-center">GD</th> <th class="text-center pe-3 text-primary">Pts</th>
-                            </tr>
+            <div class="tab-pane fade show active" id="matches">
+                <div id="match-history-list">
+                    </div>
+            </div>
+
+            <div class="tab-pane fade" id="leaderboard">
+                <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                    <table class="table table-hover mb-0" style="font-size: 0.9rem;">
+                        <thead class="table-light text-uppercase text-muted" style="font-size: 0.75rem;">
+                            <tr><th class="ps-3">#</th><th>Player</th><th class="text-center">W</th><th class="text-center">GD</th><th class="text-center pe-3">Pts</th></tr>
                         </thead>
-                        <tbody id="leaderboard-body">
-                            <tr><td colspan="6" class="text-center py-4 text-muted">Loading...</td></tr>
-                        </tbody>
+                        <tbody id="leaderboard-body"></tbody>
                     </table>
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="matches">
-                <div id="match-history-list"></div>
-            </div>
-
             <div class="tab-pane fade" id="admin">
-                <div class="custom-card">
+                <div class="card border-0 shadow-sm rounded-4 p-3">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">New Match Entry</h5>
                     <form id="addMatchForm">
                         <div class="row g-2 mb-3">
                             <div class="col-6">
-                                <label class="small text-muted fw-bold">Date</label>
+                                <label class="small fw-bold text-muted">Date</label>
                                 <input type="date" class="form-control" id="matchDate" required>
                             </div>
                             <div class="col-6">
-                                <label class="small text-muted fw-bold">Location</label>
-                                <input class="form-control" list="locationOptions" id="matchLocation" placeholder="Select..." required>
-                                <datalist id="locationOptions">
+                                <label class="small fw-bold text-muted">Location</label>
+                                <input class="form-control" list="locList" id="matchLocation" required>
+                                <datalist id="locList">
                                     <option value="Sporthal ROC Europaboulevard">
                                     <option value="Sporthal Calvijn">
                                     <option value="Sportgebouw Bibian Mentel">
                                     <option value="Sporthallen Zuid">
                                 </datalist>
                             </div>
-                            <div class="col-12">
-                                <label class="small text-muted fw-bold">YouTube (Optional)</label>
-                                <input type="url" class="form-control" id="matchYoutube" placeholder="https://youtube.com/...">
-                            </div>
+                            <div class="col-12"><input type="url" class="form-control" id="matchYoutube" placeholder="YouTube Link (Optional)"></div>
                         </div>
 
-                        <div class="d-flex justify-content-center mb-4">
-                            <div class="btn-group w-100" role="group">
-                                <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
-                                <label class="btn btn-outline-primary" for="typeStandard">Standard</label>
-                                
-                                <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
-                                <label class="btn btn-outline-warning text-dark" for="typeTournament">Tournament</label>
-                            </div>
+                        <div class="btn-group w-100 mb-4">
+                            <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
+                            <label class="btn btn-outline-dark" for="typeStandard">Standard</label>
+                            <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
+                            <label class="btn btn-outline-dark" for="typeTournament">Tournament</label>
                         </div>
 
                         <div id="standardSection">
-                            <div class="row g-2">
-                                <div class="col-6">
-                                    <div class="team-section team-blue h-100">
-                                        <div class="fw-bold text-primary mb-2">BLUE TEAM</div>
-                                        <input type="number" class="form-control mb-2 fw-bold text-center fs-4" id="scoreA" placeholder="0">
-                                        <input type="text" class="form-control form-control-sm mb-2 bg-white" id="nameTeamA" placeholder="Name (Opt)">
-                                        <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerA" placeholder="+ Player">
-                                        <div id="listTeamA" class="d-flex flex-wrap mt-2"></div>
+                            <div class="border rounded p-2 mb-2 bg-light">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="color-selector">
+                                        <input type="radio" name="colorA" id="cA_y" value="yellow"><label for="cA_y" class="bg-yellow"></label>
+                                        <input type="radio" name="colorA" id="cA_b" value="blue" checked><label for="cA_b" class="bg-blue"></label>
+                                        <input type="radio" name="colorA" id="cA_r" value="red"><label for="cA_r" class="bg-red"></label>
                                     </div>
+                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamA" placeholder="Team A Name">
                                 </div>
-                                <div class="col-6">
-                                    <div class="team-section team-red h-100">
-                                        <div class="fw-bold text-danger mb-2">RED TEAM</div>
-                                        <input type="number" class="form-control mb-2 fw-bold text-center fs-4" id="scoreB" placeholder="0">
-                                        <input type="text" class="form-control form-control-sm mb-2 bg-white" id="nameTeamB" placeholder="Name (Opt)">
-                                        <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerB" placeholder="+ Player">
-                                        <div id="listTeamB" class="d-flex flex-wrap mt-2"></div>
+                                <div class="d-flex gap-2">
+                                    <input type="number" class="form-control fw-bold text-center fs-5" style="width: 70px;" id="scoreA" placeholder="0">
+                                    <input type="text" class="form-control" list="playerList" id="inputPlayerA" placeholder="+ Player">
+                                </div>
+                                <div id="listTeamA" class="d-flex flex-wrap mt-1"></div>
+                            </div>
+                            
+                            <div class="border rounded p-2 bg-light">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div class="color-selector">
+                                        <input type="radio" name="colorB" id="cB_y" value="yellow"><label for="cB_y" class="bg-yellow"></label>
+                                        <input type="radio" name="colorB" id="cB_b" value="blue"><label for="cB_b" class="bg-blue"></label>
+                                        <input type="radio" name="colorB" id="cB_r" value="red" checked><label for="cB_r" class="bg-red"></label>
                                     </div>
+                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamB" placeholder="Team B Name">
                                 </div>
+                                <div class="d-flex gap-2">
+                                    <input type="number" class="form-control fw-bold text-center fs-5" style="width: 70px;" id="scoreB" placeholder="0">
+                                    <input type="text" class="form-control" list="playerList" id="inputPlayerB" placeholder="+ Player">
+                                </div>
+                                <div id="listTeamB" class="d-flex flex-wrap mt-1"></div>
                             </div>
                         </div>
 
                         <div id="tournamentSection" class="d-none">
-                            <div class="alert alert-light border small p-2 mb-3 text-center">
-                                <i class="fas fa-info-circle"></i> Fill teams, then enter 6 match scores.
-                            </div>
-                            
-                            <div class="team-section team-yellow mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="fw-bold text-warning text-dark"><i class="fas fa-square text-warning border border-dark"></i> YELLOW TEAM</span>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTournA" placeholder="Custom Name">
+                            <div class="row g-2 mb-3">
+                                <div class="col-4">
+                                    <div class="p-2 border rounded bg-warning bg-opacity-25 text-center">
+                                        <div class="fw-bold small">YELLOW</div>
+                                        <input type="text" class="form-control form-control-sm mb-1 p-0 text-center" id="nameTournA" placeholder="Name">
+                                        <input type="text" class="form-control form-control-sm p-0 text-center" list="playerList" id="inputPlayerTournA" placeholder="+">
+                                        <div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div>
+                                    </div>
                                 </div>
-                                <input type="text" class="form-control form-control-sm mt-2" list="playerList" id="inputPlayerTournA" placeholder="+ Add Player">
-                                <div id="listTeamTournA" class="d-flex flex-wrap mt-1"></div>
-                            </div>
-
-                            <div class="team-section team-blue mb-2">
-                                <div class="d-flex justify-content-between">
-                                    <span class="fw-bold text-primary"><i class="fas fa-square text-primary"></i> BLUE TEAM</span>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTournB" placeholder="Custom Name">
+                                <div class="col-4">
+                                    <div class="p-2 border rounded bg-primary bg-opacity-25 text-center">
+                                        <div class="fw-bold small">BLUE</div>
+                                        <input type="text" class="form-control form-control-sm mb-1 p-0 text-center" id="nameTournB" placeholder="Name">
+                                        <input type="text" class="form-control form-control-sm p-0 text-center" list="playerList" id="inputPlayerTournB" placeholder="+">
+                                        <div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div>
+                                    </div>
                                 </div>
-                                <input type="text" class="form-control form-control-sm mt-2" list="playerList" id="inputPlayerTournB" placeholder="+ Add Player">
-                                <div id="listTeamTournB" class="d-flex flex-wrap mt-1"></div>
-                            </div>
-
-                            <div class="team-section team-red mb-3">
-                                <div class="d-flex justify-content-between">
-                                    <span class="fw-bold text-danger"><i class="fas fa-square text-danger"></i> RED TEAM</span>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTournC" placeholder="Custom Name">
+                                <div class="col-4">
+                                    <div class="p-2 border rounded bg-danger bg-opacity-25 text-center">
+                                        <div class="fw-bold small">RED</div>
+                                        <input type="text" class="form-control form-control-sm mb-1 p-0 text-center" id="nameTournC" placeholder="Name">
+                                        <input type="text" class="form-control form-control-sm p-0 text-center" list="playerList" id="inputPlayerTournC" placeholder="+">
+                                        <div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div>
+                                    </div>
                                 </div>
-                                <input type="text" class="form-control form-control-sm mt-2" list="playerList" id="inputPlayerTournC" placeholder="+ Add Player">
-                                <div id="listTeamTournC" class="d-flex flex-wrap mt-1"></div>
                             </div>
 
-                            <div class="card p-3 border-0 bg-white shadow-sm">
-                                <h6 class="fw-bold border-bottom pb-2 mb-3">Match Results</h6>
-                                
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <span class="badge bg-warning text-dark text-wrap" style="width:70px">Yellow</span>
-                                    <div><input type="number" class="fixture-input" id="t_m1_a"> - <input type="number" class="fixture-input" id="t_m1_b"></div>
-                                    <span class="badge bg-primary text-wrap" style="width:70px">Blue</span>
-                                </div>
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <span class="badge bg-warning text-dark text-wrap" style="width:70px">Yellow</span>
-                                    <div><input type="number" class="fixture-input" id="t_m2_a"> - <input type="number" class="fixture-input" id="t_m2_c"></div>
-                                    <span class="badge bg-danger text-wrap" style="width:70px">Red</span>
-                                </div>
-                                <div class="d-flex align-items-center justify-content-between mb-2 border-bottom pb-2">
-                                    <span class="badge bg-primary text-wrap" style="width:70px">Blue</span>
-                                    <div><input type="number" class="fixture-input" id="t_m3_b"> - <input type="number" class="fixture-input" id="t_m3_c"></div>
-                                    <span class="badge bg-danger text-wrap" style="width:70px">Red</span>
-                                </div>
-                                
-                                <div class="d-flex align-items-center justify-content-between mb-2 pt-2">
-                                    <span class="badge bg-warning text-dark text-wrap" style="width:70px">Yellow</span>
-                                    <div><input type="number" class="fixture-input" id="t_m4_a"> - <input type="number" class="fixture-input" id="t_m4_b"></div>
-                                    <span class="badge bg-primary text-wrap" style="width:70px">Blue</span>
-                                </div>
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <span class="badge bg-warning text-dark text-wrap" style="width:70px">Yellow</span>
-                                    <div><input type="number" class="fixture-input" id="t_m5_a"> - <input type="number" class="fixture-input" id="t_m5_c"></div>
-                                    <span class="badge bg-danger text-wrap" style="width:70px">Red</span>
-                                </div>
-                                <div class="d-flex align-items-center justify-content-between">
-                                    <span class="badge bg-primary text-wrap" style="width:70px">Blue</span>
-                                    <div><input type="number" class="fixture-input" id="t_m6_b"> - <input type="number" class="fixture-input" id="t_m6_c"></div>
-                                    <span class="badge bg-danger text-wrap" style="width:70px">Red</span>
-                                </div>
+                            <div class="bg-white border rounded p-3">
+                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-warning text-dark">YEL</span> <span><input type="number" class="fixture-input" id="t_m1_a">-<input type="number" class="fixture-input" id="t_m1_b"></span> <span class="badge bg-primary">BLU</span></div>
+                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-warning text-dark">YEL</span> <span><input type="number" class="fixture-input" id="t_m2_a">-<input type="number" class="fixture-input" id="t_m2_c"></span> <span class="badge bg-danger">RED</span></div>
+                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-primary">BLU</span> <span><input type="number" class="fixture-input" id="t_m3_b">-<input type="number" class="fixture-input" id="t_m3_c"></span> <span class="badge bg-danger">RED</span></div>
+                                <hr class="my-1">
+                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-warning text-dark">YEL</span> <span><input type="number" class="fixture-input" id="t_m4_a">-<input type="number" class="fixture-input" id="t_m4_b"></span> <span class="badge bg-primary">BLU</span></div>
+                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-warning text-dark">YEL</span> <span><input type="number" class="fixture-input" id="t_m5_a">-<input type="number" class="fixture-input" id="t_m5_c"></span> <span class="badge bg-danger">RED</span></div>
+                                <div class="d-flex justify-content-between mb-1"><span class="badge bg-primary">BLU</span> <span><input type="number" class="fixture-input" id="t_m6_b">-<input type="number" class="fixture-input" id="t_m6_c"></span> <span class="badge bg-danger">RED</span></div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-dark w-100 mt-4 py-3 fw-bold rounded-4 shadow">
-                            SAVE MATCH RESULT
-                        </button>
+                        <button type="submit" class="btn btn-primary w-100 mt-3 py-3 fw-bold rounded-pill shadow-sm">SAVE MATCH</button>
                     </form>
                     <datalist id="playerList"></datalist>
                 </div>
@@ -220,27 +202,37 @@
         </div>
     </div>
 
-    <div class="modal fade" id="matchDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="loginModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content rounded-4 border-0 p-3">
+                <h5 class="fw-bold text-center mb-3">Admin Access</h5>
+                <form id="loginForm">
+                    <input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required>
+                    <input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required>
+                    <button type="submit" class="btn btn-dark w-100">Login</button>
+                </form>
+                <button id="logoutBtn" class="btn btn-outline-danger w-100 mt-2 d-none">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="matchDetailModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rounded-4 border-0">
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold" id="modalDateLoc">Match Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="modalBody">
-                    </div>
-                <div class="modal-footer border-0 pt-0">
-                    <a id="modalYoutube" href="#" target="_blank" class="btn btn-danger w-100 d-none">
-                        <i class="fab fa-youtube me-2"></i> Watch on YouTube
-                    </a>
-                </div>
+                <div class="modal-body" id="modalBody"></div>
             </div>
         </div>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app.js"></script>
+    
+    <style>
+        .fixture-input { width: 30px; text-align: center; border:1px solid #ddd; margin: 0 2px; }
+        .player-tag { font-size: 0.75rem; background:#fff; border:1px solid #eee; padding:2px 8px; border-radius:12px; margin:1px; display:inline-block; }
+    </style>
 </body>
 </html>
