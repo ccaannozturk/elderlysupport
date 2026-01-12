@@ -1,147 +1,245 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Elderly League</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <title>Elderly Support League</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root { 
+            --bg-body: #121212; 
+            --bg-card: #1e1e1e; 
+            --text-main: #e0e0e0; 
+            --text-muted: #9ca3af;
+            --border: #2f3336;
+            --accent: #3b82f6; 
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
+        
+        /* HEADER */
+        .brand-header { 
+            background: var(--bg-card); padding: 12px 20px; border-bottom: 1px solid var(--border); 
+            display: flex; align-items: center; justify-content: space-between; 
+            position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        .logo-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #333; }
+        .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: white; letter-spacing: -0.5px; }
+        .brand-info small { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 1px; font-weight: 600; }
+        
+        .header-actions { display: flex; gap: 15px; align-items: center; }
+        .yt-icon { color: #ef4444; font-size: 1.6rem; transition: transform 0.2s; }
+        .yt-icon:hover { transform: scale(1.1); color: #ff0000; }
+        .auth-icon { color: #555; font-size: 1.2rem; cursor: pointer; }
+        .auth-icon.active { color: #10b981; }
 
-  <!-- App Meta -->
-  <meta name="theme-color" content="#0f172a" />
-  <meta name="description" content="Elderly League – Match history & leaderboard" />
+        /* CONTROLS */
+        .filter-select { background: var(--bg-card); color: white; border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+        .nav-pills .nav-link { color: var(--text-muted); font-weight: 600; border-radius: 8px; }
+        .nav-pills .nav-link.active { background-color: var(--bg-card); color: white; border: 1px solid var(--border); }
 
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-    rel="stylesheet"
-  />
+        /* MATCH CARD */
+        .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
+        .match-card:hover { transform: translateY(-2px); border-color: #444; }
+        .card-top { background: #252525; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .card-body-strip { padding: 16px; display: flex; align-items: center; }
+        
+        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .t-name { font-weight: 600; font-size: 0.95rem; color: white; display: flex; align-items: center; gap: 8px; }
+        .t-score { font-weight: 700; font-size: 1.1rem; color: white; }
+        .t-loser { opacity: 0.5; }
+        
+        .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
+        .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
 
-  <!-- Base Styles -->
-  <style>
-    :root {
-      --bg: #020617;
-      --panel: #020617;
-      --card: #020617;
-      --text: #e5e7eb;
-      --muted: #94a3b8;
-      --border: #1e293b;
-      --accent: #38bdf8;
-    }
+        /* TOURNAMENT */
+        .tourn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed #333; }
+        .tourn-row:last-child { border: none; }
+        .rank-badge { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-right: 8px; background: #333; color: white; }
+        .rank-1 { background: #facc15; color: black; }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: "Inter", system-ui, sans-serif;
-    }
+        /* LEADERBOARD */
+        .table-dark-custom th { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border); }
+        .table-dark-custom td { vertical-align: middle; padding: 12px 8px; border-bottom-color: var(--border); font-weight: 500; }
+        .rank-circle { width: 24px; height: 24px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
+        .r-1 { background: #facc15; color: #000; border: none; } 
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
+        /* ADMIN */
+        .admin-actions { background: rgba(0,0,0,0.3); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border); display: none; }
+        .show-admin .admin-actions { display: block; }
+        .form-control, .form-select { background-color: #2c2c2c; border: 1px solid #444; color: white; }
+        .form-control:focus { background-color: #333; color: white; border-color: #666; box-shadow: none; }
 
-    header {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    header img {
-      height: 36px;
-      width: auto;
-    }
-
-    header h1 {
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    main {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    section {
-      margin-bottom: 28px;
-    }
-
-    section h2 {
-      font-size: 15px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--text);
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px;
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 13px;
-    }
-
-    /* Responsive */
-    @media (max-width: 640px) {
-      main {
-        padding: 14px;
-      }
-    }
-  </style>
+        /* UTILS */
+        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; }
+        #shareCanvas { display: none; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .bg-y { background: #facc15; } .bg-b { background: #3b82f6; } .bg-r { background: #ef4444; }
+        .color-opt { display: none; }
+        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
+        .color-opt:checked + .color-label { opacity: 1; border-color: white; transform: scale(1.1); }
+        .player-tag { font-size:0.75rem; background:#333; border:1px solid #444; padding:2px 8px; border-radius:12px; margin:2px; display:inline-block; }
+    </style>
 </head>
-
 <body>
-  <!-- ================= HEADER ================= -->
-  <header>
-    <!-- Logo: path sabit -->
-    <img id="app-logo" alt="Elderly League Logo" />
-    <h1>Elderly League</h1>
-  </header>
 
-  <!-- ================= MAIN ================= -->
-  <main>
+    <div id="loadingOverlay" class="d-none"><div class="spinner-border text-light"></div></div>
 
-    <!-- LEADERBOARD -->
-    <section>
-      <h2>Leaderboard</h2>
-      <div id="leaderboard" class="card muted">
-        Loading leaderboard...
-      </div>
-    </section>
+    <div class="brand-header">
+        <div class="d-flex align-items-center gap-3">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo" crossorigin="anonymous">
+            <div class="brand-info">
+                <h1>Elderly Support</h1>
+                <small>EST. 2020 | AMSTERDAM</small>
+            </div>
+        </div>
+        <div class="header-actions">
+            <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="yt-icon"><i class="fab fa-youtube"></i></a>
+            <div class="auth-icon" id="authBtn" data-bs-toggle="modal" data-bs-target="#loginModal"><i class="fas fa-lock"></i></div>
+        </div>
+    </div>
 
-    <!-- MATCHES -->
-    <section>
-      <h2>Matches</h2>
-      <div id="matches" class="card muted">
-        Loading matches...
-      </div>
-    </section>
+    <div class="container py-4 text-center">
+        <div class="d-inline-flex gap-2">
+            <select id="filterYear" class="filter-select">
+                <option value="2026" selected>2026</option>
+                <option value="2027">2027</option>
+            </select>
+            <select id="filterMonth" class="filter-select">
+                <option value="all">All Months</option>
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+            </select>
+        </div>
+    </div>
 
-    <!-- ADMIN -->
-    <section id="admin-section" style="display:none;">
-      <h2>Admin Panel</h2>
-      <div id="admin-panel" class="card">
-        <!-- Admin UI app.js tarafından render edilir -->
-      </div>
-    </section>
+    <div class="container text-center mb-4">
+        <ul class="nav nav-pills justify-content-center" id="myTab" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#matches">Matches</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#leaderboard">Table</button></li>
+            <li class="nav-item d-none" id="navNewEntry"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin">Admin</button></li>
+        </ul>
+    </div>
 
-  </main>
+    <div class="container pb-5">
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="matches">
+                <div id="match-history-list">
+                    <div class="text-center py-5 text-muted small">Loading data...</div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="leaderboard">
+                <div class="card bg-dark border-secondary overflow-hidden">
+                    <table class="table table-dark table-hover mb-0 table-dark-custom">
+                        <thead><tr><th class="ps-3">#</th><th>PLAYER</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center pe-3">PTS</th></tr></thead>
+                        <tbody id="leaderboard-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="admin">
+                <div class="text-end mb-3"><button class="btn btn-sm btn-outline-light" onclick="exportToCSV()">Export CSV</button></div>
+                <div class="card bg-dark border-secondary p-3">
+                    <div class="d-flex justify-content-between mb-3 border-bottom border-secondary pb-2">
+                        <h6 class="fw-bold m-0 text-white" id="formTitle">NEW ENTRY</h6>
+                        <button class="btn btn-sm btn-outline-danger d-none" id="cancelEditBtn" onclick="cancelEditMode()">Cancel</button>
+                    </div>
+                    <form id="addMatchForm">
+                        <input type="hidden" id="editMatchId">
+                        <div class="row g-2 mb-3">
+                            <div class="col-6"><input type="date" class="form-control form-control-sm" id="matchDate" required></div>
+                            <div class="col-6"><input class="form-control form-control-sm" list="locList" id="matchLocation" placeholder="Location" required></div>
+                            <datalist id="locList"><option value="Sporthal ROC Europaboulevard"><option value="Sporthal Calvijn"><option value="Sportgebouw Bibian Mentel"><option value="Sporthallen Zuid"></datalist>
+                            <div class="col-12"><input type="url" class="form-control form-control-sm" id="matchYoutube" placeholder="YouTube Link"></div>
+                        </div>
+                        <div class="btn-group w-100 mb-3 btn-group-sm">
+                            <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
+                            <label class="btn btn-outline-secondary" for="typeStandard">Standard</label>
+                            <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
+                            <label class="btn btn-outline-secondary" for="typeTournament">Tournament</label>
+                        </div>
+                        
+                        <div id="standardSection">
+                            <div class="p-2 border border-secondary rounded mb-2 bg-secondary bg-opacity-10">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="d-flex gap-1">
+                                        <input type="radio" name="colorA" value="yellow" class="color-opt" id="ca_y"><label class="color-label bg-y" for="ca_y"></label>
+                                        <input type="radio" name="colorA" value="blue" class="color-opt" id="ca_b" checked><label class="color-label bg-b" for="ca_b"></label>
+                                        <input type="radio" name="colorA" value="red" class="color-opt" id="ca_r"><label class="color-label bg-r" for="ca_r"></label>
+                                    </div>
+                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamA" placeholder="Team A">
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreA" placeholder="0">
+                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerA" placeholder="+ Player">
+                                </div>
+                                <div id="listTeamA" class="d-flex flex-wrap mt-1"></div>
+                            </div>
+                            <div class="p-2 border border-secondary rounded bg-secondary bg-opacity-10">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <div class="d-flex gap-1">
+                                        <input type="radio" name="colorB" value="yellow" class="color-opt" id="cb_y"><label class="color-label bg-y" for="cb_y"></label>
+                                        <input type="radio" name="colorB" value="blue" class="color-opt" id="cb_b"><label class="color-label bg-b" for="cb_b"></label>
+                                        <input type="radio" name="colorB" value="red" class="color-opt" id="cb_r" checked><label class="color-label bg-r" for="cb_r"></label>
+                                    </div>
+                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamB" placeholder="Team B">
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreB" placeholder="0">
+                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerB" placeholder="+ Player">
+                                </div>
+                                <div id="listTeamB" class="d-flex flex-wrap mt-1"></div>
+                            </div>
+                        </div>
 
-  <!-- ================= FIREBASE ================= -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+                        <div id="tournamentSection" class="d-none">
+                            <div class="row g-1 mb-2">
+                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-warning-dark fw-bold">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-primary fw-bold">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-danger fw-bold">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
+                            </div>
+                            <div class="border border-secondary rounded p-2 bg-dark small text-center">
+                                <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m1_a" class="bg-dark text-white border-secondary text-center" style="width:25px"> - <input type="number" id="t_m1_b" class="bg-dark text-white border-secondary text-center" style="width:25px"> <span class="badge bg-primary">B</span></div>
+                                <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m2_a" class="bg-dark text-white border-secondary text-center" style="width:25px"> - <input type="number" id="t_m2_c" class="bg-dark text-white border-secondary text-center" style="width:25px"> <span class="badge bg-danger">R</span></div>
+                                <div class="mb-1"><span class="badge bg-primary">B</span> <input type="number" id="t_m3_b" class="bg-dark text-white border-secondary text-center" style="width:25px"> - <input type="number" id="t_m3_c" class="bg-dark text-white border-secondary text-center" style="width:25px"> <span class="badge bg-danger">R</span></div>
+                                <hr class="border-secondary my-1">
+                                <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m4_a" class="bg-dark text-white border-secondary text-center" style="width:25px"> - <input type="number" id="t_m4_b" class="bg-dark text-white border-secondary text-center" style="width:25px"> <span class="badge bg-primary">B</span></div>
+                                <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m5_a" class="bg-dark text-white border-secondary text-center" style="width:25px"> - <input type="number" id="t_m5_c" class="bg-dark text-white border-secondary text-center" style="width:25px"> <span class="badge bg-danger">R</span></div>
+                                <div class="mb-1"><span class="badge bg-primary">B</span> <input type="number" id="t_m6_b" class="bg-dark text-white border-secondary text-center" style="width:25px"> - <input type="number" id="t_m6_c" class="bg-dark text-white border-secondary text-center" style="width:25px"> <span class="badge bg-danger">R</span></div>
+                            </div>
+                        </div>
 
-  <!-- ================= APP ================= -->
-  <script src="app.js"></script>
+                        <button type="submit" class="btn btn-light w-100 mt-3 py-2 fw-bold" id="saveBtn">SAVE RECORD</button>
+                    </form>
+                    <datalist id="playerList"></datalist>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="loginModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content bg-dark border-secondary p-4"><h6 class="fw-bold text-center mb-3">ADMIN ACCESS</h6><form id="loginForm"><input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required><input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required><button type="submit" class="btn btn-light w-100">Login</button></form><div id="userInfo" class="d-none text-center"><small id="userEmailDisplay" class="d-block mb-3 text-muted"></small><button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button></div></div></div></div>
+    
+    <div class="modal fade" id="playerStatsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-header border-secondary pb-0"><h5 class="modal-title fw-bold" id="psName">Player</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body pt-3" id="psBody"></div></div></div></div>
+    
+    <div class="modal fade" id="matchDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-body" id="modalBody"></div><div class="modal-footer border-0 pt-0"><button class="btn btn-success w-100 fw-bold" onclick="downloadMatchImage()"><i class="fab fa-instagram me-2"></i> Download Story</button></div></div></div></div>
+
+    <canvas id="shareCanvas" width="1080" height="1920"></canvas>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
