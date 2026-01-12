@@ -4,319 +4,248 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Elderly Support League</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root {
-            --primary-bg: #f3f5f9;
-            --card-bg: #ffffff;
-            --text-dark: #1a1f36;
-            --accent-blue: #00112c; /* Adyen-ish Dark Blue */
-            --accent-green: #0abf53;
-            --accent-red: #f03e3e;
-            --soft-shadow: 0 10px 30px rgba(0,0,0,0.04);
-        }
-
-        body { font-family: 'Inter', sans-serif; background-color: var(--primary-bg); color: var(--text-dark); -webkit-font-smoothing: antialiased; }
-
-        /* Header Modernization */
-        .hero-section {
-            background: var(--accent-blue);
-            color: white;
-            padding: 3rem 1rem 5rem 1rem; /* Extra padding bottom for overlap */
-            border-bottom-left-radius: 30px;
-            border-bottom-right-radius: 30px;
-            text-align: center;
-            position: relative;
-        }
+        :root { --primary-bg: #f8f9fc; --card-bg: #ffffff; --accent-blue: #00112c; --accent-green: #0abf53; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--primary-bg); color: #1a1f36; }
         
-        .hero-title { font-weight: 700; letter-spacing: -1px; margin-bottom: 0.5rem; }
-        .hero-subtitle { opacity: 0.7; font-weight: 300; font-size: 0.9rem; }
+        .hero-section { background: var(--accent-blue); color: white; padding: 2.5rem 1rem 4rem 1rem; border-radius: 0 0 30px 30px; position: relative; }
+        .hero-title { font-weight: 800; letter-spacing: -1px; margin: 0; }
         
-        .youtube-badge {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            padding: 8px 16px;
-            border-radius: 50px;
-            color: white;
-            text-decoration: none;
-            font-size: 0.85rem;
-            transition: all 0.3s ease;
-            display: inline-block;
-            margin-top: 15px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-        .youtube-badge:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); color: white; }
+        .nav-pills { background: white; padding: 0.5rem; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.06); display: inline-flex; position: relative; top: -25px; margin-bottom: 0; }
+        .nav-pills .nav-link { border-radius: 12px; color: #6c757d; font-weight: 600; padding: 10px 24px; transition: all 0.2s; }
+        .nav-pills .nav-link.active { background-color: var(--accent-blue); color: white; }
 
-        /* Navigation Pills */
-        .nav-pills {
-            background: white;
-            padding: 0.5rem;
-            border-radius: 16px;
-            box-shadow: var(--soft-shadow);
-            display: inline-flex;
-            margin-top: -35px; /* Overlap effect */
-            position: relative;
-            z-index: 10;
-        }
-        .nav-pills .nav-link {
-            border-radius: 12px;
-            color: #6c757d;
-            font-weight: 600;
-            padding: 10px 24px;
-            transition: all 0.3s;
-        }
-        .nav-pills .nav-link.active {
-            background-color: var(--accent-blue);
-            color: white;
-        }
-        .nav-pills .nav-link i { margin-right: 8px; }
-
-        /* Modern Cards */
-        .custom-card {
-            background: var(--card-bg);
-            border-radius: 20px;
-            border: none;
-            box-shadow: var(--soft-shadow);
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
+        .custom-card { background: var(--card-bg); border-radius: 20px; border: none; box-shadow: 0 4px 20px rgba(0,0,0,0.03); padding: 1.5rem; margin-bottom: 1.5rem; }
         
-        /* Leaderboard Table */
-        .table-custom th { 
-            font-size: 0.75rem; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            color: #8898aa; 
-            font-weight: 700; 
-            border: none;
-        }
-        .table-custom td { 
-            vertical-align: middle; 
-            padding: 1rem 0.5rem; 
-            font-weight: 500;
-            border-bottom: 1px solid #f0f2f5;
-        }
-        .rank-circle {
-            width: 32px; height: 32px;
-            background: #f0f2f5; color: #555;
-            border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 0.9rem;
-        }
-        .rank-1 { background: #ffd700; color: #fff; box-shadow: 0 4px 10px rgba(255, 215, 0, 0.4); }
-        .rank-2 { background: #c0c0c0; color: #fff; }
-        .rank-3 { background: #cd7f32; color: #fff; }
+        /* Leaderboard */
+        .table-custom th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #8898aa; border: none; background: transparent; }
+        .table-custom td { vertical-align: middle; padding: 1rem 0.5rem; font-weight: 500; border-bottom: 1px solid #f0f2f5; }
+        .rank-circle { width: 30px; height: 30px; background: #e9ecef; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; }
+        .rank-1 { background: #FFD700; color: #fff; } .rank-2 { background: #C0C0C0; color: #fff; } .rank-3 { background: #CD7F32; color: #fff; }
 
-        /* Match History Items */
-        .match-item {
-            border-left: 4px solid transparent;
-            transition: transform 0.2s;
-            cursor: default;
-        }
-        .match-item:hover { transform: translateX(5px); }
-        .match-item.has-video { border-left-color: #ff0000; cursor: pointer; }
-        .match-date { font-size: 0.8rem; color: #8898aa; font-weight: 600; text-transform: uppercase; }
-        .score-box { font-size: 1.2rem; font-weight: 800; color: var(--accent-blue); }
+        /* Matches */
+        .match-card { border-left: 4px solid transparent; transition: transform 0.2s; }
+        .match-card:hover { transform: translateX(5px); }
+        .match-card.has-video { border-left-color: #ff0000; cursor: pointer; }
 
-        /* Form Elements */
-        .form-control, .form-select {
-            border-radius: 12px;
-            border: 1px solid #e9ecef;
-            padding: 0.75rem 1rem;
-            font-size: 0.95rem;
-        }
-        .form-control:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(0,17,44, 0.1); }
-        
-        .player-tag {
-            background: #e9ecef; color: #333;
-            padding: 6px 14px; border-radius: 50px;
-            font-size: 0.85rem; font-weight: 600;
-            display: inline-flex; align-items: center;
-            margin: 4px; transition: all 0.2s;
-        }
-        .player-tag i { margin-left: 8px; cursor: pointer; color: #dc3545; }
-        .player-tag:hover { background: #dee2e6; }
-        
-        .btn-action {
-            border-radius: 12px;
-            padding: 12px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-        }
+        /* Tournament Fixture Table */
+        .fixture-input { width: 60px; text-align: center; font-weight: bold; border: 1px solid #dee2e6; border-radius: 8px; padding: 5px; }
+        .fixture-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #eee; }
+        .team-label { width: 80px; font-weight: 600; }
 
-        /* Mobile Adjustments */
-        @media (max-width: 768px) {
-            .nav-pills .nav-link { padding: 8px 16px; font-size: 0.9rem; }
-            .nav-pills .nav-link i { display: none; } /* Hide icons on small screens to save space */
-        }
+        /* Player Tags */
+        .player-tag { background: #f0f2f5; padding: 5px 12px; border-radius: 50px; font-size: 0.85rem; display: inline-flex; align-items: center; margin: 3px; }
+        .player-tag i { margin-left: 6px; cursor: pointer; color: #dc3545; }
     </style>
 </head>
 <body>
 
-    <div class="hero-section">
+    <div class="hero-section text-center">
         <h1 class="hero-title"><i class="fas fa-futbol me-2"></i>Elderly Support</h1>
-        <div class="hero-subtitle">Est. 2021 | Amstelveen & Amsterdam</div>
-        
-        <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="youtube-badge">
-            <i class="fab fa-youtube me-2"></i>Watch Highlights
-        </a>
+        <div class="opacity-75 small mt-1">Amsterdam League</div>
+        <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="badge bg-white text-dark text-decoration-none mt-3 px-3 py-2 rounded-pill"><i class="fab fa-youtube text-danger me-2"></i>Highlights</a>
     </div>
 
     <div class="container pb-5">
-        <div class="d-flex justify-content-center mb-4">
+        <div class="d-flex justify-content-center">
             <ul class="nav nav-pills" id="myTab" role="tablist">
-                <li class="nav-item">
-                    <button class="nav-link active" id="leaderboard-tab" data-bs-toggle="tab" data-bs-target="#leaderboard" type="button">
-                        <i class="fas fa-trophy"></i>Leaderboard
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" id="matches-tab" data-bs-toggle="tab" data-bs-target="#matches" type="button">
-                        <i class="fas fa-history"></i>History
-                    </button>
-                </li>
-                <li class="nav-item">
-                    <button class="nav-link" id="admin-tab" data-bs-toggle="tab" data-bs-target="#admin" type="button">
-                        <i class="fas fa-plus-circle"></i>New Match
-                    </button>
-                </li>
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#leaderboard"><i class="fas fa-trophy me-2"></i>Table</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#matches"><i class="fas fa-history me-2"></i>Matches</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin"><i class="fas fa-plus-circle me-2"></i>Entry</button></li>
             </ul>
         </div>
 
-        <div class="tab-content" id="myTabContent">
+        <div class="tab-content pt-4">
             
-            <div class="tab-pane fade show active" id="leaderboard" role="tabpanel">
+            <div class="tab-pane fade show active" id="leaderboard">
                 <div class="custom-card">
                     <div class="table-responsive">
-                        <table class="table table-custom table-hover">
+                        <table class="table table-custom table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th style="width: 50px;">#</th>
-                                    <th>Player</th>
-                                    <th class="text-center">P</th>
-                                    <th class="text-center">W</th>
-                                    <th class="text-center">D</th>
-                                    <th class="text-center">L</th>
-                                    <th class="text-center">GD</th>
-                                    <th class="text-center text-primary">Pts</th>
+                                    <th>#</th> <th>Player</th> <th class="text-center">P</th> <th class="text-center">W</th> <th class="text-center">D</th> <th class="text-center">L</th> <th class="text-center">GD</th> <th class="text-center text-primary">Pts</th>
                                 </tr>
                             </thead>
                             <tbody id="leaderboard-body">
-                                <tr><td colspan="8" class="text-center py-5 text-muted"><i class="fas fa-circle-notch fa-spin me-2"></i>Loading data...</td></tr>
+                                <tr><td colspan="8" class="text-center py-4 text-muted">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <div class="tab-pane fade" id="matches" role="tabpanel">
-                <div class="row" id="match-history-list">
-                    <div class="col-12 text-center py-5 text-muted">Loading matches...</div>
-                </div>
+            <div class="tab-pane fade" id="matches">
+                <div class="row" id="match-history-list"></div>
             </div>
 
-            <div class="tab-pane fade" id="admin" role="tabpanel">
+            <div class="tab-pane fade" id="admin">
                 <div class="custom-card">
-                    <h5 class="mb-4 fw-bold text-dark border-bottom pb-2">Record Match Result</h5>
-                    
                     <form id="addMatchForm">
                         <div class="row g-3 mb-4">
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="small text-muted fw-bold">Date</label>
                                 <input type="date" class="form-control" id="matchDate" required>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <label class="small text-muted fw-bold">Location</label>
-                                <select class="form-select" id="matchLocation">
-                                    <option value="Sporthal Wibaut">Sporthal Wibaut</option>
-                                    <option value="Vondelpark">Vondelpark</option>
-                                    <option value="Other">Other</option>
-                                </select>
+                                <input class="form-control" list="locationOptions" id="matchLocation" placeholder="Select or type..." required>
+                                <datalist id="locationOptions">
+                                    <option value="Sporthal ROC Europaboulevard">
+                                    <option value="Sporthal Calvijn">
+                                    <option value="Sportgebouw Bibian Mentel">
+                                    <option value="Sporthallen Zuid">
+                                    <option value="Vondelpark">
+                                </datalist>
                             </div>
-                            <div class="col-md-4">
-                                <label class="small text-muted fw-bold">YouTube (Opt.)</label>
+                            <div class="col-12">
+                                <label class="small text-muted fw-bold">YouTube Link (Optional)</label>
                                 <input type="url" class="form-control" id="matchYoutube" placeholder="https://...">
                             </div>
                         </div>
 
                         <div class="d-flex justify-content-center mb-4">
-                            <div class="btn-group" role="group">
+                            <div class="btn-group w-100" role="group">
                                 <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
-                                <label class="btn btn-outline-dark" for="typeStandard">Standard (2 Teams)</label>
+                                <label class="btn btn-outline-dark" for="typeStandard">Standard Match</label>
                                 
                                 <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
                                 <label class="btn btn-outline-dark" for="typeTournament">Tournament (3 Teams)</label>
                             </div>
                         </div>
 
-                        <div class="row g-4" id="teamsContainer">
-                            <div class="col-md-6">
-                                <div class="card bg-light border-0 h-100 p-3">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <span class="fw-bold text-primary">TEAM A</span>
-                                        <input type="text" class="form-control form-control-sm w-50 bg-white" id="nameTeamA" placeholder="Name (Opt)">
+                        <div id="standardSection">
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <div class="card bg-light border-0 p-3 h-100">
+                                        <div class="d-flex justify-content-between mb-2"><span class="fw-bold text-primary">TEAM A</span></div>
+                                        <input type="number" class="form-control mb-2 fs-4 text-center fw-bold" id="scoreA" placeholder="0">
+                                        <input type="text" class="form-control form-control-sm mb-2" id="nameTeamA" placeholder="Team Name">
+                                        <div class="input-group input-group-sm mb-2">
+                                            <input type="text" class="form-control" list="playerList" id="inputPlayerA" placeholder="Add player...">
+                                            <button class="btn btn-white border" type="button" onclick="addPlayerToTeam('A')">+</button>
+                                        </div>
+                                        <div id="listTeamA" class="d-flex flex-wrap"></div>
                                     </div>
-                                    <input type="number" class="form-control mb-3 fs-4 fw-bold text-center" id="scoreA" placeholder="Score" required>
-                                    
-                                    <div class="input-group mb-2">
-                                        <input type="text" class="form-control" list="playerList" id="inputPlayerA" placeholder="Add player + Enter">
-                                        <button class="btn btn-primary" type="button" onclick="addPlayerToTeam('A')"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                    <div id="listTeamA" class="d-flex flex-wrap"></div>
                                 </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="card bg-light border-0 h-100 p-3">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <span class="fw-bold text-danger">TEAM B</span>
-                                        <input type="text" class="form-control form-control-sm w-50 bg-white" id="nameTeamB" placeholder="Name (Opt)">
+                                <div class="col-6">
+                                    <div class="card bg-light border-0 p-3 h-100">
+                                        <div class="d-flex justify-content-between mb-2"><span class="fw-bold text-danger">TEAM B</span></div>
+                                        <input type="number" class="form-control mb-2 fs-4 text-center fw-bold" id="scoreB" placeholder="0">
+                                        <input type="text" class="form-control form-control-sm mb-2" id="nameTeamB" placeholder="Team Name">
+                                        <div class="input-group input-group-sm mb-2">
+                                            <input type="text" class="form-control" list="playerList" id="inputPlayerB" placeholder="Add player...">
+                                            <button class="btn btn-white border" type="button" onclick="addPlayerToTeam('B')">+</button>
+                                        </div>
+                                        <div id="listTeamB" class="d-flex flex-wrap"></div>
                                     </div>
-                                    <input type="number" class="form-control mb-3 fs-4 fw-bold text-center" id="scoreB" placeholder="Score" required>
-                                    
-                                    <div class="input-group mb-2">
-                                        <input type="text" class="form-control" list="playerList" id="inputPlayerB" placeholder="Add player + Enter">
-                                        <button class="btn btn-danger" type="button" onclick="addPlayerToTeam('B')"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                    <div id="listTeamB" class="d-flex flex-wrap"></div>
-                                </div>
-                            </div>
-
-                            <div class="col-12 d-none" id="teamCContainer">
-                                <div class="card bg-light border-0 h-100 p-3">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <span class="fw-bold text-warning">TEAM C</span>
-                                        <input type="text" class="form-control form-control-sm w-50 bg-white" id="nameTeamC" placeholder="Name (Opt)">
-                                    </div>
-                                    <input type="number" class="form-control mb-3 fs-4 fw-bold text-center" id="scoreC" placeholder="Score">
-                                    
-                                    <div class="input-group mb-2">
-                                        <input type="text" class="form-control" list="playerList" id="inputPlayerC" placeholder="Add player + Enter">
-                                        <button class="btn btn-warning text-white" type="button" onclick="addPlayerToTeam('C')"><i class="fas fa-plus"></i></button>
-                                    </div>
-                                    <div id="listTeamC" class="d-flex flex-wrap"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <datalist id="playerList"></datalist>
+                        <div id="tournamentSection" class="d-none">
+                            <div class="alert alert-light border small text-center mb-3">
+                                <i class="fas fa-info-circle"></i> Define 3 teams, then enter the scores for the 6 matches below.
+                            </div>
+                            
+                            <div class="row g-2 mb-4">
+                                <div class="col-md-4">
+                                    <div class="card p-2 border-primary">
+                                        <div class="fw-bold text-primary mb-1">TEAM A</div>
+                                        <div class="input-group input-group-sm mb-1">
+                                            <input type="text" class="form-control" list="playerList" id="inputPlayerTournA" placeholder="Add...">
+                                            <button class="btn btn-light border" type="button" onclick="addPlayerToTeam('TournA')">+</button>
+                                        </div>
+                                        <div id="listTeamTournA" class="d-flex flex-wrap"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card p-2 border-danger">
+                                        <div class="fw-bold text-danger mb-1">TEAM B</div>
+                                        <div class="input-group input-group-sm mb-1">
+                                            <input type="text" class="form-control" list="playerList" id="inputPlayerTournB" placeholder="Add...">
+                                            <button class="btn btn-light border" type="button" onclick="addPlayerToTeam('TournB')">+</button>
+                                        </div>
+                                        <div id="listTeamTournB" class="d-flex flex-wrap"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card p-2 border-warning">
+                                        <div class="fw-bold text-warning mb-1">TEAM C</div>
+                                        <div class="input-group input-group-sm mb-1">
+                                            <input type="text" class="form-control" list="playerList" id="inputPlayerTournC" placeholder="Add...">
+                                            <button class="btn btn-light border" type="button" onclick="addPlayerToTeam('TournC')">+</button>
+                                        </div>
+                                        <div id="listTeamTournC" class="d-flex flex-wrap"></div>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <button type="submit" class="btn btn-dark btn-action w-100 mt-4 shadow">
-                            <i class="fas fa-save me-2"></i> Save Match
+                            <div class="card bg-light border-0 p-3">
+                                <h6 class="fw-bold mb-3">Fixture Results (2 Rounds)</h6>
+                                
+                                <div class="fixture-row">
+                                    <span class="team-label text-primary text-end">Team A</span>
+                                    <input type="number" class="fixture-input" id="t_m1_a">
+                                    <span class="text-muted mx-2">-</span>
+                                    <input type="number" class="fixture-input" id="t_m1_b">
+                                    <span class="team-label text-danger">Team B</span>
+                                </div>
+                                <div class="fixture-row">
+                                    <span class="team-label text-primary text-end">Team A</span>
+                                    <input type="number" class="fixture-input" id="t_m2_a">
+                                    <span class="text-muted mx-2">-</span>
+                                    <input type="number" class="fixture-input" id="t_m2_c">
+                                    <span class="team-label text-warning">Team C</span>
+                                </div>
+                                <div class="fixture-row">
+                                    <span class="team-label text-danger text-end">Team B</span>
+                                    <input type="number" class="fixture-input" id="t_m3_b">
+                                    <span class="text-muted mx-2">-</span>
+                                    <input type="number" class="fixture-input" id="t_m3_c">
+                                    <span class="team-label text-warning">Team C</span>
+                                </div>
+                                
+                                <hr class="my-2">
+
+                                <div class="fixture-row">
+                                    <span class="team-label text-primary text-end">Team A</span>
+                                    <input type="number" class="fixture-input" id="t_m4_a">
+                                    <span class="text-muted mx-2">-</span>
+                                    <input type="number" class="fixture-input" id="t_m4_b">
+                                    <span class="team-label text-danger">Team B</span>
+                                </div>
+                                <div class="fixture-row">
+                                    <span class="team-label text-primary text-end">Team A</span>
+                                    <input type="number" class="fixture-input" id="t_m5_a">
+                                    <span class="text-muted mx-2">-</span>
+                                    <input type="number" class="fixture-input" id="t_m5_c">
+                                    <span class="team-label text-warning">Team C</span>
+                                </div>
+                                <div class="fixture-row">
+                                    <span class="team-label text-danger text-end">Team B</span>
+                                    <input type="number" class="fixture-input" id="t_m6_b">
+                                    <span class="text-muted mx-2">-</span>
+                                    <input type="number" class="fixture-input" id="t_m6_c">
+                                    <span class="team-label text-warning">Team C</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-dark w-100 mt-4 py-3 fw-bold shadow">
+                            <i class="fas fa-save me-2"></i> SAVE MATCH
                         </button>
                     </form>
+
+                    <datalist id="playerList"></datalist>
                 </div>
             </div>
         </div>
         
-        <footer class="text-center text-muted mt-5 mb-3 small">
-            &copy; 2026 Elderly Support League <br> Amstelveen, NL
-        </footer>
+        <footer class="text-center mt-5 mb-3 small text-muted">&copy; 2026 Elderly Support League</footer>
     </div>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
