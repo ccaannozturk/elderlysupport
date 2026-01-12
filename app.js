@@ -1,277 +1,250 @@
-/*************************************************
- * ELDERLY SUPPORT LEAGUE – V9 FOUNDATION
- * Clean Architecture – GitHub Pages Compatible
- *************************************************/
+/* =========================================================
+   ELDERLY LEAGUE – APP.JS (CLEAN VERSION)
+   ========================================================= */
 
-/* =======================
-   1. CONFIG & INIT
-======================= */
+/* =====================
+   CONFIG
+===================== */
 
+// 🔹 Firebase Config (KENDİ BİLGİLERİNLE DEĞİŞTİR)
 const firebaseConfig = {
-  apiKey: "AIzaSyA7_V8m4sKxU-gGffeV3Uoa-deDieeu9rc",
-  authDomain: "elderly-support-league.firebaseapp.com",
-  projectId: "elderly-support-league",
-  storageBucket: "elderly-support-league.firebasestorage.app",
-  messagingSenderId: "973119844128",
-  appId: "1:973119844128:web:0205ac9cdf912fa31ef145"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "XXXX",
+  appId: "XXXX"
 };
+
+// 🔹 Admin Email
+const ADMIN_EMAIL = "can.ozturk1907@gmail.com";
+
+// 🔹 Fixed Logo Path
+const LOGO_URL =
+  "https://firebasestorage.googleapis.com/v0/b/YOUR_PROJECT.appspot.com/o/public%2Flogo.png?alt=media";
+
+/* =====================
+   INIT FIREBASE
+===================== */
 
 firebase.initializeApp(firebaseConfig);
 
-const db = firebase.firestore();
 const auth = firebase.auth();
-const SUPER_ADMIN = "can.ozturk1907@gmail.com";
+const db = firebase.firestore();
 
-/* =======================
-   2. GLOBAL STATE
-======================= */
+/* =====================
+   STATE
+===================== */
 
-const STATE = {
+const state = {
   user: null,
   matches: [],
-  currentMatch: null,
-  selectedPlayers: {
-    A: [], B: [],
-    TournA: [], TournB: [], TournC: []
-  }
 };
 
-/* =======================
-   3. BOOTSTRAP
-======================= */
+/* =====================
+   DOM HELPERS
+===================== */
+
+const $ = (id) => document.getElementById(id);
+
+/* =====================
+   INIT
+===================== */
 
 document.addEventListener("DOMContentLoaded", () => {
-  bindAuth();
-  bindFilters();
-  bindForms();
-  loadInitialData();
+  initLogo();
+  initAuth();
+  fetchMatches();
 });
 
-/* =======================
-   4. AUTH
-======================= */
+/* =====================
+   LOGO
+===================== */
 
-function bindAuth() {
-  auth.onAuthStateChanged(user => {
-    STATE.user = user;
-    updateAuthUI();
-  });
+function initLogo() {
+  const logo = $("app-logo");
+  if (logo) logo.src = LOGO_URL;
+}
 
-  document.getElementById("loginForm").addEventListener("submit", e => {
-    e.preventDefault();
-    auth.signInWithEmailAndPassword(
-      loginEmail.value,
-      loginPass.value
-    ).then(() => hideModal("loginModal"))
-     .catch(err => showError(err.message));
-  });
+/* =====================
+   AUTH
+===================== */
 
-  logoutBtn.addEventListener("click", () => {
-    auth.signOut().then(() => hideModal("loginModal"));
+function initAuth() {
+  auth.onAuthStateChanged((user) => {
+    state.user = user || null;
+    toggleAdminUI();
   });
 }
 
-function updateAuthUI() {
-  const adminTab = document.getElementById("navNewEntry");
-  const email = document.getElementById("userEmailDisplay");
-
-  if (STATE.user) {
-    adminTab.classList.remove("d-none");
-    loginForm.classList.add("d-none");
-    userInfo.classList.remove("d-none");
-    email.innerText = STATE.user.email;
-  } else {
-    adminTab.classList.add("d-none");
-    loginForm.classList.remove("d-none");
-    userInfo.classList.add("d-none");
-  }
+function isAdmin() {
+  return state.user && state.user.email === ADMIN_EMAIL;
 }
 
-/* =======================
-   5. DATA FETCH
-======================= */
+/* =====================
+   UI VISIBILITY
+===================== */
 
-function loadInitialData() {
-  fetchMatches();
-  fetchPlayerNames();
-  matchDate.valueAsDate = new Date();
+function toggleAdminUI() {
+  const adminSection = $("admin-section");
+  if (!adminSection) return;
+
+  adminSection.style.display = isAdmin() ? "block" : "none";
+
+  if (isAdmin()) renderAdminPanel();
 }
+
+/* =====================
+   FIRESTORE – MATCHES
+===================== */
 
 function fetchMatches() {
   db.collection("matches")
     .orderBy("date", "desc")
-    .onSnapshot(snapshot => {
-      STATE.matches = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
+    .onSnapshot((snapshot) => {
+      state.matches = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
       }));
-      render();
+
+      renderMatches();
+      renderLeaderboard();
     });
 }
 
-function fetchPlayerNames() {
-  db.collection("players").get().then(snap => {
-    playerList.innerHTML = "";
-    snap.forEach(d => playerList.appendChild(new Option(d.id)));
-  });
-}
-
-/* =======================
-   6. FILTERS & RENDER
-======================= */
-
-function bindFilters() {
-  filterYear.addEventListener("change", render);
-  filterMonth.addEventListener("change", render);
-}
-
-function render() {
-  renderMatches();
-  renderLeaderboard();
-}
+/* =====================
+   RENDER – MATCHES
+===================== */
 
 function renderMatches() {
-  const year = Number(filterYear.value);
-  const month = filterMonth.value;
+  const container = $("matches");
+  if (!container) return;
 
-  const list = document.getElementById("match-history-list");
-  list.innerHTML = "";
-
-  const filtered = STATE.matches.filter(m => {
-    const d = m.date.toDate();
-    return d.getFullYear() === year &&
-      (month === "all" || d.getMonth() === Number(month));
-  });
-
-  if (!filtered.length) {
-    list.innerHTML = `<div class="text-muted text-center py-5 small">No matches found</div>`;
+  if (state.matches.length === 0) {
+    container.innerHTML = "<div class='muted'>No matches yet.</div>";
     return;
   }
 
-  filtered.forEach(m => {
-    list.insertAdjacentHTML("beforeend", buildMatchCard(m));
-  });
+  container.innerHTML = state.matches
+    .map(
+      (m) => `
+      <div class="match-card" style="margin-bottom:12px;">
+        <strong>${m.teamA} ${m.scoreA} - ${m.scoreB} ${m.teamB}</strong><br/>
+        <span class="muted">${formatDate(m.date)}</span>
+      </div>
+    `
+    )
+    .join("");
 }
 
-function buildMatchCard(m) {
-  const date = formatDate(m.date.toDate());
-  const yt = m.youtubeLink
-    ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" class="yt-link-small">
-         <i class="fab fa-youtube"></i> Watch
-       </a>` : "";
-
-  if (m.type === "Standard") {
-    const A = m.teams[0], B = m.teams[1];
-    return `
-    <div class="match-card" onclick="openMatch('${m.id}')">
-      <div class="card-header-strip">
-        <span>${date} | ${m.location}</span>${yt}
-      </div>
-      <div class="card-body-strip">
-        <div class="team-block">
-          <div class="team-row">
-            <div class="team-name">${A.teamName}</div>
-            <div class="team-score">${A.score}</div>
-          </div>
-          <div class="team-players">${A.players.join(", ")}</div>
-        </div>
-        <div class="match-meta-strip"><span class="ft-badge">FT</span></div>
-        <div class="team-block text-end">
-          <div class="team-row justify-content-end">
-            <div class="team-score me-2">${B.score}</div>
-            <div class="team-name">${B.teamName}</div>
-          </div>
-          <div class="team-players">${B.players.join(", ")}</div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  const winner = m.teams.find(t => t.rank === 1);
-  return `
-  <div class="match-card" onclick="openMatch('${m.id}')">
-    <div class="card-header-strip">
-      <span class="text-warning">${date} – Tournament</span>${yt}
-    </div>
-    <div class="p-3">
-      <strong>${winner.teamName}</strong><br>
-      <small>${winner.players.join(", ")}</small>
-    </div>
-  </div>`;
-}
-
-/* =======================
-   7. LEADERBOARD
-======================= */
+/* =====================
+   LEADERBOARD LOGIC
+===================== */
 
 function renderLeaderboard() {
-  const tbody = document.getElementById("leaderboard-body");
-  tbody.innerHTML = "";
+  const container = $("leaderboard");
+  if (!container) return;
+
+  if (state.matches.length === 0) {
+    container.innerHTML = "<div class='muted'>No data.</div>";
+    return;
+  }
 
   const stats = {};
 
-  STATE.matches.forEach(m => {
-    if (m.type === "Standard") {
-      processStats(stats, m.teams[0], m.teams[1]);
-      processStats(stats, m.teams[1], m.teams[0]);
+  state.matches.forEach((m) => {
+    if (!stats[m.teamA]) stats[m.teamA] = { win: 0, loss: 0 };
+    if (!stats[m.teamB]) stats[m.teamB] = { win: 0, loss: 0 };
+
+    if (m.scoreA > m.scoreB) {
+      stats[m.teamA].win++;
+      stats[m.teamB].loss++;
     } else {
-      m.teams.forEach(t => {
-        const pts = t.rank === 1 ? 3 : t.rank === 2 ? 1 : 0;
-        t.players.forEach(p => {
-          stats[p] ??= { name: p, played: 0, won: 0, points: 0 };
-          stats[p].played++;
-          stats[p].points += pts;
-          if (pts === 3) stats[p].won++;
-        });
-      });
+      stats[m.teamB].win++;
+      stats[m.teamA].loss++;
     }
   });
 
-  Object.values(stats)
-    .sort((a, b) => b.points - a.points)
-    .forEach((p, i) => {
-      tbody.insertAdjacentHTML("beforeend", `
+  const rows = Object.entries(stats)
+    .sort((a, b) => b[1].win - a[1].win)
+    .map(
+      ([team, s]) => `
+      <tr>
+        <td>${team}</td>
+        <td>${s.win}</td>
+        <td>${s.loss}</td>
+      </tr>
+    `
+    )
+    .join("");
+
+  container.innerHTML = `
+    <table style="width:100%; font-size:14px;">
+      <thead>
         <tr>
-          <td class="ps-3">${i + 1}</td>
-          <td>${p.name}</td>
-          <td class="text-center">${p.played}</td>
-          <td class="text-center">${p.won}</td>
-          <td class="text-center fw-bold">${p.points}</td>
+          <th align="left">Team</th>
+          <th>W</th>
+          <th>L</th>
         </tr>
-      `);
-    });
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
 }
 
-function processStats(stats, team, opponent) {
-  const pts =
-    team.score > opponent.score ? 3 :
-    team.score === opponent.score ? 1 : 0;
+/* =====================
+   ADMIN PANEL
+===================== */
 
-  team.players.forEach(p => {
-    stats[p] ??= { name: p, played: 0, won: 0, points: 0 };
-    stats[p].played++;
-    stats[p].points += pts;
-    if (pts === 3) stats[p].won++;
+function renderAdminPanel() {
+  const panel = $("admin-panel");
+  if (!panel) return;
+
+  panel.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <input id="teamA" placeholder="Team A" />
+      <input id="scoreA" type="number" placeholder="Score A" />
+      <input id="teamB" placeholder="Team B" />
+      <input id="scoreB" type="number" placeholder="Score B" />
+      <button id="saveMatch">Save Match</button>
+    </div>
+  `;
+
+  $("saveMatch").onclick = saveMatch;
+}
+
+/* =====================
+   SAVE MATCH (ADMIN)
+===================== */
+
+function saveMatch() {
+  const teamA = $("teamA").value.trim();
+  const teamB = $("teamB").value.trim();
+  const scoreA = Number($("scoreA").value);
+  const scoreB = Number($("scoreB").value);
+
+  if (!teamA || !teamB) {
+    alert("Teams required");
+    return;
+  }
+
+  db.collection("matches").add({
+    teamA,
+    teamB,
+    scoreA,
+    scoreB,
+    date: new Date().toISOString(),
   });
 }
 
-/* =======================
-   8. UTIL
-======================= */
+/* =====================
+   UTIL
+===================== */
 
-function formatDate(d) {
-  return d.toLocaleDateString("en-GB");
+function formatDate(dateStr) {
+  try {
+    return new Date(dateStr).toLocaleDateString();
+  } catch {
+    return "-";
+  }
 }
-
-function showError(msg) {
-  alert(msg);
-}
-
-function hideModal(id) {
-  bootstrap.Modal.getInstance(document.getElementById(id))?.hide();
-}
-
-window.openMatch = id => {
-  STATE.currentMatch = STATE.matches.find(m => m.id === id);
-  openMatchModalLogic(id);
-};

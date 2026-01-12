@@ -1,342 +1,147 @@
 <!DOCTYPE html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Elderly Support League</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        :root {
-            --bg-main: #121212;        /* Deep background */
-            --bg-card: #1e1e1e;        /* Card background */
-            --bg-hover: #2a2a2a;       /* Hover state */
-            --border-color: #2f3036;   /* Subtle borders */
-            --text-primary: #e4e6eb;   /* Main text color */
-            --text-secondary: #b0b3b8; /* Secondary text color */
-            --accent-blue: #3b82f6;
-            --accent-red: #ef4444;
-            --accent-yellow: #facc15;
-        }
+  <meta charset="UTF-8" />
+  <title>Elderly League</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-primary); padding-bottom: 80px; }
-        
-        /* GLOBAL DARK OVERRIDES */
-        .form-control, .form-select { background-color: var(--bg-main); border-color: var(--border-color); color: var(--text-primary); }
-        .form-control:focus, .form-select:focus { background-color: var(--bg-hover); border-color: #555; color: var(--text-primary); box-shadow: none; }
-        .card, .modal-content { background-color: var(--bg-card); border-color: var(--border-color); }
-        .modal-header, .modal-footer, .border-bottom { border-color: var(--border-color) !important; }
-        .text-muted { color: #6c757d !important; }
+  <!-- App Meta -->
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Elderly League – Match history & leaderboard" />
 
-        /* HEADER */
-        .header-bar {
-            background: var(--bg-card);
-            padding: 12px 20px;
-            border-bottom: 1px solid var(--border-color);
-            position: sticky; top: 0; z-index: 100;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .logo-container img { height: 50px; width: 50px; border-radius: 50%; border: 2px solid var(--border-color); object-fit: cover; }
-        .brand-title h1 { font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px; }
-        .brand-title small { font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 1px; font-weight: 600; }
-        
-        .header-actions .btn-icon {
-            width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-            border-radius: 50%; background: var(--bg-main); color: var(--text-secondary); border: 1px solid var(--border-color); transition: all 0.2s;
-        }
-        .header-actions .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
-        .header-actions .btn-icon.yt-active { color: var(--accent-red); border-color: rgba(239, 68, 68, 0.3); }
-        .header-actions .btn-icon.yt-active:hover { background: var(--accent-red); color: white; }
-        .header-actions .btn-icon.auth-active { color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
 
-        /* TABS & FILTERS */
-        .nav-pills .nav-link { color: var(--text-secondary); font-weight: 600; border-radius: 8px; padding: 8px 16px; transition: all 0.2s; }
-        .nav-pills .nav-link.active { background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
-        .filter-select { background-color: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-primary); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+  <!-- Base Styles -->
+  <style>
+    :root {
+      --bg: #020617;
+      --panel: #020617;
+      --card: #020617;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --border: #1e293b;
+      --accent: #38bdf8;
+    }
 
-        /* MATCH CARD (Midnight Style) */
-        .match-card {
-            background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px;
-            margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s;
-        }
-        .match-card:hover { transform: translateY(-2px); border-color: #444; }
-        
-        .card-header-strip {
-            background: rgba(255,255,255,0.03); padding: 8px 16px; font-size: 0.75rem; color: var(--text-secondary);
-            display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color);
-        }
-        .yt-link-small { color: var(--accent-red); text-decoration: none; display: flex; align-items: center; gap: 4px; font-weight: 600; }
-        .yt-link-small:hover { text-decoration: underline; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Inter", system-ui, sans-serif;
+    }
 
-        .card-body-strip { padding: 16px; display: flex; align-items: center; }
-        .team-block { flex: 1; }
-        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .team-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
-        .team-score { font-weight: 700; font-size: 1.1rem; color: var(--text-primary); }
-        .team-players { font-size: 0.75rem; color: var(--text-secondary); margin-left: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-        .score-loser { color: var(--text-secondary); opacity: 0.7; }
-        
-        .match-meta-strip { width: 50px; text-align: center; border-left: 1px solid var(--border-color); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
-        .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
-        
-        /* Tournament specific */
-        .tourn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed var(--border-color); }
-        .tourn-row:last-child { border: none; }
-        .rank-badge { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-right: 8px; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); }
-        .rank-1 { background: var(--accent-yellow); color: #000; border: none; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
 
-        /* Admin Actions */
-        .admin-actions { background: rgba(0,0,0,0.2); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border-color); display: none; }
-        .show-admin .admin-actions { display: block; }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
 
-        /* LEADERBOARD */
-        .table-dark-custom th { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border-color); }
-        .table-dark-custom td { vertical-align: middle; padding: 12px 8px; border-bottom-color: var(--border-color); font-weight: 500; }
-        .rank-circle { width: 24px; height: 24px; background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
-        .r-1 { background: var(--accent-yellow); color: #000; border: none; } .r-2 { background: #e5e7eb; color: #000; border: none; } .r-3 { background: #fed7aa; color: #000; border: none; }
+    header img {
+      height: 36px;
+      width: auto;
+    }
 
-        /* MISC */
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(18,18,18,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; }
-        #shareCanvas { display: none; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent-blue); } .bg-r { background: var(--accent-red); }
-        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
-        .color-opt:checked + .color-label { opacity: 1; border-color: var(--text-primary); transform: scale(1.1); }
-    </style>
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    section {
+      margin-bottom: 28px;
+    }
+
+    section h2 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      main {
+        padding: 14px;
+      }
+    }
+  </style>
 </head>
+
 <body>
+  <!-- ================= HEADER ================= -->
+  <header>
+    <!-- Logo: path sabit -->
+    <img id="app-logo" alt="Elderly League Logo" />
+    <h1>Elderly League</h1>
+  </header>
 
-    <div id="loadingOverlay" class="d-none">
-        <div class="spinner-border text-light" role="status"></div>
-    </div>
+  <!-- ================= MAIN ================= -->
+  <main>
 
-    <div class="header-bar d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-3">
-            <div class="logo-container">
-                <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" 
-                     id="pageLogo" alt="Logo" crossorigin="anonymous">
-            </div>
-            <div class="brand-title">
-                <h1>Elderly Support</h1>
-                <small>LEAGUE ANALYTICS</small>
-            </div>
-        </div>
-        <div class="header-actions d-flex gap-2">
-            <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="btn-icon yt-active" title="YouTube">
-                <i class="fab fa-youtube"></i>
-            </a>
-            <div class="btn-icon" id="authBtn" data-bs-toggle="modal" data-bs-target="#loginModal" title="Admin Access">
-                <i class="fas fa-lock"></i>
-            </div>
-        </div>
-    </div>
+    <!-- LEADERBOARD -->
+    <section>
+      <h2>Leaderboard</h2>
+      <div id="leaderboard" class="card muted">
+        Loading leaderboard...
+      </div>
+    </section>
 
-    <div class="container py-4">
-        <div class="d-flex justify-content-center gap-2">
-            <select id="filterYear" class="filter-select">
-                <option value="2026" selected>2026</option>
-                <option value="2027">2027</option>
-            </select>
-            <select id="filterMonth" class="filter-select">
-                <option value="all">All Months</option>
-                <option value="0">January</option>
-                <option value="1">February</option>
-                <option value="2">March</option>
-                <option value="3">April</option>
-                <option value="4">May</option>
-                <option value="5">June</option>
-                <option value="6">July</option>
-                <option value="7">August</option>
-                <option value="8">September</option>
-                <option value="9">October</option>
-                <option value="10">November</option>
-                <option value="11">December</option>
-            </select>
-        </div>
-    </div>
+    <!-- MATCHES -->
+    <section>
+      <h2>Matches</h2>
+      <div id="matches" class="card muted">
+        Loading matches...
+      </div>
+    </section>
 
-    <div class="container text-center mb-4">
-        <ul class="nav nav-pills justify-content-center" id="myTab" role="tablist">
-            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#matches">Matches</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#leaderboard">Standings</button></li>
-            <li class="nav-item d-none" id="navNewEntry"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin">Admin</button></li>
-        </ul>
-    </div>
+    <!-- ADMIN -->
+    <section id="admin-section" style="display:none;">
+      <h2>Admin Panel</h2>
+      <div id="admin-panel" class="card">
+        <!-- Admin UI app.js tarafından render edilir -->
+      </div>
+    </section>
 
-    <div class="container pb-5">
-        <div class="tab-content">
-            
-            <div class="tab-pane fade show active" id="matches">
-                <div id="match-history-list">
-                    <div class="text-center py-5 text-muted small">Loading data...</div>
-                </div>
-            </div>
+  </main>
 
-            <div class="tab-pane fade" id="leaderboard">
-                <div class="card overflow-hidden">
-                    <table class="table table-dark table-hover mb-0 table-dark-custom">
-                        <thead>
-                            <tr><th class="ps-3">#</th><th>PLAYER</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center pe-3">PTS</th></tr>
-                        </thead>
-                        <tbody id="leaderboard-body"></tbody>
-                    </table>
-                </div>
-            </div>
+  <!-- ================= FIREBASE ================= -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-            <div class="tab-pane fade" id="admin">
-                <div class="d-flex justify-content-end mb-3">
-                    <button class="btn btn-sm btn-outline-light" onclick="exportToCSV()"><i class="fas fa-file-csv me-1"></i> Export CSV</button>
-                </div>
-
-                <div class="card p-3">
-                    <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                        <h6 class="fw-bold m-0">NEW MATCH ENTRY</h6>
-                        <button class="btn btn-sm btn-outline-danger d-none py-0" id="cancelEditBtn" onclick="cancelEditMode()">Cancel</button>
-                    </div>
-                    
-                    <form id="addMatchForm">
-                        <input type="hidden" id="editMatchId">
-                        
-                        <div class="row g-2 mb-3">
-                            <div class="col-6"><input type="date" class="form-control form-control-sm" id="matchDate" required></div>
-                            <div class="col-6">
-                                <input class="form-control form-control-sm" list="locList" id="matchLocation" placeholder="Location" required>
-                                <datalist id="locList">
-                                    <option value="Sporthal ROC Europaboulevard">
-                                    <option value="Sporthal Calvijn">
-                                    <option value="Sportgebouw Bibian Mentel">
-                                    <option value="Sporthallen Zuid">
-                                </datalist>
-                            </div>
-                            <div class="col-12"><input type="url" class="form-control form-control-sm" id="matchYoutube" placeholder="YouTube Link (Optional)"></div>
-                        </div>
-
-                        <div class="btn-group w-100 mb-3 btn-group-sm">
-                            <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
-                            <label class="btn btn-outline-secondary" for="typeStandard">Standard</label>
-                            <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
-                            <label class="btn btn-outline-secondary" for="typeTournament">Tournament</label>
-                        </div>
-
-                        <div id="standardSection">
-                            <div class="p-2 border border-secondary rounded mb-2 bg-main">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <div class="d-flex gap-1">
-                                        <input type="radio" name="colorA" value="yellow" class="color-opt" id="ca_y"><label class="color-label bg-y" for="ca_y"></label>
-                                        <input type="radio" name="colorA" value="blue" class="color-opt" id="ca_b" checked><label class="color-label bg-b" for="ca_b"></label>
-                                        <input type="radio" name="colorA" value="red" class="color-opt" id="ca_r"><label class="color-label bg-r" for="ca_r"></label>
-                                    </div>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamA" placeholder="Team A Name">
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreA" placeholder="0">
-                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerA" placeholder="+ Player">
-                                </div>
-                                <div id="listTeamA" class="d-flex flex-wrap mt-1"></div>
-                            </div>
-                            
-                            <div class="p-2 border border-secondary rounded bg-main">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <div class="d-flex gap-1">
-                                        <input type="radio" name="colorB" value="yellow" class="color-opt" id="cb_y"><label class="color-label bg-y" for="cb_y"></label>
-                                        <input type="radio" name="colorB" value="blue" class="color-opt" id="cb_b"><label class="color-label bg-b" for="cb_b"></label>
-                                        <input type="radio" name="colorB" value="red" class="color-opt" id="cb_r" checked><label class="color-label bg-r" for="cb_r"></label>
-                                    </div>
-                                    <input type="text" class="form-control form-control-sm w-50" id="nameTeamB" placeholder="Team B Name">
-                                </div>
-                                <div class="d-flex gap-2">
-                                    <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreB" placeholder="0">
-                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerB" placeholder="+ Player">
-                                </div>
-                                <div id="listTeamB" class="d-flex flex-wrap mt-1"></div>
-                            </div>
-                        </div>
-
-                        <div id="tournamentSection" class="d-none">
-                            <div class="row g-1 mb-2">
-                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-main"><small class="fw-bold d-block text-warning">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-main"><small class="fw-bold d-block text-primary">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-main"><small class="fw-bold d-block text-danger">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
-                            </div>
-                            <div class="border border-secondary rounded p-2 bg-main small">
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m1_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m1_b"><span class="badge bg-primary">B</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m2_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m2_c"><span class="badge bg-danger">R</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m3_b">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m3_c"><span class="badge bg-danger">R</span></div>
-                                <hr class="my-1 border-secondary">
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m4_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m4_b"><span class="badge bg-primary">B</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m5_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m5_c"><span class="badge bg-danger">R</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m6_b">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m6_c"><span class="badge bg-danger">R</span></div>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn btn-light w-100 mt-3 py-2 fw-bold shadow-sm" id="saveBtn">SAVE RECORD</button>
-                    </form>
-                    <datalist id="playerList"></datalist>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="loginModal" tabindex="-1">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content p-4">
-                <h6 class="fw-bold text-center mb-3">ADMIN ACCESS</h6>
-                <form id="loginForm">
-                    <input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required>
-                    <input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required>
-                    <button type="submit" class="btn btn-light w-100">Login</button>
-                </form>
-                <div id="userInfo" class="d-none text-center">
-                    <small id="userEmailDisplay" class="d-block mb-3 text-muted"></small>
-                    <button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="playerStatsModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header pb-0 border-secondary">
-                    <h5 class="modal-title fw-bold" id="psName">Player</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body pt-3" id="psBody"></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="modal fade" id="matchDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-body" id="modalBody"></div>
-                <div class="modal-footer pt-0 border-0">
-                    <button class="btn btn-success w-100 fw-bold" onclick="downloadMatchImage()">
-                        <i class="fab fa-instagram me-2"></i> Download Story Image
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <canvas id="shareCanvas" width="1080" height="1920"></canvas>
-
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="app.js"></script>
-    
-    <style>
-        .player-tag { font-size:0.7rem; background:#333; color:white; border:1px solid #555; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; font-weight: 500; }
-        .text-warning-dark { color: #facc15; }
-        /* Scrollbar Dark */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: var(--bg-main); }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-    </style>
+  <!-- ================= APP ================= -->
+  <script src="app.js"></script>
 </body>
 </html>
