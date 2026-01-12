@@ -9,17 +9,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root { --bg-color: #f0f2f5; --primary: #0f172a; }
+        :root { --bg-color: #f8fafc; --primary: #0f172a; }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: #1e293b; padding-bottom: 80px; }
         
         .hero { background: var(--primary); color: white; padding: 2rem 1rem 4rem; border-radius: 0 0 30px 30px; position: relative; }
-        .hero-title { font-weight: 800; letter-spacing: -1px; }
+        .hero-title { font-weight: 800; letter-spacing: -0.5px; margin: 0; line-height: 1.1; }
         
         /* Filters */
         .filter-bar { background: white; padding: 10px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: inline-flex; gap: 10px; position: relative; top: -25px; margin-bottom: -15px; align-items: center; }
         .form-select-sm { border-radius: 8px; border: 1px solid #e2e8f0; font-weight: 600; color: #475569; }
 
-        /* Navigation */
+        /* Nav */
         .nav-pills .nav-link { color: #64748b; font-weight: 600; border-radius: 10px; margin: 0 5px; }
         .nav-pills .nav-link.active { background-color: var(--primary); color: white; }
 
@@ -28,23 +28,26 @@
         .match-card { cursor: pointer; transition: transform 0.2s; }
         .match-card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
         
-        /* Player Stats Modal */
+        /* Stats & Badges */
         .form-badge { display: inline-flex; width: 24px; height: 24px; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.7rem; color: white; margin-right: 3px; }
         .form-w { background: #22c55e; } .form-d { background: #94a3b8; } .form-l { background: #ef4444; }
-
-        /* Admin Actions */
-        .admin-actions { display: none; text-align: right; padding: 8px; background: #f8fafc; border-top: 1px solid #eee; }
-        .show-super-admin .admin-actions { display: block; }
-
-        /* Badge Dots */
+        
+        .admin-actions { padding: 8px; background: #f8fafc; border-top: 1px solid #eee; text-align: right; }
         .badge-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .bg-yellow { background-color: #facc15; } .bg-blue { background-color: #3b82f6; } .bg-red { background-color: #ef4444; }
         
-        /* Loading */
+        /* Loading & Canvas */
         #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        
-        /* Hidden Canvas for Image Generation */
         #shareCanvas { display: none; }
+        .youtube-link { color: #dc2626; text-decoration: none; font-weight: 600; font-size: 0.8rem; display: flex; align-items: center; }
+        .youtube-link:hover { text-decoration: underline; }
+        
+        /* Color Input */
+        .color-opt { display: none; }
+        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
+        .color-opt:checked + .color-label { opacity: 1; border-color: #333; transform: scale(1.1); }
+        
+        .player-tag { font-size:0.7rem; background:#fff; border:1px solid #ddd; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; }
     </style>
 </head>
 <body>
@@ -57,18 +60,28 @@
         <div class="position-absolute top-0 end-0 p-3" style="cursor: pointer; opacity: 0.8;" data-bs-toggle="modal" data-bs-target="#loginModal" id="authBtn">
             <i class="fas fa-lock text-white"></i>
         </div>
-        <h2 class="hero-title m-0"><i class="fas fa-futbol me-2"></i>Elderly Support</h2>
-        <small class="opacity-75">League Analytics</small>
+
+        <div class="d-flex justify-content-center align-items-center gap-3 pt-2">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" 
+                 id="leagueLogo" 
+                 alt="Logo" 
+                 crossorigin="anonymous" 
+                 style="height: 65px; width: 65px; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.2); object-fit: cover;">
+            
+            <div class="text-start">
+                <h2 class="hero-title">Elderly Support</h2>
+                <small class="opacity-75 d-block" style="font-size: 0.8rem; letter-spacing: 0.5px;">EST. 2020 | AMSTERDAM</small>
+            </div>
+        </div>
     </div>
 
     <div class="container text-center">
         <div class="filter-bar">
-            <select id="filterYear" class="form-select form-select-sm" style="width: 80px;">
-                <option value="2025">2025</option>
+            <select id="filterYear" class="form-select form-select-sm" style="width: 90px;">
                 <option value="2026" selected>2026</option>
                 <option value="2027">2027</option>
             </select>
-            <select id="filterMonth" class="form-select form-select-sm" style="width: 110px;">
+            <select id="filterMonth" class="form-select form-select-sm" style="width: 120px;">
                 <option value="all">All Year</option>
                 <option value="0">January</option>
                 <option value="1">February</option>
@@ -99,7 +112,7 @@
             
             <div class="tab-pane fade show active" id="matches">
                 <div id="match-history-list">
-                    <div class="text-center py-5 text-muted">Loading...</div>
+                    <div class="text-center py-5 text-muted">Loading matches...</div>
                 </div>
             </div>
 
@@ -112,13 +125,13 @@
                         <tbody id="leaderboard-body"></tbody>
                     </table>
                 </div>
-                <div class="text-center mt-2 small text-muted"><i class="fas fa-info-circle"></i> Click on a player for detailed stats</div>
+                <div class="text-center mt-2 small text-muted"><i class="fas fa-info-circle"></i> Click player for details</div>
             </div>
 
             <div class="tab-pane fade" id="admin">
                 <div class="custom-card p-3 mb-3 bg-light border-primary border-opacity-25">
                     <div class="d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-primary"><i class="fas fa-database me-2"></i>Backup Data</span>
+                        <span class="fw-bold text-primary"><i class="fas fa-database me-2"></i>Backup</span>
                         <button class="btn btn-sm btn-outline-primary bg-white" onclick="exportToCSV()"><i class="fas fa-file-csv me-1"></i> Download CSV</button>
                     </div>
                 </div>
@@ -246,11 +259,10 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content rounded-4 border-0">
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold" id="psName">Player Name</h5>
+                    <h5 class="modal-title fw-bold" id="psName">Player</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body pt-2" id="psBody">
-                    </div>
+                <div class="modal-body pt-2" id="psBody"></div>
             </div>
         </div>
     </div>
@@ -262,9 +274,5 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app.js"></script>
-    
-    <style>
-        .player-tag { font-size:0.7rem; background:#fff; border:1px solid #ddd; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; }
-    </style>
 </body>
 </html>
