@@ -9,144 +9,156 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root { --bg: #f3f4f6; --dark: #111827; --card-bg: #ffffff; --primary: #2563eb; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--dark); padding-bottom: 80px; }
-        
-        /* HEADER RE-DESIGNED */
-        .brand-header { 
-            background: white; 
-            padding: 12px 20px; 
-            border-bottom: 1px solid #e5e7eb; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            position: sticky; top: 0; z-index: 100; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        :root { 
+            --bg-body: #121212; 
+            --bg-card: #1e1e1e; 
+            --text-main: #e0e0e0; 
+            --text-muted: #a0a0a0;
+            --border: #333;
+            --accent: #374df5; 
         }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
-        .brand-left { display: flex; align-items: center; gap: 12px; }
-        .brand-logo { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #f3f4f6; }
-        .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: #111; letter-spacing: -0.5px; line-height: 1.1; }
-        .brand-info small { font-size: 0.7rem; color: #6b7280; font-weight: 600; letter-spacing: 0.5px; }
+        /* HEADER - CENTERED */
+        .dark-header { 
+            background: var(--bg-card); 
+            padding: 15px 20px; 
+            border-bottom: 1px solid var(--border); 
+            position: sticky; top: 0; z-index: 100; 
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        .header-content { display: flex; align-items: center; gap: 15px; }
+        .logo-img { width: 55px; height: 55px; border-radius: 50%; object-fit: cover; border: 2px solid #333; }
+        .brand-title h1 { font-size: 1.2rem; font-weight: 800; margin: 0; color: white; letter-spacing: -0.5px; }
+        .brand-title small { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 1px; font-weight: 600; }
+        
+        .yt-btn-header { 
+            background: rgba(220, 38, 38, 0.1); color: #ef4444; 
+            width: 40px; height: 40px; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            font-size: 1.2rem; transition: all 0.2s; border: 1px solid rgba(220, 38, 38, 0.3);
+        }
+        .yt-btn-header:hover { background: #ef4444; color: white; transform: scale(1.1); }
 
-        .brand-right { display: flex; align-items: center; gap: 15px; }
-        .yt-icon { color: #dc2626; font-size: 1.8rem; transition: transform 0.2s; display: flex; align-items: center; }
-        .yt-icon:hover { transform: scale(1.1); color: #b91c1c; }
-        .auth-icon { color: #9ca3af; font-size: 1.2rem; cursor: pointer; transition: color 0.2s; }
-        .auth-icon:hover { color: #4b5563; }
-        .auth-icon.active { color: #10b981; }
+        .auth-lock { position: absolute; right: 20px; color: #555; cursor: pointer; }
+        .auth-lock.active { color: #10b981; }
 
         /* FILTERS */
-        .filter-container { padding: 15px 0; display: flex; gap: 8px; justify-content: center; }
-        .custom-select { border: 1px solid #e5e7eb; background: white; padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; color: #374151; cursor: pointer; }
+        .filter-container { padding: 20px 0; display: flex; gap: 10px; justify-content: center; }
+        .dark-select { 
+            background: var(--bg-card); color: white; border: 1px solid var(--border); 
+            padding: 8px 15px; border-radius: 8px; font-weight: 600; font-size: 0.9rem;
+        }
 
-        /* NAV TABS */
-        .nav-pills { background: #e5e7eb; padding: 4px; border-radius: 10px; display: inline-flex; }
-        .nav-pills .nav-link { color: #6b7280; font-weight: 600; border-radius: 8px; padding: 6px 16px; font-size: 0.85rem; transition: all 0.2s; }
-        .nav-pills .nav-link.active { background-color: white; color: #111; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        /* TABS */
+        .nav-pills .nav-link { color: #888; font-weight: 600; margin: 0 5px; border-radius: 8px; }
+        .nav-pills .nav-link.active { background-color: var(--bg-card); color: white; border: 1px solid var(--border); }
 
-        /* SOFASCORE CARDS */
-        .sofa-card { background: white; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; cursor: pointer; border: 1px solid #e5e7eb; transition: transform 0.15s; }
-        .sofa-card:active { transform: scale(0.98); background-color: #fafafa; }
+        /* MATCH CARD (SOFASCORE DARK) */
+        .match-card { 
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; 
+            margin-bottom: 16px; overflow: hidden; position: relative; cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .match-card:hover { transform: translateY(-2px); border-color: #555; }
         
-        .sofa-header { background: #f9fafb; padding: 8px 16px; font-size: 0.7rem; color: #6b7280; font-weight: 600; display: flex; justify-content: space-between; border-bottom: 1px solid #f3f4f6; text-transform: uppercase; letter-spacing: 0.5px; }
-        
-        .sofa-body { padding: 12px 16px; display: flex; align-items: center; }
-        .match-content { flex: 1; }
-        
-        .team-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
-        .t-name { font-weight: 600; font-size: 0.95rem; color: #374151; display: flex; align-items: center; }
-        .t-score { font-weight: 700; font-size: 1.1rem; color: #111; width: 30px; text-align: right; }
-        .t-winner { color: #000; } 
-        .t-loser { color: #9ca3af; }
-        
-        .match-meta { width: 50px; text-align: center; border-left: 1px solid #f3f4f6; margin-left: 12px; padding-left: 12px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-        .ft-badge { font-size: 0.65rem; font-weight: 700; color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px; }
-        
-        /* Tournament Rows */
-        .tourn-item { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 2px 0; border-bottom: 1px dashed #f3f4f6; }
-        .tourn-item:last-child { border: none; }
-        .rank-box { width: 18px; height: 18px; background: #f3f4f6; color: #6b7280; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.65rem; margin-right: 8px; font-weight: bold; }
-        .rank-1 { background: #fef08a; color: #854d0e; }
+        .card-top { 
+            background: #252525; padding: 8px 15px; font-size: 0.75rem; color: #aaa; 
+            display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);
+        }
+        .yt-small { color: #ef4444; font-weight: 600; text-decoration: none; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; }
+        .yt-small:hover { text-decoration: underline; color: #ff6b6b; }
 
-        /* Dots & Colors */
-        .dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; display: inline-block; }
-        .bg-y { background: #facc15; } .bg-b { background: #3b82f6; } .bg-r { background: #ef4444; }
-
-        /* Leaderboard */
-        .table-custom th { font-size: 0.7rem; color: #9ca3af; font-weight: 600; text-transform: uppercase; padding-top: 12px; padding-bottom: 12px; }
-        .table-custom td { vertical-align: middle; font-weight: 500; font-size: 0.9rem; padding: 10px 8px; }
-        .rank-circle { width: 24px; height: 24px; background: #f3f4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: #6b7280; }
-        .r-1 { background: #fef08a; color: #854d0e; } .r-2 { background: #e5e7eb; color: #374151; } .r-3 { background: #fed7aa; color: #9a3412; }
-
-        /* Admin & Controls */
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.95); z-index:9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        .admin-controls { text-align: right; padding: 8px 16px; background: #f9fafb; border-top: 1px solid #f3f4f6; display: none; }
-        .show-admin .admin-controls { display: block; }
+        .card-main { padding: 15px; display: flex; align-items: center; justify-content: space-between; }
         
+        .team-col { flex: 1; text-align: center; }
+        .team-name { font-weight: 700; font-size: 1rem; color: white; margin-bottom: 4px; display: block; }
+        .team-squad { font-size: 0.75rem; color: #888; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        .score-col { width: 80px; text-align: center; }
+        .score-val { font-size: 1.8rem; font-weight: 800; color: white; letter-spacing: -1px; }
+        .score-dash { color: #555; font-size: 1rem; display: block; margin-top: -5px; }
+
+        .tourn-rank-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed #333; font-size: 0.9rem; }
+        .tourn-rank-row:last-child { border: none; }
+        .rank-badge { background: #333; color: #fff; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.7rem; margin-right: 8px; }
+        .rank-1 { background: #facc15; color: black; }
+
+        /* LEADERBOARD DARK */
+        .table-dark-custom { --bs-table-bg: var(--bg-card); --bs-table-color: var(--text-main); --bs-table-border-color: var(--border); }
+        .table-dark-custom th { color: #777; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
+        .table-dark-custom td { vertical-align: middle; border-bottom: 1px solid var(--border); padding: 12px 8px; }
+        
+        /* ADMIN FORM DARK */
+        .form-control, .form-select { background-color: #2c2c2c; border: 1px solid #444; color: white; }
+        .form-control:focus { background-color: #333; color: white; border-color: #666; box-shadow: none; }
+        .admin-actions { padding: 10px; background: #252525; text-align: right; border-top: 1px solid var(--border); display: none; }
+        .show-admin .admin-actions { display: block; }
+
+        /* MODAL DARK */
+        .modal-content { background-color: var(--bg-card); border: 1px solid var(--border); color: white; }
+        .modal-header, .modal-footer { border-color: var(--border); }
+        .btn-close { filter: invert(1); }
+
+        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; display: flex; align-items: center; justify-content: center; }
         #shareCanvas { display: none; }
-        
-        /* Stats Modal */
-        .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
-        .form-dot { width: 20px; height: 20px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: white; font-size: 0.6rem; font-weight: bold; margin-left: 2px; }
-        .f-w { background: #22c55e; } .f-d { background: #94a3b8; } .f-l { background: #ef4444; }
-        
-        /* Color Radio */
-        .color-opt { display: none; }
-        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
-        .color-opt:checked + .color-label { opacity: 1; border-color: #111; transform: scale(1.1); }
     </style>
 </head>
 <body>
 
     <div id="loadingOverlay" class="d-none">
-        <div class="spinner-border text-primary" role="status"></div>
+        <div class="spinner-border text-light" role="status"></div>
     </div>
 
-    <div class="brand-header">
-        <div class="brand-left">
-            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="brand-logo" id="leagueLogo" crossorigin="anonymous">
-            <div class="brand-info">
+    <div class="dark-header">
+        <div class="header-content">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" 
+                 class="logo-img" id="pageLogo" crossorigin="anonymous">
+            
+            <div class="brand-title text-start">
                 <h1>Elderly Support</h1>
-                <small>EST. 2020 | AMSTERDAM</small>
+                <small>LEAGUE ANALYTICS</small>
             </div>
-        </div>
-        <div class="brand-right">
-            <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="yt-icon" title="Watch on YouTube">
+
+            <a href="https://www.youtube.com/@elderlysupport" target="_blank" class="yt-btn-header" title="Highlights">
                 <i class="fab fa-youtube"></i>
             </a>
-            <div class="auth-icon" id="authBtn" data-bs-toggle="modal" data-bs-target="#loginModal" title="Admin Login">
-                <i class="fas fa-lock"></i>
-            </div>
+        </div>
+
+        <div class="auth-lock" id="authBtn" data-bs-toggle="modal" data-bs-target="#loginModal">
+            <i class="fas fa-lock"></i>
         </div>
     </div>
 
-    <div class="filter-container">
-        <select id="filterYear" class="custom-select">
-            <option value="2026" selected>2026</option>
-            <option value="2027">2027</option>
-        </select>
-        <select id="filterMonth" class="custom-select">
-            <option value="all">All Months</option>
-            <option value="0">January</option>
-            <option value="1">February</option>
-            <option value="2">March</option>
-            <option value="3">April</option>
-            <option value="4">May</option>
-            <option value="5">June</option>
-            <option value="6">July</option>
-            <option value="7">August</option>
-            <option value="8">September</option>
-            <option value="9">October</option>
-            <option value="10">November</option>
-            <option value="11">December</option>
-        </select>
+    <div class="container">
+        <div class="filter-container">
+            <select id="filterYear" class="dark-select">
+                <option value="2026" selected>2026</option>
+                <option value="2027">2027</option>
+            </select>
+            <select id="filterMonth" class="dark-select">
+                <option value="all">All Months</option>
+                <option value="0">January</option>
+                <option value="1">February</option>
+                <option value="2">March</option>
+                <option value="3">April</option>
+                <option value="4">May</option>
+                <option value="5">June</option>
+                <option value="6">July</option>
+                <option value="7">August</option>
+                <option value="8">September</option>
+                <option value="9">October</option>
+                <option value="10">November</option>
+                <option value="11">December</option>
+            </select>
+        </div>
     </div>
 
-    <div class="text-center mb-4">
-        <ul class="nav nav-pills" id="myTab" role="tablist">
+    <div class="container text-center mb-4">
+        <ul class="nav nav-pills justify-content-center" id="myTab" role="tablist">
             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#matches">Matches</button></li>
-            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#leaderboard">Table</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#leaderboard">Standings</button></li>
             <li class="nav-item d-none" id="navNewEntry"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#admin">Admin</button></li>
         </ul>
     </div>
@@ -156,30 +168,29 @@
             
             <div class="tab-pane fade show active" id="matches">
                 <div id="match-history-list">
-                    <div class="text-center py-5 text-muted small"><i class="fas fa-circle-notch fa-spin me-2"></i>Loading matches...</div>
+                    <div class="text-center py-5 text-muted">Loading data...</div>
                 </div>
             </div>
 
             <div class="tab-pane fade" id="leaderboard">
-                <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
-                    <table class="table table-custom table-hover mb-0">
-                        <thead class="table-light">
-                            <tr><th class="ps-3">#</th><th>Player</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center pe-3">Pts</th></tr>
+                <div class="card bg-dark border-secondary overflow-hidden">
+                    <table class="table table-dark-custom table-hover mb-0">
+                        <thead>
+                            <tr><th class="ps-3">#</th><th>PLAYER</th><th class="text-center">P</th><th class="text-center">W</th><th class="text-center pe-3">PTS</th></tr>
                         </thead>
                         <tbody id="leaderboard-body"></tbody>
                     </table>
                 </div>
-                <div class="text-center mt-3 small text-muted"><i class="fas fa-chart-bar me-1"></i> Tap on a player for monthly analysis</div>
             </div>
 
             <div class="tab-pane fade" id="admin">
                 <div class="d-flex justify-content-end mb-3">
-                    <button class="btn btn-sm btn-outline-dark bg-white shadow-sm" onclick="exportToCSV()"><i class="fas fa-file-csv me-1"></i> Download Data</button>
+                    <button class="btn btn-sm btn-outline-light" onclick="exportToCSV()"><i class="fas fa-file-csv me-1"></i> Export Data</button>
                 </div>
 
-                <div class="card border-0 shadow-sm p-3">
-                    <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                        <h6 class="fw-bold m-0" id="formTitle">NEW MATCH ENTRY</h6>
+                <div class="card bg-dark border-secondary p-3">
+                    <div class="d-flex justify-content-between mb-3 border-bottom border-secondary pb-2">
+                        <h6 class="fw-bold m-0 text-white">NEW MATCH ENTRY</h6>
                         <button class="btn btn-sm btn-outline-danger d-none py-0" id="cancelEditBtn" onclick="cancelEditMode()">Cancel Edit</button>
                     </div>
                     
@@ -202,18 +213,18 @@
 
                         <div class="btn-group w-100 mb-3 btn-group-sm">
                             <input type="radio" class="btn-check" name="matchType" id="typeStandard" value="Standard" checked onchange="toggleMatchType()">
-                            <label class="btn btn-outline-dark" for="typeStandard">Standard</label>
+                            <label class="btn btn-outline-secondary" for="typeStandard">Standard</label>
                             <input type="radio" class="btn-check" name="matchType" id="typeTournament" value="Tournament" onchange="toggleMatchType()">
-                            <label class="btn btn-outline-dark" for="typeTournament">Tournament</label>
+                            <label class="btn btn-outline-secondary" for="typeTournament">Tournament</label>
                         </div>
 
                         <div id="standardSection">
-                            <div class="p-2 border rounded mb-2 bg-light bg-opacity-50">
+                            <div class="p-2 border border-secondary rounded mb-2 bg-secondary bg-opacity-10">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <div class="d-flex gap-1">
-                                        <input type="radio" name="colorA" value="yellow" class="color-opt" id="ca_y"><label class="color-label bg-y" for="ca_y"></label>
-                                        <input type="radio" name="colorA" value="blue" class="color-opt" id="ca_b" checked><label class="color-label bg-b" for="ca_b"></label>
-                                        <input type="radio" name="colorA" value="red" class="color-opt" id="ca_r"><label class="color-label bg-r" for="ca_r"></label>
+                                        <input type="radio" name="colorA" value="yellow" class="btn-check" id="ca_y"><label class="btn btn-sm btn-outline-warning py-0 px-1" for="ca_y"></label>
+                                        <input type="radio" name="colorA" value="blue" class="btn-check" id="ca_b" checked><label class="btn btn-sm btn-outline-primary py-0 px-1" for="ca_b"></label>
+                                        <input type="radio" name="colorA" value="red" class="btn-check" id="ca_r"><label class="btn btn-sm btn-outline-danger py-0 px-1" for="ca_r"></label>
                                     </div>
                                     <input type="text" class="form-control form-control-sm w-50" id="nameTeamA" placeholder="Team A Name">
                                 </div>
@@ -224,12 +235,12 @@
                                 <div id="listTeamA" class="d-flex flex-wrap mt-1"></div>
                             </div>
                             
-                            <div class="p-2 border rounded bg-light bg-opacity-50">
+                            <div class="p-2 border border-secondary rounded bg-secondary bg-opacity-10">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                     <div class="d-flex gap-1">
-                                        <input type="radio" name="colorB" value="yellow" class="color-opt" id="cb_y"><label class="color-label bg-y" for="cb_y"></label>
-                                        <input type="radio" name="colorB" value="blue" class="color-opt" id="cb_b"><label class="color-label bg-b" for="cb_b"></label>
-                                        <input type="radio" name="colorB" value="red" class="color-opt" id="cb_r" checked><label class="color-label bg-r" for="cb_r"></label>
+                                        <input type="radio" name="colorB" value="yellow" class="btn-check" id="cb_y"><label class="btn btn-sm btn-outline-warning py-0 px-1" for="cb_y"></label>
+                                        <input type="radio" name="colorB" value="blue" class="btn-check" id="cb_b"><label class="btn btn-sm btn-outline-primary py-0 px-1" for="cb_b"></label>
+                                        <input type="radio" name="colorB" value="red" class="btn-check" id="cb_r" checked><label class="btn btn-sm btn-outline-danger py-0 px-1" for="cb_r"></label>
                                     </div>
                                     <input type="text" class="form-control form-control-sm w-50" id="nameTeamB" placeholder="Team B Name">
                                 </div>
@@ -243,22 +254,22 @@
 
                         <div id="tournamentSection" class="d-none">
                             <div class="row g-1 mb-2">
-                                <div class="col-4"><div class="p-1 border rounded text-center bg-warning bg-opacity-10"><small class="fw-bold d-block">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border rounded text-center bg-primary bg-opacity-10"><small class="fw-bold d-block">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border rounded text-center bg-danger bg-opacity-10"><small class="fw-bold d-block">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center"><small class="fw-bold d-block text-warning">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center"><small class="fw-bold d-block text-primary">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center"><small class="fw-bold d-block text-danger">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
                             </div>
-                            <div class="border rounded p-2 bg-light small">
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m1_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m1_b"><span class="badge bg-primary">B</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m2_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m2_c"><span class="badge bg-danger">R</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m3_b">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m3_c"><span class="badge bg-danger">R</span></div>
-                                <hr class="my-1">
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m4_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m4_b"><span class="badge bg-primary">B</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m5_a">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m5_c"><span class="badge bg-danger">R</span></div>
-                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center border rounded" style="width:25px" id="t_m6_b">-<input type="number" class="text-center border rounded" style="width:25px" id="t_m6_c"><span class="badge bg-danger">R</span></div>
+                            <div class="border border-secondary rounded p-2 bg-dark small">
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m1_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m1_b"><span class="badge bg-primary">B</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m2_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m2_c"><span class="badge bg-danger">R</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m3_b">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m3_c"><span class="badge bg-danger">R</span></div>
+                                <hr class="my-1 border-secondary">
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m4_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m4_b"><span class="badge bg-primary">B</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-warning text-dark">Y</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m5_a">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m5_c"><span class="badge bg-danger">R</span></div>
+                                <div class="d-flex justify-content-center gap-2 mb-1"><span class="badge bg-primary">B</span><input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m6_b">-<input type="number" class="text-center form-control p-0" style="width:25px; height:20px" id="t_m6_c"><span class="badge bg-danger">R</span></div>
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-dark w-100 mt-3 py-2 fw-bold rounded-pill shadow-sm" id="saveBtn">SAVE RECORD</button>
+                        <button type="submit" class="btn btn-light w-100 mt-3 py-2 fw-bold shadow-sm" id="saveBtn">SAVE RECORD</button>
                     </form>
                     <datalist id="playerList"></datalist>
                 </div>
@@ -268,16 +279,16 @@
 
     <div class="modal fade" id="loginModal" tabindex="-1">
         <div class="modal-dialog modal-sm modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0 p-4">
-                <h6 class="fw-bold text-center mb-3 text-muted">ADMIN AREA</h6>
+            <div class="modal-content p-4">
+                <h6 class="fw-bold text-center mb-3">ADMIN AREA</h6>
                 <form id="loginForm">
                     <input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required>
                     <input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required>
-                    <button type="submit" class="btn btn-primary w-100 rounded-pill">Login</button>
+                    <button type="submit" class="btn btn-light w-100">Login</button>
                 </form>
                 <div id="userInfo" class="d-none text-center">
                     <small id="userEmailDisplay" class="d-block mb-3 text-muted"></small>
-                    <button class="btn btn-outline-danger btn-sm w-100 rounded-pill" id="logoutBtn">Logout</button>
+                    <button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button>
                 </div>
             </div>
         </div>
@@ -285,8 +296,8 @@
 
     <div class="modal fade" id="playerStatsModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0">
-                <div class="modal-header border-0 pb-0">
+            <div class="modal-content">
+                <div class="modal-header pb-0 border-secondary">
                     <h5 class="modal-title fw-bold" id="psName">Player</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
@@ -297,10 +308,10 @@
 
     <div class="modal fade" id="matchDetailModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content rounded-4 border-0">
+            <div class="modal-content">
                 <div class="modal-body" id="modalBody"></div>
-                <div class="modal-footer border-0 pt-0">
-                    <button class="btn btn-success w-100 rounded-pill fw-bold" onclick="downloadMatchImage()">
+                <div class="modal-footer pt-0 border-0">
+                    <button class="btn btn-success w-100 fw-bold" onclick="downloadMatchImage()">
                         <i class="fab fa-instagram me-2"></i> Download Story Image
                     </button>
                 </div>
@@ -315,6 +326,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="app.js"></script>
-    <style>.player-tag { font-size:0.7rem; background:#fff; border:1px solid #e5e7eb; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; font-weight: 500; }</style>
+    
+    <style>
+        .player-tag { font-size:0.7rem; background:#333; color:white; border:1px solid #555; padding:1px 6px; border-radius:10px; margin:1px; display:inline-block; font-weight: 500; }
+        .text-warning-dark { color: #facc15; }
+    </style>
 </body>
 </html>
