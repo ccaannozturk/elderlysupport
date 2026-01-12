@@ -1,4 +1,4 @@
-// --- 1. CONFIGURATION ---
+// 1. FIREBASE CONFIGURATION
 const firebaseConfig = {
     apiKey: "AIzaSyA7_V8m4sKxU-gGffeV3Uoa-deDieeu9rc",
     authDomain: "elderly-support-league.firebaseapp.com",
@@ -9,35 +9,51 @@ const firebaseConfig = {
     measurementId: "G-101F2P233G"
 };
 
-// Initialize Firebase
+// Initialize
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// Global State for Form
+// Global State
 let selectedPlayers = { A: [], B: [], C: [] };
-let allPlayerNames = []; // For autocomplete
 
-// --- 2. INITIALIZATION ---
+// 2. INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
     loadLeaderboard();
     loadMatchHistory();
     fetchPlayerNamesForAutocomplete();
     
-    // Set default date to today
+    // Default Date: Today
     document.getElementById('matchDate').valueAsDate = new Date();
+
+    // Bind Enter Keys
+    setupEnterKey('inputPlayerA', 'A');
+    setupEnterKey('inputPlayerB', 'B');
+    setupEnterKey('inputPlayerC', 'C');
 });
 
-// --- 3. CORE FUNCTIONS ---
+function setupEnterKey(inputId, team) {
+    document.getElementById(inputId).addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault(); // Prevent form submit
+            addPlayerToTeam(team);
+        }
+    });
+}
 
-// A. Fetch Leaderboard & Update UI
+// 3. READ DATA (Leaderboard & History)
+
 function loadLeaderboard() {
-    db.collection("players").orderBy("stats.points", "desc").orderBy("stats.gd", "desc")
+    // Sort: Points (Desc) -> Goal Diff (Desc) -> Won (Desc)
+    db.collection("players")
+      .orderBy("stats.points", "desc")
+      .orderBy("stats.gd", "desc")
+      .orderBy("stats.won", "desc")
     .onSnapshot((snapshot) => {
         const tbody = document.getElementById('leaderboard-body');
         tbody.innerHTML = "";
         
         if(snapshot.empty) {
-            tbody.innerHTML = "<tr><td colspan='8' class='text-center'>No stats yet. Start by adding a match!</td></tr>";
+            tbody.innerHTML = "<tr><td colspan='8' class='text-center py-5 text-muted'>No data yet. Start the season!</td></tr>";
             return;
         }
 
@@ -45,79 +61,95 @@ function loadLeaderboard() {
         snapshot.forEach((doc) => {
             const p = doc.data();
             const s = p.stats;
+            
+            // Rank Styling
+            let rankClass = "rank-circle";
+            if(rank === 1) rankClass += " rank-1";
+            if(rank === 2) rankClass += " rank-2";
+            if(rank === 3) rankClass += " rank-3";
+
             const row = `
                 <tr>
-                    <td>${rank++}</td>
-                    <td class="fw-bold">${p.name}</td>
-                    <td>${s.played}</td>
-                    <td>${s.won}</td>
-                    <td>${s.drawn}</td>
-                    <td>${s.lost}</td>
-                    <td>${s.gf - s.ga}</td>
-                    <td class="fw-bold text-primary">${s.points}</td>
+                    <td><div class="${rankClass}">${rank}</div></td>
+                    <td class="fw-bold text-dark">${p.name}</td>
+                    <td class="text-center">${s.played}</td>
+                    <td class="text-center text-success">${s.won}</td>
+                    <td class="text-center text-muted">${s.drawn}</td>
+                    <td class="text-center text-danger">${s.lost}</td>
+                    <td class="text-center fw-bold">${s.gf - s.ga}</td>
+                    <td class="text-center fw-bold fs-6 text-primary">${s.points}</td>
                 </tr>`;
             tbody.innerHTML += row;
+            rank++;
         });
     });
 }
 
-// B. Fetch Match History
 function loadMatchHistory() {
-    db.collection("matches").orderBy("date", "desc").limit(10)
+    db.collection("matches").orderBy("date", "desc").limit(20)
     .onSnapshot((snapshot) => {
-        const list = document.getElementById('match-history-list');
-        list.innerHTML = "";
+        const container = document.getElementById('match-history-list');
+        container.innerHTML = "";
 
         if(snapshot.empty) {
-            list.innerHTML = "<div class='text-center p-3'>No matches found.</div>";
+            container.innerHTML = "<div class='text-center py-5 text-muted'>No matches found.</div>";
             return;
         }
 
         snapshot.forEach((doc) => {
             const m = doc.data();
-            const dateStr = m.date.toDate().toLocaleDateString();
+            const dateStr = m.date.toDate().toLocaleDateString('en-NL', { day: 'numeric', month: 'short', year: 'numeric' });
             
-            // Format match display based on type
-            let html = `<div class="list-group-item">
-                <div class="d-flex justify-content-between align-items-center">
-                    <small class="text-muted">${dateStr} @ ${m.location}</small>
-                    <span class="badge bg-secondary">${m.type}</span>
-                </div>
-                <div class="mt-2">`;
+            // YouTube Handling
+            const hasVideo = m.youtubeLink ? 'has-video' : '';
+            const clickAttr = m.youtubeLink ? `onclick="window.open('${m.youtubeLink}', '_blank')"` : '';
+            const ytBadge = m.youtubeLink ? '<i class="fab fa-youtube text-danger ms-2" title="Watch Video"></i>' : '';
+
+            let html = `
+            <div class="col-md-6 col-lg-4">
+                <div class="custom-card match-item ${hasVideo} p-3 mb-3" ${clickAttr}>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="match-date">${dateStr}</span>
+                        <small class="text-muted">${m.location} ${ytBadge}</small>
+                    </div>
+                    
+                    <div class="match-content">`;
             
+            // Teams Display
             m.teams.forEach(t => {
-                html += `<div class="d-flex justify-content-between">
-                            <span>${t.players.join(", ")}</span>
-                            <span class="fw-bold">${t.score}</span>
-                         </div>`;
+                const tName = t.teamName ? `<span class="fw-bold text-uppercase small" style="letter-spacing:0.5px">${t.teamName}</span>` : `<span class="text-muted small">Team</span>`;
+                html += `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="d-flex flex-column" style="width:75%">
+                            ${tName}
+                            <div class="text-muted small text-truncate">${t.players.join(", ")}</div>
+                        </div>
+                        <div class="score-box">${t.score}</div>
+                    </div>
+                `;
             });
             
-            html += `</div></div>`;
-            list.innerHTML += html;
+            html += `</div></div></div>`;
+            container.innerHTML += html;
         });
     });
 }
 
-// C. Autocomplete Helper
+// Helper: Autocomplete
 function fetchPlayerNamesForAutocomplete() {
     db.collection("players").get().then(snap => {
-        allPlayerNames = [];
         const datalist = document.getElementById('playerList');
         datalist.innerHTML = "";
-        
         snap.forEach(doc => {
-            const name = doc.data().name;
-            allPlayerNames.push(name);
             const option = document.createElement('option');
-            option.value = name;
+            option.value = doc.data().name;
             datalist.appendChild(option);
         });
     });
 }
 
-// --- 4. FORM HANDLING (ADD MATCH) ---
+// 4. INTERACTION & FORM LOGIC
 
-// Toggle between Standard (2 Teams) and Tournament (3 Teams)
 function toggleMatchType() {
     const type = document.querySelector('input[name="matchType"]:checked').value;
     const teamC = document.getElementById('teamCContainer');
@@ -126,28 +158,33 @@ function toggleMatchType() {
         teamC.classList.remove('d-none');
     } else {
         teamC.classList.add('d-none');
-        selectedPlayers.C = []; // Clear Team C
+        selectedPlayers.C = [];
         renderTeamList('C');
     }
 }
 
-// Add Player to Team List
 function addPlayerToTeam(team) {
     const input = document.getElementById(`inputPlayer${team}`);
-    const name = input.value.trim();
+    let name = input.value.trim();
     
-    if (!name) return;
-    
-    // Prevent duplicates in the same team
+    // Format Name (First letter Upper)
+    if(name) {
+        name = name.charAt(0).toUpperCase() + name.slice(1);
+    } else {
+        return;
+    }
+
+    // Check Duplicate in Same Team
     if (selectedPlayers[team].includes(name)) {
-        alert("Player already in this team!");
+        alert(`${name} is already in Team ${team}!`);
+        input.value = "";
         return;
     }
 
     selectedPlayers[team].push(name);
     renderTeamList(team);
-    input.value = ""; // Clear input
-    input.focus();
+    input.value = "";
+    input.focus(); // Keep focus for fast entry
 }
 
 function removePlayerFromTeam(team, name) {
@@ -159,111 +196,84 @@ function renderTeamList(team) {
     const container = document.getElementById(`listTeam${team}`);
     container.innerHTML = "";
     selectedPlayers[team].forEach(player => {
-        const badge = document.createElement('span');
-        badge.className = "badge bg-primary player-badge";
-        badge.innerHTML = `${player} &times;`;
-        badge.onclick = () => removePlayerFromTeam(team, player);
-        container.appendChild(badge);
+        const tag = document.createElement('span');
+        tag.className = "player-tag";
+        tag.innerHTML = `${player} <i class="fas fa-times-circle" onclick="removePlayerFromTeam('${team}', '${player}')"></i>`;
+        container.appendChild(tag);
     });
 }
 
-// --- 5. SAVE MATCH LOGIC (THE BRAIN) ---
+// 5. SAVE MATCH (WRITE TO DB)
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
     btn.disabled = true;
-    btn.innerText = "Processing...";
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
 
     const matchType = document.querySelector('input[name="matchType"]:checked').value;
     const dateVal = document.getElementById('matchDate').value;
     const location = document.getElementById('matchLocation').value;
+    const youtubeLink = document.getElementById('matchYoutube').value;
 
     try {
-        // 1. Prepare Data
         let teamsData = [];
-        
-        // Team A & B
         teamsData.push(createTeamData('A'));
         teamsData.push(createTeamData('B'));
         
-        // Team C (only if Tournament)
         if (matchType === 'Tournament') {
             teamsData.push(createTeamData('C'));
         }
 
-        // Validate: Ensure players are added
+        // Validation
         if (teamsData.some(t => t.players.length === 0)) {
-            throw new Error("Please add players to all teams.");
+            throw new Error("Each team must have at least one player.");
         }
 
-        // 2. Calculate Results (Who won?)
-        // Sort teams by score descending (Highest score first)
+        // --- CALCULATION LOGIC ---
         const sortedTeams = [...teamsData].sort((a, b) => b.score - a.score);
-        
-        // Assign Points Logic
-        const updates = {}; // Map of playerName -> { pointsToAdd, w/d/l, gf, ga }
+        const updates = {}; 
 
         if (matchType === 'Standard') {
-            // Standard: Win(3), Draw(1), Loss(0)
             const scoreA = teamsData[0].score;
             const scoreB = teamsData[1].score;
-            
-            teamsData[0].players.forEach(p => calculateStandardStats(p, scoreA, scoreB, updates));
-            teamsData[1].players.forEach(p => calculateStandardStats(p, scoreB, scoreA, updates));
-        
+            teamsData[0].players.forEach(p => calcStats(p, scoreA, scoreB, updates));
+            teamsData[1].players.forEach(p => calcStats(p, scoreB, scoreA, updates));
         } else {
-            // Tournament: 1st(3), 2nd(1), 3rd(0)
-            // Note: Does not currently handle draws perfectly in tournament (e.g. shared 1st place), 
-            // but assumes strict ranking for now or standard logic.
-            // Simplified Rule: Rank 1 gets 3pts, Rank 2 gets 1pt.
-            
+            // Tournament (1st: 3pts, 2nd: 1pt, 3rd: 0pt)
             sortedTeams.forEach((team, index) => {
-                let pts = 0;
-                let isWin = false, isDraw = false, isLoss = false;
-
-                if (index === 0) { pts = 3; isWin = true; }      // 1st Place
-                else if (index === 1) { pts = 1; isDraw = true; } // 2nd Place (treated as 'Draw' for stats?) Or just 2nd place.
-                else { pts = 0; isLoss = true; }                 // 3rd Place
+                let pts = 0; let w=0, d=0, l=0;
+                if (index === 0) { pts = 3; w = 1; }
+                else if (index === 1) { pts = 1; d = 1; } // 2nd place treated as Draw stat-wise? Or just points? Let's use points mostly.
+                else { pts = 0; l = 1; }
 
                 team.players.forEach(p => {
                     if(!updates[p]) updates[p] = { pts: 0, w:0, d:0, l:0, gf:0, ga:0 };
                     updates[p].pts = pts;
-                    updates[p].w = isWin ? 1 : 0;
-                    // Let's treat 2nd place as neither W nor L, maybe distinct? 
-                    // User said: 2nd place gets 1 point. Let's count it as a Draw for stats consistency or just Points.
-                    // For now mapping: 1st=Win, 2nd=Draw, 3rd=Loss
-                    updates[p].d = isDraw ? 1 : 0;
-                    updates[p].l = isLoss ? 1 : 0;
-                    updates[p].gf = team.score; 
-                    // GA is average of others? Or sum? Simplified: GA = 0 in tournament or irrelevant?
-                    // Let's keep GA simple: Sum of other teams' scores
-                    const otherScores = teamsData.filter(t => t !== team).reduce((acc, t) => acc + t.score, 0);
-                    updates[p].ga = otherScores;
+                    updates[p].w = w;
+                    updates[p].d = d;
+                    updates[p].l = l;
+                    updates[p].gf = team.score;
+                    updates[p].ga = 0; // Keeping simple for tournament
                 });
             });
         }
 
-        // 3. Database Updates (Batch)
+        // --- BATCH WRITE ---
         const batch = db.batch();
-
-        // Save Match Record
         const matchRef = db.collection("matches").doc();
+        
         batch.set(matchRef, {
             date: new Date(dateVal),
             location: location,
             type: matchType,
+            youtubeLink: youtubeLink || null,
             teams: teamsData
         });
 
-        // Update Each Player
         for (const [name, stats] of Object.entries(updates)) {
             const playerRef = db.collection("players").doc(name);
-            // We use a Helper to atomic update or set if new
-            // Since we can't read-modify-write easily in a simple batch without reads,
-            // we will use Transaction in real app, but here we can rely on increment
-            // However, creating new docs with increment requires 'set' with merge.
-            
             batch.set(playerRef, {
                 name: name,
                 stats: {
@@ -279,28 +289,28 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         }
 
         await batch.commit();
-
-        // 4. Cleanup
+        
+        // Success
         alert("Match saved successfully!");
-        location.reload(); // Refresh to clear form and update lists
+        window.location.reload(); 
 
     } catch (err) {
         console.error(err);
-        alert("Error saving match: " + err.message);
+        alert("Error: " + err.message);
         btn.disabled = false;
-        btn.innerText = "Save Match Record";
+        btn.innerHTML = originalText;
     }
 });
 
-// Helper: Extract Data from DOM
+// Helpers
 function createTeamData(teamKey) {
     const score = parseInt(document.getElementById(`score${teamKey}`).value) || 0;
+    const name = document.getElementById(`nameTeam${teamKey}`).value || "";
     const players = selectedPlayers[teamKey];
-    return { score, players };
+    return { score, players, teamName: name };
 }
 
-// Helper: Standard Match Stats Logic
-function calculateStandardStats(playerName, myScore, oppScore, updates) {
+function calcStats(playerName, myScore, oppScore, updates) {
     if(!updates[playerName]) updates[playerName] = { pts: 0, w:0, d:0, l:0, gf:0, ga:0 };
     
     updates[playerName].gf = myScore;
