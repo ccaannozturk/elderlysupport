@@ -18,7 +18,9 @@ let allMatches = [];
 let currentMatchForImage = null; 
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
-// --- INIT ---
+// --- HELPER: CRASH PREVENTER ---
+function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
+
 document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(user => {
         currentUser = user;
@@ -46,7 +48,7 @@ function updateAuthUI() {
         if(authBtn) authBtn.classList.add('active');
         document.getElementById('loginForm').classList.add('d-none');
         document.getElementById('userInfo').classList.remove('d-none');
-        document.getElementById('userEmailDisplay').innerText = currentUser.email;
+        safeText('userEmailDisplay', currentUser.email);
     } else {
         if(navEntry) navEntry.classList.add('d-none');
         if(authBtn) authBtn.classList.remove('active');
@@ -73,7 +75,7 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
-// RENDER DATA (V10)
+// RENDER DATA
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
@@ -88,17 +90,19 @@ function renderData() {
     });
 
     const list = document.getElementById('match-history-list');
-    if(list) list.innerHTML = "";
+    if(!list) return;
     
-    if(filtered.length === 0 && list) {
+    list.innerHTML = "";
+    
+    if(filtered.length === 0) {
         list.innerHTML = "<div class='text-center py-5 text-muted small'>No matches found.</div>";
-    } else if(list) {
+    } else {
         filtered.forEach(m => {
             const dateStr = formatDate(m.date.toDate());
             
-            // ADMIN CONTROLS
+            // ADMIN CONTROLS (CASE INSENSITIVE)
             let adminBtns = "";
-            if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN) {
+            if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
                 adminBtns = `<div class="admin-actions">
                     <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch('${m.id}', event)">Edit</button> 
                     <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
@@ -106,7 +110,7 @@ function renderData() {
             }
 
             // YOUTUBE
-            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" style="color:#ef4444; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
+            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" class="yt-icon ms-2" style="font-size:1rem;color:#ef4444;"><i class="fab fa-youtube"></i></a>` : '';
 
             let html = "";
             if(m.type === 'Standard') {
@@ -151,7 +155,7 @@ function renderData() {
         });
     }
 
-    // STATS
+    // LEADERBOARD CALC
     let stats = {};
     filtered.forEach(m => {
         if(m.type === 'Standard') {
@@ -175,9 +179,8 @@ function renderData() {
     if(players.length === 0) tbody.innerHTML = "<tr><td colspan='5' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
     
     players.forEach((p, i) => {
-        const color = i===0?"text-warning":(i<3?"text-primary":"text-muted");
         const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
-        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td><td class="fw-bold text-light">${p.name}</td><td class="text-center text-muted">${p.played}</td><td class="text-center text-muted">${p.won}</td><td class="text-center pe-3 fw-bold text-white">${p.points}</td></tr>`;
+        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td><td class="fw-bold text-light">${p.name}</td><td class="text-center text-muted">${p.played}</td><td class="text-center text-muted">${p.won}</td><td class="text-center pe-3 fw-bold text-info">${p.points}</td></tr>`;
     });
 }
 
@@ -189,86 +192,92 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
     });
 }
 
-// CANVAS (Fixed)
-// --- CANVAS GENERATOR (Safe Mode) ---
+// --- PLAYER STATS (MONTHLY) ---
+window.openPlayerStats = (name) => {
+    const year = parseInt(document.getElementById('filterYear').value);
+    const pMatches = allMatches.filter(m => {
+        const hasP = m.teams.some(t => t.players.includes(name));
+        return hasP && m.date.toDate().getFullYear() === year;
+    }).sort((a,b) => b.date - a.date);
+
+    if(pMatches.length === 0) return;
+
+    let w=0, played=0, pts=0;
+    let monthly = {};
+
+    pMatches.forEach(m => {
+        played++;
+        const monthIdx = m.date.toDate().getMonth();
+        if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0, form:[]};
+        
+        let matchPts=0, result='L';
+        if(m.type==='Standard') {
+            const tA=m.teams[0]; const inA=tA.players.includes(name);
+            const myS=inA?tA.score:m.teams[1].score;
+            const opS=inA?m.teams[1].score:tA.score;
+            if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
+        } else {
+            const r = m.teams.find(t=>t.players.includes(name)).rank;
+            if(r===1) {w++; matchPts=3; result='W';} else if(r===2) {matchPts=1; result='D';}
+        }
+        pts += matchPts;
+        monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
+        monthly[monthIdx].form.push(result);
+    });
+
+    const winRate = Math.round((w/played)*100);
+    const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    
+    let monthRows = "";
+    Object.keys(monthly).sort((a,b)=>a-b).forEach(mIdx => {
+        const d = monthly[mIdx];
+        const formDots = d.form.slice(0,5).map(r => {
+            if(r==='W') return '<i class="fas fa-check text-success mx-1"></i>';
+            if(r==='D') return '<i class="far fa-circle text-warning mx-1"></i>';
+            return '<i class="fas fa-times text-danger mx-1"></i>';
+        }).join('');
+        monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-primary">${d.pts}</div><div class="text-end" style="flex:1">${formDots}</div></div>`;
+    });
+
+    safeText('psName', name.toUpperCase());
+    
+    const psBody = document.getElementById('psBody');
+    if(psBody) {
+        psBody.innerHTML = `
+        <div class="text-center mb-3"><h1 class="display-4 fw-bold text-primary mb-0" style="letter-spacing:-2px">${pts}</h1><small class="text-muted text-uppercase fw-bold" style="font-size:0.65rem; letter-spacing:1px">Season ${year}</small></div>
+        <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm"><div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div><div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div><div class="col-4 bg-dark p-2"><div class="fw-bold">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div></div>
+        <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>
+        <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div><div class="text-end" style="flex:1">FORM</div></div>
+        ${monthRows}`;
+    }
+    
+    const modalEl = document.getElementById('playerStatsModal');
+    if(modalEl) new bootstrap.Modal(modalEl).show();
+};
+
+// --- CANVAS GENERATOR ---
 window.downloadMatchImage = () => {
     const m = currentMatchForImage;
     if(!m) return;
     const canvas = document.getElementById('shareCanvas');
     const ctx = canvas.getContext('2d');
     
-    // Create a new image object specifically for Canvas manipulation
-    // This allows us to use CORS just for the download, without breaking the site display
-    const logoImg = new Image();
-    logoImg.crossOrigin = "anonymous";
-    logoImg.src = "https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49";
+    // Use the image ALREADY loaded on the page to avoid re-fetching and CORS issues
+    const logoImg = document.getElementById('pageLogo');
     
-    logoImg.onload = () => {
-        // 1. Background (Matches new Theme)
-        ctx.fillStyle = "#0f172a"; 
-        ctx.fillRect(0, 0, 1080, 1920);
-        
-        // 2. Logo (Circular Clip)
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(540, 200, 100, 0, Math.PI * 2, true);
-        ctx.closePath();
-        ctx.clip();
-        ctx.drawImage(logoImg, 440, 100, 200, 200);
+    // BG
+    ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, 1080, 1920);
+    
+    // Header
+    if (logoImg.complete && logoImg.naturalHeight !== 0) {
+        ctx.save(); ctx.beginPath(); ctx.arc(540, 200, 100, 0, Math.PI * 2, true); ctx.closePath(); ctx.clip();
+        try { ctx.drawImage(logoImg, 440, 100, 200, 200); } catch (e) {}
         ctx.restore();
-
-        // 3. Text & Content
-        ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
-        ctx.fillText("ELDERLY SUPPORT", 540, 400);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#94a3b8";
-        ctx.fillText(formatDate(m.date.toDate()), 540, 470);
-
-        if(m.type === 'Standard') {
-            const tA=m.teams[0], tB=m.teams[1];
-            ctx.font = "bold 250px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
-            ctx.fillText(`${tA.score} - ${tB.score}`, 540, 750);
-            
-            ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#3b82f6";
-            ctx.fillText(tA.teamName || "TEAM A", 540, 950);
-            ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
-            wrapText(ctx, tA.players.join(", "), 540, 1010, 900, 50);
-
-            ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#64748b"; ctx.fillText("VS", 540, 1200);
-
-            ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#ef4444";
-            ctx.fillText(tB.teamName || "TEAM B", 540, 1350);
-            ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
-            wrapText(ctx, tB.players.join(", "), 540, 1410, 900, 50);
-        } else {
-            const r1 = m.teams.find(t=>t.rank===1);
-            ctx.font = "bold 120px Inter, sans-serif"; ctx.fillStyle = "#facc15";
-            ctx.fillText("TOURNAMENT WINNER", 540, 750);
-            
-            ctx.font = "bold 150px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
-            ctx.fillText(r1.teamName, 540, 950);
-            
-            ctx.font = "50px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
-            wrapText(ctx, r1.players.join(", "), 540, 1050, 900, 60);
-        }
-        
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#475569";
-        ctx.fillText("Elderly Support League", 540, 1800);
-
-        try {
-            const link = document.createElement('a');
-            link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
-            link.href = canvas.toDataURL("image/png");
-            link.click();
-        } catch(e) { alert("Download failed. Security error."); }
-    };
-
-    logoImg.onerror = () => { alert("Error loading logo for image generation."); };
-};
     }
 
     ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
     ctx.fillText("ELDERLY SUPPORT", 540, 400);
-    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#888888";
+    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#94a3b8";
     ctx.fillText(formatDate(m.date.toDate()), 540, 470);
 
     if(m.type === 'Standard') {
@@ -276,10 +285,10 @@ window.downloadMatchImage = () => {
         ctx.font = "bold 250px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
         ctx.fillText(`${tA.score} - ${tB.score}`, 540, 750);
         ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#3b82f6"; ctx.fillText(tA.teamName || "TEAM A", 540, 950);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cccccc"; wrapText(ctx, tA.players.join(", "), 540, 1010, 900, 50);
-        ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#555555"; ctx.fillText("VS", 540, 1200);
+        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1"; wrapText(ctx, tA.players.join(", "), 540, 1010, 900, 50);
+        ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#64748b"; ctx.fillText("VS", 540, 1200);
         ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#ef4444"; ctx.fillText(tB.teamName || "TEAM B", 540, 1350);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cccccc"; wrapText(ctx, tB.players.join(", "), 540, 1410, 900, 50);
+        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1"; wrapText(ctx, tB.players.join(", "), 540, 1410, 900, 50);
     } else {
         const r1 = m.teams.find(t=>t.rank===1);
         ctx.font = "bold 120px Inter, sans-serif"; ctx.fillStyle = "#facc15"; ctx.fillText("TOURNAMENT WINNER", 540, 750);
@@ -287,8 +296,15 @@ window.downloadMatchImage = () => {
         ctx.font = "50px Inter, sans-serif"; ctx.fillStyle = "#cccccc"; wrapText(ctx, r1.players.join(", "), 540, 1050, 900, 60);
     }
     
-    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#444444"; ctx.fillText("Elderly Support League", 540, 1800);
-    try { const link = document.createElement('a'); link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`; link.href = canvas.toDataURL("image/png"); link.click(); } catch(e) { alert("Resim indirilemedi."); }
+    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#475569";
+    ctx.fillText("Elderly Support League", 540, 1800);
+
+    try {
+        const link = document.createElement('a');
+        link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    } catch(e) { alert("Download failed. Security error."); }
 };
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
@@ -314,17 +330,25 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         const type = document.querySelector('input[name="matchType"]:checked').value;
         const dVal = document.getElementById('matchDate').value;
         const common = {
-            date: new Date(dVal), location: document.getElementById('matchLocation').value, youtubeLink: document.getElementById('matchYoutube').value || null,
+            date: new Date(dVal),
+            location: document.getElementById('matchLocation').value,
+            youtubeLink: document.getElementById('matchYoutube').value || null,
             type: type, updatedBy: currentUser.email, timestamp: firebase.firestore.FieldValue.serverTimestamp()
         };
+
         let matchData = { ...common };
 
         if(type === 'Standard') {
             const sA=parseInt(document.getElementById('scoreA').value)||0, sB=parseInt(document.getElementById('scoreB').value)||0;
             const pA=selectedPlayers.A, pB=selectedPlayers.B;
             if(!pA.length || !pB.length) throw new Error("Add players!");
-            const caEl=document.querySelector('input[name="colorA"]:checked'), cbEl=document.querySelector('input[name="colorB"]:checked');
-            matchData.colors = [caEl?caEl.value:'blue', cbEl?cbEl.value:'red'];
+            
+            const caEl = document.querySelector('input[name="colorA"]:checked');
+            const cbEl = document.querySelector('input[name="colorB"]:checked');
+            const cA = caEl ? caEl.value : 'blue';
+            const cB = cbEl ? cbEl.value : 'red';
+            
+            matchData.colors = [cA, cB];
             matchData.teams = [{teamName: document.getElementById('nameTeamA').value, score:sA, players:pA}, {teamName: document.getElementById('nameTeamB').value, score:sB, players:pB}];
         } else {
             const pA=selectedPlayers.TournA, pB=selectedPlayers.TournB, pC=selectedPlayers.TournC;
@@ -343,8 +367,8 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         await docRef.set(matchData);
         cancelEditMode();
         if(load) load.classList.add('d-none');
-        const tabBtn = document.querySelector('button[data-bs-target="#matches"]');
-        if(tabBtn) bootstrap.Tab.getInstance(tabBtn).show();
+        const matchesTab = document.querySelector('button[data-bs-target="#matches"]');
+        if(matchesTab) bootstrap.Tab.getInstance(matchesTab).show();
     } catch (err) { if(load) load.classList.add('d-none'); alert("Error: " + err.message); }
 });
 
@@ -355,12 +379,14 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>auth.signOut(
 window.editMatch = (id, e) => {
     e.stopPropagation();
     const m = allMatches.find(x=>x.id===id); if(!m)return;
-    const tabBtn = document.querySelector('button[data-bs-target="#admin"]');
-    if(tabBtn) new bootstrap.Tab(tabBtn).show();
+    const adminTab = document.querySelector('button[data-bs-target="#admin"]');
+    if(adminTab) new bootstrap.Tab(adminTab).show();
     
-    const ft = document.getElementById('formTitle'); if(ft) ft.innerText="EDIT MATCH";
-    const sb = document.getElementById('saveBtn'); if(sb) { sb.innerText="UPDATE RECORD"; sb.classList.replace('btn-light','btn-warning'); }
-    const cb = document.getElementById('cancelEditBtn'); if(cb) cb.classList.remove('d-none');
+    safeText('formTitle', "EDIT MATCH");
+    safeText('saveBtn', "UPDATE");
+    const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-light', 'btn-warning');
+    const cancelBtn = document.getElementById('cancelEditBtn'); if(cancelBtn) cancelBtn.classList.remove('d-none');
+    
     document.getElementById('editMatchId').value = id;
     document.getElementById('matchDate').value = m.date.toDate().toISOString().split('T')[0];
     document.getElementById('matchLocation').value = m.location;
@@ -377,18 +403,31 @@ window.editMatch = (id, e) => {
         m.teams[0].players.forEach(p=>selectedPlayers.A.push(p)); m.teams[1].players.forEach(p=>selectedPlayers.B.push(p));
         renderList('A'); renderList('B');
     } else {
-        document.getElementById('typeTournament').click();
-        const f=m.fixture||{}; Object.keys(f).forEach(k=>Object.keys(f[k]).forEach(s=>{ const el=document.getElementById(`t_${k}_${s}`); if(el)el.value=f[k][s]; }));
-        ['nameTournA','nameTournB','nameTournC'].forEach((id,i)=>document.getElementById(id).value=m.teams[i].teamName);
-        m.teams[0].players.forEach(p=>selectedPlayers.TournA.push(p)); m.teams[1].players.forEach(p=>selectedPlayers.TournB.push(p)); m.teams[2].players.forEach(p=>selectedPlayers.TournC.push(p));
+        // TOURNAMENT EDIT FIX: FORCE TOGGLE AND POPULATE
+        const rb = document.getElementById('typeTournament');
+        if(rb) { rb.checked = true; toggleMatchType(); } 
+        
+        const f=m.fixture||{}; 
+        Object.keys(f).forEach(k=>Object.keys(f[k]).forEach(s=>{ const el=document.getElementById(`t_${k}_${s}`); if(el)el.value=f[k][s]; }));
+        
+        if(m.teams.length >= 3) {
+            document.getElementById('nameTournA').value=m.teams[0].teamName;
+            m.teams[0].players.forEach(p=>selectedPlayers.TournA.push(p));
+            
+            document.getElementById('nameTournB').value=m.teams[1].teamName;
+            m.teams[1].players.forEach(p=>selectedPlayers.TournB.push(p));
+            
+            document.getElementById('nameTournC').value=m.teams[2].teamName;
+            m.teams[2].players.forEach(p=>selectedPlayers.TournC.push(p));
+        }
         renderList('TournA'); renderList('TournB'); renderList('TournC');
     }
 };
 window.deleteMatch = (id, e) => { e.stopPropagation(); if(confirm("Delete?")) db.collection("matches").doc(id).delete(); };
 window.cancelEditMode = () => { 
-    const ft = document.getElementById('formTitle'); if(ft) ft.innerText="NEW MATCH ENTRY";
-    const sb = document.getElementById('saveBtn'); if(sb) { sb.innerText="SAVE RECORD"; sb.classList.replace('btn-warning','btn-light'); }
-    const cb = document.getElementById('cancelEditBtn'); if(cb) cb.classList.add('d-none');
+    safeText('formTitle', "NEW MATCH ENTRY"); safeText('saveBtn', "SAVE RECORD");
+    const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-warning','btn-light');
+    const cancelBtn = document.getElementById('cancelEditBtn'); if(cancelBtn) cancelBtn.classList.add('d-none');
     document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset(); 
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k)); 
     document.querySelectorAll('.border input[type="number"]').forEach(i=>i.value="");
@@ -400,7 +439,7 @@ function openMatchModalLogic(id) {
     const date=formatDate(m.date.toDate());
     if(m.type==='Standard') {
         const tA=m.teams[0], tB=m.teams[1];
-        body.innerHTML=`<div class="text-center mb-3 text-muted small">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${tA.teamName||'A'}</span><div class="display-4 fw-bold text-white">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${tB.teamName||'B'}</span><div class="display-4 fw-bold text-white">${tB.score}</div></div></div><div class="row text-center small text-light"><div class="col-6">${tA.players.join(', ')}</div><div class="col-6">${tB.players.join(', ')}</div></div>`;
+        body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${tA.teamName||'A'}</span><div class="display-4 fw-bold text-white">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${tB.teamName||'B'}</span><div class="display-4 fw-bold text-white">${tB.score}</div></div></div><div class="row text-center small text-light"><div class="col-6">${tA.players.join(', ')}</div><div class="col-6">${tB.players.join(', ')}</div></div>`;
     } else {
         const r1=m.teams.find(t=>t.rank===1),r2=m.teams.find(t=>t.rank===2),r3=m.teams.find(t=>t.rank===3);
         body.innerHTML=`<div class="text-center mb-3 text-muted small">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold text-white">${r1.teamName}</h3><small class="text-light">${r1.players.join(', ')}</small></div><ul class="list-group list-group-flush bg-dark small"><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>2. ${r2.teamName}</span><span>${r2.players.join(', ')}</span></li><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>3. ${r3.teamName}</span><span>${r3.players.join(', ')}</span></li></ul>`;
@@ -412,5 +451,10 @@ function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
 function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times ms-1 text-secondary" onclick="removePlayer('${k}','${p}')" style="cursor:pointer"></i></span>`).join(''); }
-window.openPlayerStats = openPlayerStats; 
 window.exportToCSV = () => { let c="Date,Type,Loc,Score,TeamA,TeamB\n"; allMatches.forEach(m=>{c+=`${formatDate(m.date.toDate())},${m.type},${m.location},${m.type==='Standard'?m.teams[0].score+'-'+m.teams[1].score:'Win: '+m.teams[0].teamName},${m.teams[0].teamName},${m.teams[1].teamName}\n`}); const l=document.createElement("a"); l.href=encodeURI("data:text/csv;charset=utf-8,"+c); l.download="data.csv"; l.click(); };
+// UI TOGGLE
+window.toggleMatchType = () => {
+    const isTourn = document.getElementById('typeTournament').checked;
+    document.getElementById('standardSection').classList.toggle('d-none', isTourn);
+    document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn);
+};
