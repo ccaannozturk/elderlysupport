@@ -8,14 +8,14 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <style>
+   <style>
         :root { 
-            --bg-body: #121212; 
-            --bg-card: #1e1e1e; 
-            --text-main: #e0e0e0; 
-            --text-muted: #9ca3af;
-            --border: #2f3336;
-            --accent: #3b82f6; 
+            --bg-body: #0f172a;       /* Oxford Blue (Softer than black) */
+            --bg-card: #1e293b;       /* Slate Blue (Card bg) */
+            --text-main: #f8fafc;     /* Off-white */
+            --text-muted: #94a3b8;    /* Slate Grey */
+            --border: #334155;        /* Lighter border for contrast */
+            --accent: #3b82f6;        /* Bright Blue */
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
@@ -25,71 +25,24 @@
             display: flex; align-items: center; justify-content: space-between; 
             position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
-        .logo-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #333; }
-        .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: white; letter-spacing: -0.5px; }
-        .brand-info small { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 1px; font-weight: 600; }
+        /* ... Keep the rest of your CSS exactly the same ... */
+        /* Just ensure .match-card, .sofa-header etc use var(--bg-card) which they do by default variables */
         
-        .header-actions { display: flex; gap: 15px; align-items: center; }
-        .yt-icon { color: #ef4444; font-size: 1.6rem; transition: transform 0.2s; }
-        .yt-icon:hover { transform: scale(1.1); color: #ff0000; }
-        .auth-icon { color: #555; font-size: 1.2rem; cursor: pointer; }
-        .auth-icon.active { color: #10b981; }
-
-        /* CONTROLS */
-        .filter-select { background: var(--bg-card); color: white; border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
-        .nav-pills .nav-link { color: var(--text-muted); font-weight: 600; border-radius: 8px; }
-        .nav-pills .nav-link.active { background-color: var(--bg-card); color: white; border: 1px solid var(--border); }
-
-        /* MATCH CARD */
-        .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
-        .match-card:hover { transform: translateY(-2px); border-color: #444; }
-        .card-top { background: #252525; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .card-body-strip { padding: 16px; display: flex; align-items: center; }
+        /* Specific override for inputs to match the new blue theme */
+        .form-control, .form-select { background-color: #020617; border: 1px solid var(--border); color: white; }
+        .form-control:focus { background-color: #0f172a; color: white; border-color: var(--accent); box-shadow: none; }
         
-        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .t-name { font-weight: 600; font-size: 0.95rem; color: white; display: flex; align-items: center; gap: 8px; }
-        .t-score { font-weight: 700; font-size: 1.1rem; color: white; }
-        .t-loser { opacity: 0.5; }
-        
-        .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
-        .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
-
-        /* TOURNAMENT */
-        .tourn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed #333; }
-        .tourn-row:last-child { border: none; }
-        .rank-badge { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-right: 8px; background: #333; color: white; }
-        .rank-1 { background: #facc15; color: black; }
-
-        /* LEADERBOARD */
-        .table-dark-custom th { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border); }
-        .table-dark-custom td { vertical-align: middle; padding: 12px 8px; border-bottom-color: var(--border); font-weight: 500; }
-        .rank-circle { width: 24px; height: 24px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
-        .r-1 { background: #facc15; color: #000; border: none; } 
-
-        /* ADMIN */
-        .admin-actions { background: rgba(0,0,0,0.3); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border); display: none; }
-        .show-admin .admin-actions { display: block; }
-        .form-control, .form-select { background-color: #2c2c2c; border: 1px solid #444; color: white; }
-        .form-control:focus { background-color: #333; color: white; border-color: #666; box-shadow: none; }
-
-        /* UTILS */
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; }
-        #shareCanvas { display: none; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .bg-y { background: #facc15; } .bg-b { background: #3b82f6; } .bg-r { background: #ef4444; }
-        .color-opt { display: none; }
-        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
-        .color-opt:checked + .color-label { opacity: 1; border-color: white; transform: scale(1.1); }
-        .player-tag { font-size:0.75rem; background:#333; border:1px solid #444; padding:2px 8px; border-radius:12px; margin:2px; display:inline-block; }
+        /* ... Keep the rest ... */
+        /* ... */
     </style>
 </head>
 <body>
 
     <div id="loadingOverlay" class="d-none"><div class="spinner-border text-light"></div></div>
 
-    <div class="brand-header">
+<div class="brand-header">
         <div class="d-flex align-items-center gap-3">
-            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo" crossorigin="anonymous">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo">
             <div class="brand-info">
                 <h1>Elderly Support</h1>
                 <small>EST. 2020 | AMSTERDAM</small>

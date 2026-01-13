@@ -190,19 +190,80 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
 }
 
 // CANVAS (Fixed)
+// --- CANVAS GENERATOR (Safe Mode) ---
 window.downloadMatchImage = () => {
     const m = currentMatchForImage;
     if(!m) return;
     const canvas = document.getElementById('shareCanvas');
     const ctx = canvas.getContext('2d');
-    const logoImg = document.getElementById('pageLogo');
     
-    ctx.fillStyle = "#121212"; ctx.fillRect(0, 0, 1080, 1920);
+    // Create a new image object specifically for Canvas manipulation
+    // This allows us to use CORS just for the download, without breaking the site display
+    const logoImg = new Image();
+    logoImg.crossOrigin = "anonymous";
+    logoImg.src = "https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49";
     
-    if (logoImg.complete && logoImg.naturalHeight !== 0) {
-        ctx.save(); ctx.beginPath(); ctx.arc(540, 200, 100, 0, Math.PI * 2, true); ctx.closePath(); ctx.clip();
-        try { ctx.drawImage(logoImg, 440, 100, 200, 200); } catch (e) {}
+    logoImg.onload = () => {
+        // 1. Background (Matches new Theme)
+        ctx.fillStyle = "#0f172a"; 
+        ctx.fillRect(0, 0, 1080, 1920);
+        
+        // 2. Logo (Circular Clip)
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(540, 200, 100, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(logoImg, 440, 100, 200, 200);
         ctx.restore();
+
+        // 3. Text & Content
+        ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("ELDERLY SUPPORT", 540, 400);
+        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#94a3b8";
+        ctx.fillText(formatDate(m.date.toDate()), 540, 470);
+
+        if(m.type === 'Standard') {
+            const tA=m.teams[0], tB=m.teams[1];
+            ctx.font = "bold 250px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
+            ctx.fillText(`${tA.score} - ${tB.score}`, 540, 750);
+            
+            ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#3b82f6";
+            ctx.fillText(tA.teamName || "TEAM A", 540, 950);
+            ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
+            wrapText(ctx, tA.players.join(", "), 540, 1010, 900, 50);
+
+            ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#64748b"; ctx.fillText("VS", 540, 1200);
+
+            ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#ef4444";
+            ctx.fillText(tB.teamName || "TEAM B", 540, 1350);
+            ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
+            wrapText(ctx, tB.players.join(", "), 540, 1410, 900, 50);
+        } else {
+            const r1 = m.teams.find(t=>t.rank===1);
+            ctx.font = "bold 120px Inter, sans-serif"; ctx.fillStyle = "#facc15";
+            ctx.fillText("TOURNAMENT WINNER", 540, 750);
+            
+            ctx.font = "bold 150px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
+            ctx.fillText(r1.teamName, 540, 950);
+            
+            ctx.font = "50px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1";
+            wrapText(ctx, r1.players.join(", "), 540, 1050, 900, 60);
+        }
+        
+        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#475569";
+        ctx.fillText("Elderly Support League", 540, 1800);
+
+        try {
+            const link = document.createElement('a');
+            link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        } catch(e) { alert("Download failed. Security error."); }
+    };
+
+    logoImg.onerror = () => { alert("Error loading logo for image generation."); };
+};
     }
 
     ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
