@@ -15,10 +15,9 @@ const auth = firebase.auth();
 let currentUser = null;
 let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
-let currentMatchForImage = null; 
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
-// --- HELPER: CRASH PREVENTER ---
+// --- HELPER ---
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -75,7 +74,7 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
-// RENDER DATA
+// RENDER
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
@@ -99,8 +98,6 @@ function renderData() {
     } else {
         filtered.forEach(m => {
             const dateStr = formatDate(m.date.toDate());
-            
-            // ADMIN CONTROLS (CASE INSENSITIVE)
             let adminBtns = "";
             if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
                 adminBtns = `<div class="admin-actions">
@@ -108,9 +105,7 @@ function renderData() {
                     <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
                 </div>`;
             }
-
-            // YOUTUBE
-            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" class="yt-icon ms-2" style="font-size:1rem;color:#ef4444;"><i class="fab fa-youtube"></i></a>` : '';
+            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" style="color:#f85149; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
 
             let html = "";
             if(m.type === 'Standard') {
@@ -140,13 +135,29 @@ function renderData() {
                 const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
                 const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
                 const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
+                const getCol = (t) => { const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); };
+                let scoreHtml = "";
+                if(m.fixture) {
+                    const f = m.fixture;
+                    scoreHtml = `
+                    <div class="tourn-scores">
+                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m1.a}-${f.m1.b}<span class="dot bg-b" style="margin-left:2px; width:6px; height:6px;"></span></span>
+                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m2.a}-${f.m2.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
+                        <span class="score-pill"><span class="dot bg-b" style="margin-right:2px; width:6px; height:6px;"></span>${f.m3.b}-${f.m3.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
+                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m4.a}-${f.m4.b}<span class="dot bg-b" style="margin-left:2px; width:6px; height:6px;"></span></span>
+                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m5.a}-${f.m5.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
+                        <span class="score-pill"><span class="dot bg-b" style="margin-right:2px; width:6px; height:6px;"></span>${f.m6.b}-${f.m6.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
+                    </div>`;
+                }
+
                 html = `
                 <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #facc15;">
-                    <div class="card-top"><span class="text-warning"><i class="fas fa-trophy me-1"></i> ${dateStr}</span> ${ytLink}</div>
+                    <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
                     <div class="p-3 bg-card">
-                        <div class="tourn-row"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> ${r1.teamName}</span></div>
-                        <div class="tourn-row"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> ${r2.teamName}</span></div>
-                        <div class="tourn-row"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> ${r3.teamName}</span></div>
+                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${r1.teamName}</span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${r1.players.join(', ')}</div></div>
+                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${r2.teamName}</span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${r2.players.join(', ')}</div></div>
+                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${r3.teamName}</span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${r3.players.join(', ')}</div></div>
+                        ${scoreHtml}
                     </div>
                     ${adminBtns}
                 </div>`;
@@ -155,7 +166,7 @@ function renderData() {
         });
     }
 
-    // LEADERBOARD CALC
+    // STATS CALC
     let stats = {};
     filtered.forEach(m => {
         if(m.type === 'Standard') {
@@ -173,11 +184,8 @@ function renderData() {
     const tbody = document.getElementById('leaderboard-body');
     if(!tbody) return;
     tbody.innerHTML = "";
-    
     const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.won-a.won));
-
     if(players.length === 0) tbody.innerHTML = "<tr><td colspan='5' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
-    
     players.forEach((p, i) => {
         const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
         tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td><td class="fw-bold text-light">${p.name}</td><td class="text-center text-muted">${p.played}</td><td class="text-center text-muted">${p.won}</td><td class="text-center pe-3 fw-bold text-info">${p.points}</td></tr>`;
@@ -192,162 +200,134 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
     });
 }
 
-// --- PLAYER STATS (MONTHLY) ---
+// --- PLAYER STATS (ADVANCED V11.5) ---
 window.openPlayerStats = (name) => {
     const year = parseInt(document.getElementById('filterYear').value);
     const pMatches = allMatches.filter(m => {
         const hasP = m.teams.some(t => t.players.includes(name));
         return hasP && m.date.toDate().getFullYear() === year;
-    }).sort((a,b) => b.date - a.date);
+    }).sort((a,b) => b.date - a.date); // Newest First
 
     if(pMatches.length === 0) return;
 
     let w=0, played=0, pts=0;
+    let totalGF = 0, totalGA = 0;
     let monthly = {};
+    let recentForm = [];
 
+    // Iterate Newest to Oldest
     pMatches.forEach(m => {
         played++;
         const monthIdx = m.date.toDate().getMonth();
-        if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0, form:[]};
+        if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0};
         
         let matchPts=0, result='L';
+        let matchGF=0, matchGA=0;
+
         if(m.type==='Standard') {
             const tA=m.teams[0]; const inA=tA.players.includes(name);
             const myS=inA?tA.score:m.teams[1].score;
             const opS=inA?m.teams[1].score:tA.score;
+            matchGF = myS; matchGA = opS;
             if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
         } else {
-            const r = m.teams.find(t=>t.players.includes(name)).rank;
+            // Tournament Logic
+            const myTeam = m.teams.find(t=>t.players.includes(name));
+            const teamIdx = m.teams.indexOf(myTeam); // 0=Y, 1=B, 2=R
+            const r = myTeam.rank;
             if(r===1) {w++; matchPts=3; result='W';} else if(r===2) {matchPts=1; result='D';}
+            
+            // Calculate GF/GA from Matrix if exists
+            if(m.fixture) {
+                const f = m.fixture;
+                // Helper to add scores
+                const add = (my, op) => { matchGF+=my; matchGA+=op; };
+                // Yellow (Index 0)
+                if(teamIdx === 0) {
+                    add(f.m1.a, f.m1.b); add(f.m2.a, f.m2.c); add(f.m4.a, f.m4.b); add(f.m5.a, f.m5.c);
+                } 
+                // Blue (Index 1)
+                else if(teamIdx === 1) {
+                    add(f.m1.b, f.m1.a); add(f.m3.b, f.m3.c); add(f.m4.b, f.m4.a); add(f.m6.b, f.m6.c);
+                } 
+                // Red (Index 2)
+                else {
+                    add(f.m2.c, f.m2.a); add(f.m3.c, f.m3.b); add(f.m5.c, f.m5.a); add(f.m6.c, f.m6.b);
+                }
+            }
         }
+        
         pts += matchPts;
+        totalGF += matchGF;
+        totalGA += matchGA;
         monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
-        monthly[monthIdx].form.push(result);
+        
+        // Collect form (Newest First)
+        if(recentForm.length < 5) recentForm.push(result);
     });
 
     const winRate = Math.round((w/played)*100);
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    const gd = totalGF - totalGA;
+    const avgGF = (totalGF/played).toFixed(1);
     
+    // REVERSE FORM for Display (Oldest -> Newest on Right)
+    const formDisplay = recentForm.reverse().map(r => {
+        if(r==='W') return '<i class="fas fa-check text-success mx-1"></i>';
+        if(r==='D') return '<i class="far fa-circle text-warning mx-1"></i>';
+        return '<i class="fas fa-times text-danger mx-1"></i>';
+    }).join('');
+
     let monthRows = "";
     Object.keys(monthly).sort((a,b)=>a-b).forEach(mIdx => {
         const d = monthly[mIdx];
-        const formDots = d.form.slice(0,5).map(r => {
-            if(r==='W') return '<i class="fas fa-check text-success mx-1"></i>';
-            if(r==='D') return '<i class="far fa-circle text-warning mx-1"></i>';
-            return '<i class="fas fa-times text-danger mx-1"></i>';
-        }).join('');
-        monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-primary">${d.pts}</div><div class="text-end" style="flex:1">${formDots}</div></div>`;
+        monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-white">${d.pts}</div></div>`;
     });
 
     safeText('psName', name.toUpperCase());
-    
     const psBody = document.getElementById('psBody');
     if(psBody) {
         psBody.innerHTML = `
-        <div class="text-center mb-3"><h1 class="display-4 fw-bold text-primary mb-0" style="letter-spacing:-2px">${pts}</h1><small class="text-muted text-uppercase fw-bold" style="font-size:0.65rem; letter-spacing:1px">Season ${year}</small></div>
-        <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm"><div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div><div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div><div class="col-4 bg-dark p-2"><div class="fw-bold">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div></div>
+        <div class="text-center mb-3">
+            <div class="mb-2 text-muted small" style="letter-spacing:1px">CURRENT FORM</div>
+            <div class="fs-5">${formDisplay}</div>
+        </div>
+        <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm">
+            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div>
+            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div>
+            <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
+        </div>
+        <div class="row text-center mb-4 g-0 border border-secondary rounded overflow-hidden shadow-sm">
+            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-success">${totalGF}</div><small class="text-muted" style="font-size:0.6rem">SCORED</small></div>
+            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-danger">${totalGA}</div><small class="text-muted" style="font-size:0.6rem">CONCEDED</small></div>
+            <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${gd > 0 ? '+'+gd : gd}</div><small class="text-muted" style="font-size:0.6rem">DIFF</small></div>
+        </div>
         <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>
-        <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div><div class="text-end" style="flex:1">FORM</div></div>
+        <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div></div>
         ${monthRows}`;
     }
-    
     const modalEl = document.getElementById('playerStatsModal');
     if(modalEl) new bootstrap.Modal(modalEl).show();
 };
 
-// --- CANVAS GENERATOR ---
-window.downloadMatchImage = () => {
-    const m = currentMatchForImage;
-    if(!m) return;
-    const canvas = document.getElementById('shareCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Use the image ALREADY loaded on the page to avoid re-fetching and CORS issues
-    const logoImg = document.getElementById('pageLogo');
-    
-    // BG
-    ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, 1080, 1920);
-    
-    // Header
-    if (logoImg.complete && logoImg.naturalHeight !== 0) {
-        ctx.save(); ctx.beginPath(); ctx.arc(540, 200, 100, 0, Math.PI * 2, true); ctx.closePath(); ctx.clip();
-        try { ctx.drawImage(logoImg, 440, 100, 200, 200); } catch (e) {}
-        ctx.restore();
-    }
-
-    ctx.fillStyle = "#ffffff"; ctx.font = "bold 60px Inter, sans-serif"; ctx.textAlign = "center";
-    ctx.fillText("ELDERLY SUPPORT", 540, 400);
-    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#94a3b8";
-    ctx.fillText(formatDate(m.date.toDate()), 540, 470);
-
-    if(m.type === 'Standard') {
-        const tA=m.teams[0], tB=m.teams[1];
-        ctx.font = "bold 250px Inter, sans-serif"; ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${tA.score} - ${tB.score}`, 540, 750);
-        ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#3b82f6"; ctx.fillText(tA.teamName || "TEAM A", 540, 950);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1"; wrapText(ctx, tA.players.join(", "), 540, 1010, 900, 50);
-        ctx.font = "italic 40px Inter, sans-serif"; ctx.fillStyle = "#64748b"; ctx.fillText("VS", 540, 1200);
-        ctx.font = "bold 70px Inter, sans-serif"; ctx.fillStyle = "#ef4444"; ctx.fillText(tB.teamName || "TEAM B", 540, 1350);
-        ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#cbd5e1"; wrapText(ctx, tB.players.join(", "), 540, 1410, 900, 50);
-    } else {
-        const r1 = m.teams.find(t=>t.rank===1);
-        ctx.font = "bold 120px Inter, sans-serif"; ctx.fillStyle = "#facc15"; ctx.fillText("TOURNAMENT WINNER", 540, 750);
-        ctx.font = "bold 150px Inter, sans-serif"; ctx.fillStyle = "#ffffff"; ctx.fillText(r1.teamName, 540, 950);
-        ctx.font = "50px Inter, sans-serif"; ctx.fillStyle = "#cccccc"; wrapText(ctx, r1.players.join(", "), 540, 1050, 900, 60);
-    }
-    
-    ctx.font = "40px Inter, sans-serif"; ctx.fillStyle = "#475569";
-    ctx.fillText("Elderly Support League", 540, 1800);
-
-    try {
-        const link = document.createElement('a');
-        link.download = `Match_${formatDate(m.date.toDate()).replace(/\//g,'-')}.png`;
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-    } catch(e) { alert("Download failed. Security error."); }
-};
-
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-    const words = text.split(' '); let line = '';
-    for(let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        if (ctx.measureText(testLine).width > maxWidth && n > 0) { ctx.fillText(line, x, y); line = words[n] + ' '; y += lineHeight; }
-        else { line = testLine; }
-    }
-    ctx.fillText(line, x, y);
-}
-
-// SAVE & AUTH LOGIC
+// SAVE & AUTH LOGIC (Standard)
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     if(!currentUser) return alert("Login needed");
     const load = document.getElementById('loadingOverlay'); if(load) load.classList.remove('d-none');
-    
     const isEdit = document.getElementById('editMatchId').value !== "";
     const editingId = document.getElementById('editMatchId').value;
-
     try {
         const type = document.querySelector('input[name="matchType"]:checked').value;
         const dVal = document.getElementById('matchDate').value;
-        const common = {
-            date: new Date(dVal),
-            location: document.getElementById('matchLocation').value,
-            youtubeLink: document.getElementById('matchYoutube').value || null,
-            type: type, updatedBy: currentUser.email, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
+        const common = { date: new Date(dVal), location: document.getElementById('matchLocation').value, youtubeLink: document.getElementById('matchYoutube').value || null, type: type, updatedBy: currentUser.email, timestamp: firebase.firestore.FieldValue.serverTimestamp() };
         let matchData = { ...common };
-
         if(type === 'Standard') {
             const sA=parseInt(document.getElementById('scoreA').value)||0, sB=parseInt(document.getElementById('scoreB').value)||0;
             const pA=selectedPlayers.A, pB=selectedPlayers.B;
             if(!pA.length || !pB.length) throw new Error("Add players!");
-            
-            const caEl = document.querySelector('input[name="colorA"]:checked');
-            const cbEl = document.querySelector('input[name="colorB"]:checked');
-            const cA = caEl ? caEl.value : 'blue';
-            const cB = cbEl ? cbEl.value : 'red';
-            
+            const cA = document.querySelector('input[name="colorA"]:checked')?.value || 'blue';
+            const cB = document.querySelector('input[name="colorB"]:checked')?.value || 'red';
             matchData.colors = [cA, cB];
             matchData.teams = [{teamName: document.getElementById('nameTeamA').value, score:sA, players:pA}, {teamName: document.getElementById('nameTeamB').value, score:sB, players:pB}];
         } else {
@@ -360,9 +340,8 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             proc('A',f.m1.a,'B',f.m1.b); proc('A',f.m2.a,'C',f.m2.c); proc('B',f.m3.b,'C',f.m3.c); proc('A',f.m4.a,'B',f.m4.b); proc('A',f.m5.a,'C',f.m5.c); proc('B',f.m6.b,'C',f.m6.c);
             const ranks = ['A','B','C'].sort((x,y) => t[y].pts-t[x].pts);
             matchData.fixture = f;
-            matchData.teams = [{teamName:document.getElementById('nameTournA').value||'Y',players:pA,rank:ranks.indexOf('A')+1},{teamName:document.getElementById('nameTournB').value||'B',players:pB,rank:ranks.indexOf('B')+1},{teamName:document.getElementById('nameTournC').value||'R',players:pC,rank:ranks.indexOf('C')+1}];
+            matchData.teams = [{teamName:document.getElementById('nameTournA').value||'Yellow',players:pA,rank:ranks.indexOf('A')+1},{teamName:document.getElementById('nameTournB').value||'Blue',players:pB,rank:ranks.indexOf('B')+1},{teamName:document.getElementById('nameTournC').value||'Red',players:pC,rank:ranks.indexOf('C')+1}];
         }
-
         const docRef = isEdit ? db.collection("matches").doc(editingId) : db.collection("matches").doc();
         await docRef.set(matchData);
         cancelEditMode();
@@ -379,21 +358,15 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>auth.signOut(
 window.editMatch = (id, e) => {
     e.stopPropagation();
     const m = allMatches.find(x=>x.id===id); if(!m)return;
-    const adminTab = document.querySelector('button[data-bs-target="#admin"]');
-    if(adminTab) new bootstrap.Tab(adminTab).show();
-    
-    safeText('formTitle', "EDIT MATCH");
-    safeText('saveBtn', "UPDATE");
+    new bootstrap.Tab(document.querySelector('button[data-bs-target="#admin"]')).show();
+    safeText('formTitle', "EDIT MATCH"); safeText('saveBtn', "UPDATE");
     const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-light', 'btn-warning');
-    const cancelBtn = document.getElementById('cancelEditBtn'); if(cancelBtn) cancelBtn.classList.remove('d-none');
-    
+    document.getElementById('cancelEditBtn').classList.remove('d-none');
     document.getElementById('editMatchId').value = id;
     document.getElementById('matchDate').value = m.date.toDate().toISOString().split('T')[0];
     document.getElementById('matchLocation').value = m.location;
     document.getElementById('matchYoutube').value = m.youtubeLink||"";
-    
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k));
-
     if(m.type==='Standard') {
         document.getElementById('typeStandard').click();
         document.getElementById('nameTeamA').value=m.teams[0].teamName; document.getElementById('scoreA').value=m.teams[0].score;
@@ -403,22 +376,12 @@ window.editMatch = (id, e) => {
         m.teams[0].players.forEach(p=>selectedPlayers.A.push(p)); m.teams[1].players.forEach(p=>selectedPlayers.B.push(p));
         renderList('A'); renderList('B');
     } else {
-        // TOURNAMENT EDIT FIX: FORCE TOGGLE AND POPULATE
-        const rb = document.getElementById('typeTournament');
-        if(rb) { rb.checked = true; toggleMatchType(); } 
-        
-        const f=m.fixture||{}; 
-        Object.keys(f).forEach(k=>Object.keys(f[k]).forEach(s=>{ const el=document.getElementById(`t_${k}_${s}`); if(el)el.value=f[k][s]; }));
-        
+        const rb = document.getElementById('typeTournament'); if(rb){rb.checked=true; toggleMatchType();}
+        const f=m.fixture||{}; Object.keys(f).forEach(k=>Object.keys(f[k]).forEach(s=>{ const el=document.getElementById(`t_${k}_${s}`); if(el)el.value=f[k][s]; }));
         if(m.teams.length >= 3) {
-            document.getElementById('nameTournA').value=m.teams[0].teamName;
-            m.teams[0].players.forEach(p=>selectedPlayers.TournA.push(p));
-            
-            document.getElementById('nameTournB').value=m.teams[1].teamName;
-            m.teams[1].players.forEach(p=>selectedPlayers.TournB.push(p));
-            
-            document.getElementById('nameTournC').value=m.teams[2].teamName;
-            m.teams[2].players.forEach(p=>selectedPlayers.TournC.push(p));
+            document.getElementById('nameTournA').value=m.teams[0].teamName; m.teams[0].players.forEach(p=>selectedPlayers.TournA.push(p));
+            document.getElementById('nameTournB').value=m.teams[1].teamName; m.teams[1].players.forEach(p=>selectedPlayers.TournB.push(p));
+            document.getElementById('nameTournC').value=m.teams[2].teamName; m.teams[2].players.forEach(p=>selectedPlayers.TournC.push(p));
         }
         renderList('TournA'); renderList('TournB'); renderList('TournC');
     }
@@ -427,7 +390,7 @@ window.deleteMatch = (id, e) => { e.stopPropagation(); if(confirm("Delete?")) db
 window.cancelEditMode = () => { 
     safeText('formTitle', "NEW MATCH ENTRY"); safeText('saveBtn', "SAVE RECORD");
     const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-warning','btn-light');
-    const cancelBtn = document.getElementById('cancelEditBtn'); if(cancelBtn) cancelBtn.classList.add('d-none');
+    document.getElementById('cancelEditBtn').classList.add('d-none');
     document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset(); 
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k)); 
     document.querySelectorAll('.border input[type="number"]').forEach(i=>i.value="");
@@ -452,9 +415,4 @@ function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let 
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
 function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times ms-1 text-secondary" onclick="removePlayer('${k}','${p}')" style="cursor:pointer"></i></span>`).join(''); }
 window.exportToCSV = () => { let c="Date,Type,Loc,Score,TeamA,TeamB\n"; allMatches.forEach(m=>{c+=`${formatDate(m.date.toDate())},${m.type},${m.location},${m.type==='Standard'?m.teams[0].score+'-'+m.teams[1].score:'Win: '+m.teams[0].teamName},${m.teams[0].teamName},${m.teams[1].teamName}\n`}); const l=document.createElement("a"); l.href=encodeURI("data:text/csv;charset=utf-8,"+c); l.download="data.csv"; l.click(); };
-// UI TOGGLE
-window.toggleMatchType = () => {
-    const isTourn = document.getElementById('typeTournament').checked;
-    document.getElementById('standardSection').classList.toggle('d-none', isTourn);
-    document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn);
-};
+window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };

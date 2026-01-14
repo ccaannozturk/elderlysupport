@@ -10,44 +10,53 @@
     
     <style>
         :root { 
-            --bg-body: #0f172a; --bg-card: #1e293b; --text-main: #f8fafc; --text-muted: #94a3b8;
-            --border: #334155; --accent: #3b82f6; --accent-red: #ef4444; --accent-yellow: #facc15;
+            /* THEME UPDATE: Gunmetal Night (Better for IPS/LCD) */
+            --bg-body: #161b22; 
+            --bg-card: #21262d; 
+            --text-main: #f0f6fc; 
+            --text-muted: #8b949e;
+            --border: #30363d; 
+            --accent: #58a6ff; 
+            --accent-red: #f85149; 
+            --accent-yellow: #e3b341;
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
         /* HEADER */
         .brand-header { background: var(--bg-card); padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
         .logo-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #333; }
-        .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: white; letter-spacing: -0.5px; }
+        .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: var(--text-main); letter-spacing: -0.5px; }
         .brand-info small { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 1px; font-weight: 600; }
         .header-actions { display: flex; gap: 15px; align-items: center; }
         .yt-icon { color: var(--accent-red); font-size: 1.6rem; transition: transform 0.2s; }
         .yt-icon:hover { transform: scale(1.1); color: #ff0000; }
-        .auth-icon { color: #555; font-size: 1.2rem; cursor: pointer; }
-        .auth-icon.active { color: #10b981; }
+        .auth-icon { color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
+        .auth-icon.active { color: #238636; } /* GitHub Green style for active */
 
         /* CONTROLS */
-        .filter-select { background: var(--bg-card); color: white; border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+        .filter-select { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
         .nav-pills .nav-link { color: var(--text-muted); font-weight: 600; border-radius: 8px; }
-        .nav-pills .nav-link.active { background-color: var(--bg-card); color: white; border: 1px solid var(--border); }
+        .nav-pills .nav-link.active { background-color: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); }
 
         /* MATCH CARD */
         .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
-        .match-card:hover { transform: translateY(-2px); border-color: #444; }
-        .card-top { background: #252525; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .match-card:hover { transform: translateY(-2px); border-color: #555; }
+        .card-top { background: #2a3038; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .card-body-strip { padding: 16px; display: flex; align-items: center; }
         .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .t-name { font-weight: 600; font-size: 0.95rem; color: white; display: flex; align-items: center; gap: 8px; }
-        .t-score { font-weight: 700; font-size: 1.1rem; color: white; }
+        .t-name { font-weight: 600; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        .t-score { font-weight: 700; font-size: 1.1rem; color: var(--text-main); }
         .t-loser { opacity: 0.5; }
         .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
         .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
 
         /* TOURNAMENT */
-        .tourn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed #333; }
+        .tourn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed var(--border); }
         .tourn-row:last-child { border: none; }
         .rank-badge { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-right: 8px; background: #333; color: white; }
         .rank-1 { background: var(--accent-yellow); color: black; }
+        .tourn-scores { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;}
+        .score-pill { background: #0d1117; padding: 2px 8px; border-radius: 4px; border: 1px solid #30363d; font-family: monospace; letter-spacing: 1px; color: #c9d1d9; }
 
         /* LEADERBOARD */
         .table-dark-custom th { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border); }
@@ -58,11 +67,10 @@
         /* ADMIN & UTILS */
         .admin-actions { background: rgba(0,0,0,0.3); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border); display: none; }
         .show-admin .admin-actions { display: block; }
-        .form-control, .form-select { background-color: #020617; border: 1px solid var(--border); color: white; }
-        .form-control:focus { background-color: #0f172a; color: white; border-color: var(--accent); box-shadow: none; }
+        .form-control, .form-select { background-color: #0d1117; border: 1px solid var(--border); color: var(--text-main); }
+        .form-control:focus { background-color: #161b22; color: white; border-color: var(--accent); box-shadow: none; }
         
         #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; }
-        #shareCanvas { display: none; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent); } .bg-r { background: var(--accent-red); }
         .color-opt { display: none; }
@@ -70,7 +78,7 @@
         .color-opt:checked + .color-label { opacity: 1; border-color: white; transform: scale(1.1); }
         .player-tag { font-size:0.75rem; background:#333; border:1px solid #444; padding:2px 8px; border-radius:12px; margin:2px; display:inline-block; }
         /* Modal Fixes */
-        .modal-content { background-color: var(--bg-card); border-color: var(--border); color: white; }
+        .modal-content { background-color: var(--bg-card); border-color: var(--border); color: var(--text-main); }
         .modal-header, .modal-footer { border-color: var(--border); }
         .btn-close { filter: invert(1); }
     </style>
@@ -79,7 +87,6 @@
 
     <div id="loadingOverlay" class="d-none"><div class="spinner-border text-light"></div></div>
 
-    <!-- HEADER -->
     <div class="brand-header">
         <div class="d-flex align-items-center gap-3">
             <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo">
@@ -91,7 +98,6 @@
         </div>
     </div>
 
-    <!-- FILTERS -->
     <div class="container py-4 text-center">
         <div class="d-inline-flex gap-2">
             <select id="filterYear" class="filter-select"><option value="2026" selected>2026</option><option value="2027">2027</option></select>
@@ -99,7 +105,6 @@
         </div>
     </div>
 
-    <!-- TABS -->
     <div class="container text-center mb-4">
         <ul class="nav nav-pills justify-content-center" id="myTab" role="tablist">
             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#matches">Matches</button></li>
@@ -108,14 +113,11 @@
         </ul>
     </div>
 
-    <!-- CONTENT -->
     <div class="container pb-5">
         <div class="tab-content">
-            <!-- MATCHES -->
             <div class="tab-pane fade show active" id="matches">
                 <div id="match-history-list"><div class="text-center py-5 text-muted small">Loading data...</div></div>
             </div>
-            <!-- LEADERBOARD -->
             <div class="tab-pane fade" id="leaderboard">
                 <div class="card bg-dark border-secondary overflow-hidden">
                     <table class="table table-dark table-hover mb-0 table-dark-custom">
@@ -124,7 +126,6 @@
                     </table>
                 </div>
             </div>
-            <!-- ADMIN -->
             <div class="tab-pane fade" id="admin">
                 <div class="text-end mb-3"><button class="btn btn-sm btn-outline-light" onclick="exportToCSV()">Export CSV</button></div>
                 <div class="card bg-dark border-secondary p-3">
@@ -147,7 +148,6 @@
                             <label class="btn btn-outline-secondary" for="typeTournament">Tournament</label>
                         </div>
                         
-                        <!-- Standard -->
                         <div id="standardSection">
                             <div class="p-2 border border-secondary rounded mb-2 bg-secondary bg-opacity-10">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
@@ -181,7 +181,6 @@
                             </div>
                         </div>
 
-                        <!-- Tournament -->
                         <div id="tournamentSection" class="d-none">
                             <div class="row g-1 mb-2">
                                 <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-warning fw-bold">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
@@ -207,12 +206,9 @@
         </div>
     </div>
 
-    <!-- MODALS -->
     <div class="modal fade" id="loginModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content bg-dark border-secondary p-4"><h6 class="fw-bold text-center mb-3">ADMIN ACCESS</h6><form id="loginForm"><input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required><input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required><button type="submit" class="btn btn-light w-100">Login</button></form><div id="userInfo" class="d-none text-center"><small id="userEmailDisplay" class="d-block mb-3 text-muted"></small><button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button></div></div></div></div>
     <div class="modal fade" id="playerStatsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-header border-secondary pb-0"><h5 class="modal-title fw-bold" id="psName">Player</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body pt-3" id="psBody"></div></div></div></div>
-    <div class="modal fade" id="matchDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-body" id="modalBody"></div><div class="modal-footer border-0 pt-0"><button class="btn btn-success w-100 fw-bold" onclick="downloadMatchImage()"><i class="fab fa-instagram me-2"></i> Download Story</button></div></div></div></div>
-
-    <canvas id="shareCanvas" width="1080" height="1920"></canvas>
+    <div class="modal fade" id="matchDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-body" id="modalBody"></div></div></div></div>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
