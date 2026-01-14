@@ -10,82 +10,92 @@
     
     <style>
         :root { 
-            --bg-body: #161b22; 
-            --bg-card: #21262d; 
-            --text-main: #f0f6fc; 
-            --text-muted: #8b949e;
-            --border: #30363d; 
-            --accent: #58a6ff; 
-            --accent-red: #f85149; 
-            --accent-yellow: #e3b341;
+            /* V11.6 HIGH CONTRAST THEME */
+            --bg-body: #0d1117;       /* Very Dark Blue/Black */
+            --bg-card: #161b22;       /* Distinct Card Background */
+            --text-main: #ffffff;     /* Pure White for Readability */
+            --text-muted: #a3b3bc;    /* Light Silver (High Contrast Grey) */
+            --border: #30363d;        /* Subtle Borders */
+            --accent: #2f81f7;        /* Vivid Blue */
+            --accent-red: #fa7970;    /* Soft Red */
+            --accent-yellow: #e3b341; /* Gold */
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
+        /* TEXT VISIBILITY OVERRIDES */
+        .text-muted { color: var(--text-muted) !important; }
+        .text-white { color: #ffffff !important; }
+        .fw-bold { font-weight: 700 !important; }
+        
         /* HEADER */
-        .brand-header { background: var(--bg-card); padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+        .brand-header { background: var(--bg-card); padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
         .logo-img { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #333; }
         .brand-info h1 { font-size: 1.1rem; font-weight: 800; margin: 0; color: var(--text-main); letter-spacing: -0.5px; }
-        .brand-info small { font-size: 0.7rem; color: var(--text-muted); letter-spacing: 1px; font-weight: 600; }
+        .brand-info small { font-size: 0.75rem; color: var(--text-muted); letter-spacing: 1px; font-weight: 600; }
         .header-actions { display: flex; gap: 15px; align-items: center; }
         .yt-icon { color: var(--accent-red); font-size: 1.6rem; transition: transform 0.2s; }
-        .yt-icon:hover { transform: scale(1.1); color: #ff0000; }
+        .yt-icon:hover { transform: scale(1.1); color: #ff4444; }
         .auth-icon { color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
-        .auth-icon.active { color: #238636; }
+        .auth-icon.active { color: #2ea043; }
 
-        /* CONTROLS */
+        /* INPUTS & SELECTS (Brighter Text) */
         .filter-select { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+        .form-control, .form-select { background-color: #010409; border: 1px solid var(--border); color: #ffffff; }
+        .form-control:focus { background-color: #0d1117; color: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(47, 129, 247, 0.2); }
+        .form-control::placeholder { color: #555; }
+
+        /* TABS */
         .nav-pills .nav-link { color: var(--text-muted); font-weight: 600; border-radius: 8px; }
         .nav-pills .nav-link.active { background-color: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); }
 
         /* MATCH CARD */
         .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
         .match-card:hover { transform: translateY(-2px); border-color: #555; }
-        .card-top { background: #2a3038; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        .card-top { background: #21262d; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .card-body-strip { padding: 16px; display: flex; align-items: center; }
-        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .t-name { font-weight: 600; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
-        .t-score { font-weight: 700; font-size: 1.1rem; color: var(--text-main); }
-        .t-loser { opacity: 0.5; }
+        
+        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .t-name { font-weight: 700; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        .t-score { font-weight: 800; font-size: 1.2rem; color: var(--text-main); }
+        .t-loser { opacity: 0.4; font-weight: 500; } /* Clearer loser state */
+        
         .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
         .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
 
         /* TOURNAMENT */
-        .tourn-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed var(--border); }
+        .tourn-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85rem; border-bottom: 1px dashed var(--border); }
         .tourn-row:last-child { border: none; }
-        .rank-badge { width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.65rem; font-weight: bold; margin-right: 8px; background: #333; color: white; }
+        .rank-badge { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 0.7rem; font-weight: bold; margin-right: 10px; background: #333; color: white; }
         .rank-1 { background: var(--accent-yellow); color: black; }
         .tourn-scores { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;}
-        .score-pill { background: #0d1117; padding: 2px 8px; border-radius: 4px; border: 1px solid #30363d; font-family: monospace; letter-spacing: 1px; color: #c9d1d9; }
+        .score-pill { background: #010409; padding: 2px 8px; border-radius: 4px; border: 1px solid #30363d; font-family: monospace; letter-spacing: 1px; color: #e6edf3; }
 
         /* LEADERBOARD */
-        .table-dark-custom th { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border); }
-        .table-dark-custom td { vertical-align: middle; padding: 12px 8px; border-bottom-color: var(--border); font-weight: 500; }
+        .table-dark-custom th { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border); letter-spacing: 0.5px; }
+        .table-dark-custom td { vertical-align: middle; padding: 14px 10px; border-bottom-color: var(--border); font-weight: 600; color: var(--text-main); }
         .rank-circle { width: 24px; height: 24px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
         .r-1 { background: var(--accent-yellow); color: #000; border: none; } 
 
         /* ADMIN & UTILS */
-        /* FIX: Removed display:none. If JS renders it, it shows. */
-        .admin-actions { background: rgba(0,0,0,0.3); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border); } 
+        .admin-actions { background: rgba(30, 41, 59, 0.5); padding: 10px 16px; text-align: right; border-top: 1px solid var(--border); }
+        .show-admin .admin-actions { display: block; }
         
-        .form-control, .form-select { background-color: #0d1117; border: 1px solid var(--border); color: var(--text-main); }
-        .form-control:focus { background-color: #161b22; color: white; border-color: var(--accent); box-shadow: none; }
-        
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; }
+        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display: flex; align-items: center; justify-content: center; }
         #shareCanvas { display: none; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent); } .bg-r { background: var(--accent-red); }
-        .color-opt { display: none; }
-        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
-        .color-opt:checked + .color-label { opacity: 1; border-color: white; transform: scale(1.1); }
-        .player-tag { font-size:0.75rem; background:#333; border:1px solid #444; padding:2px 8px; border-radius:12px; margin:2px; display:inline-block; }
+        
+        /* Player Tag in Form */
+        .player-tag { font-size:0.8rem; background:#21262d; border:1px solid #30363d; color: var(--text-main); padding:4px 10px; border-radius: 20px; margin:3px; display:inline-flex; align-items: center; }
+        .player-tag i { margin-left: 6px; color: #fa7970; cursor: pointer; }
+
         /* Modal Fixes */
         .modal-content { background-color: var(--bg-card); border-color: var(--border); color: var(--text-main); }
         .modal-header, .modal-footer { border-color: var(--border); }
-        .btn-close { filter: invert(1); }
+        .btn-close { filter: invert(1); opacity: 0.8; }
         
-        /* Input Group Button Color */
-        .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
-        .btn-outline-secondary:hover { background-color: var(--border); color: white; }
+        /* Form Icons */
+        .icon-form { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
     </style>
 </head>
 <body>
@@ -94,7 +104,7 @@
 
     <div class="brand-header">
         <div class="d-flex align-items-center gap-3">
-            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo" crossorigin="anonymous">
             <div class="brand-info"><h1>Elderly Support</h1><small>EST. 2020 | AMSTERDAM</small></div>
         </div>
         <div class="header-actions">
@@ -196,7 +206,7 @@
                             <div class="row g-1 mb-2">
                                 <div class="col-4">
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
-                                        <small class="text-warning-dark fw-bold">YEL</small>
+                                        <small class="text-warning fw-bold">YEL</small>
                                         <input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
                                         <div class="input-group input-group-sm">
                                             <input id="inputPlayerTournA" class="form-control p-0 text-center" list="playerList" placeholder="+">
