@@ -10,7 +10,6 @@
     
     <style>
         :root { 
-            /* THEME UPDATE: Gunmetal Night (Better for IPS/LCD) */
             --bg-body: #161b22; 
             --bg-card: #21262d; 
             --text-main: #f0f6fc; 
@@ -31,7 +30,7 @@
         .yt-icon { color: var(--accent-red); font-size: 1.6rem; transition: transform 0.2s; }
         .yt-icon:hover { transform: scale(1.1); color: #ff0000; }
         .auth-icon { color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
-        .auth-icon.active { color: #238636; } /* GitHub Green style for active */
+        .auth-icon.active { color: #238636; }
 
         /* CONTROLS */
         .filter-select { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
@@ -65,12 +64,14 @@
         .r-1 { background: var(--accent-yellow); color: #000; border: none; } 
 
         /* ADMIN & UTILS */
-        .admin-actions { background: rgba(0,0,0,0.3); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border); display: none; }
-        .show-admin .admin-actions { display: block; }
+        /* FIX: Removed display:none. If JS renders it, it shows. */
+        .admin-actions { background: rgba(0,0,0,0.3); padding: 8px 16px; text-align: right; border-top: 1px solid var(--border); } 
+        
         .form-control, .form-select { background-color: #0d1117; border: 1px solid var(--border); color: var(--text-main); }
         .form-control:focus { background-color: #161b22; color: white; border-color: var(--accent); box-shadow: none; }
         
         #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; display: flex; align-items: center; justify-content: center; }
+        #shareCanvas { display: none; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent); } .bg-r { background: var(--accent-red); }
         .color-opt { display: none; }
@@ -81,6 +82,10 @@
         .modal-content { background-color: var(--bg-card); border-color: var(--border); color: var(--text-main); }
         .modal-header, .modal-footer { border-color: var(--border); }
         .btn-close { filter: invert(1); }
+        
+        /* Input Group Button Color */
+        .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
+        .btn-outline-secondary:hover { background-color: var(--border); color: white; }
     </style>
 </head>
 <body>
@@ -160,7 +165,10 @@
                                 </div>
                                 <div class="d-flex gap-2">
                                     <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreA" placeholder="0">
-                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerA" placeholder="+ Player">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control" list="playerList" id="inputPlayerA" placeholder="Player">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="addPlayer('A')"><i class="fas fa-plus"></i></button>
+                                    </div>
                                 </div>
                                 <div id="listTeamA" class="d-flex flex-wrap mt-1"></div>
                             </div>
@@ -175,7 +183,10 @@
                                 </div>
                                 <div class="d-flex gap-2">
                                     <input type="number" class="form-control form-control-sm fw-bold text-center" style="width:50px" id="scoreB" placeholder="0">
-                                    <input type="text" class="form-control form-control-sm" list="playerList" id="inputPlayerB" placeholder="+ Player">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control" list="playerList" id="inputPlayerB" placeholder="Player">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="addPlayer('B')"><i class="fas fa-plus"></i></button>
+                                    </div>
                                 </div>
                                 <div id="listTeamB" class="d-flex flex-wrap mt-1"></div>
                             </div>
@@ -183,9 +194,39 @@
 
                         <div id="tournamentSection" class="d-none">
                             <div class="row g-1 mb-2">
-                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-warning fw-bold">YEL</small><input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournA" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournA" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-primary fw-bold">BLU</small><input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournB" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournB" class="d-flex flex-wrap justify-content-center"></div></div>
-                                <div class="col-4"><div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10"><small class="text-danger fw-bold">RED</small><input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name"><input id="inputPlayerTournC" class="form-control form-control-sm p-0 text-center" list="playerList" placeholder="+"></div><div id="listTeamTournC" class="d-flex flex-wrap justify-content-center"></div></div>
+                                <div class="col-4">
+                                    <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
+                                        <small class="text-warning-dark fw-bold">YEL</small>
+                                        <input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
+                                        <div class="input-group input-group-sm">
+                                            <input id="inputPlayerTournA" class="form-control p-0 text-center" list="playerList" placeholder="+">
+                                            <button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournA')"><i class="fas fa-plus fa-xs"></i></button>
+                                        </div>
+                                    </div>
+                                    <div id="listTeamTournA" class="d-flex flex-wrap justify-content-center mt-1"></div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
+                                        <small class="text-primary fw-bold">BLU</small>
+                                        <input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
+                                        <div class="input-group input-group-sm">
+                                            <input id="inputPlayerTournB" class="form-control p-0 text-center" list="playerList" placeholder="+">
+                                            <button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournB')"><i class="fas fa-plus fa-xs"></i></button>
+                                        </div>
+                                    </div>
+                                    <div id="listTeamTournB" class="d-flex flex-wrap justify-content-center mt-1"></div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
+                                        <small class="text-danger fw-bold">RED</small>
+                                        <input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
+                                        <div class="input-group input-group-sm">
+                                            <input id="inputPlayerTournC" class="form-control p-0 text-center" list="playerList" placeholder="+">
+                                            <button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournC')"><i class="fas fa-plus fa-xs"></i></button>
+                                        </div>
+                                    </div>
+                                    <div id="listTeamTournC" class="d-flex flex-wrap justify-content-center mt-1"></div>
+                                </div>
                             </div>
                             <div class="border border-secondary rounded p-2 bg-dark small text-center">
                                 <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m1_a" class="bg-dark text-white border-secondary text-center" style="width:25px; height:20px"> - <input type="number" id="t_m1_b" class="bg-dark text-white border-secondary text-center" style="width:25px; height:20px"> <span class="badge bg-primary">B</span></div>
