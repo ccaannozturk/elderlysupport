@@ -10,19 +10,18 @@
     
     <style>
         :root { 
-            /* V11.7 HIGH CONTRAST THEME */
-            --bg-body: #0d1117;       /* Very Dark Blue/Black */
-            --bg-card: #161b22;       /* Distinct Card Background */
-            --text-main: #ffffff;     /* Pure White for Readability */
-            --text-muted: #a3b3bc;    /* Light Silver (High Contrast Grey) */
-            --border: #30363d;        /* Subtle Borders */
-            --accent: #2f81f7;        /* Vivid Blue */
-            --accent-red: #fa7970;    /* Soft Red */
-            --accent-yellow: #e3b341; /* Gold */
+            --bg-body: #0d1117;       
+            --bg-card: #161b22;       
+            --text-main: #ffffff;     
+            --text-muted: #a3b3bc;    
+            --border: #30363d;        
+            --accent: #2f81f7;        
+            --accent-red: #fa7970;    
+            --accent-yellow: #e3b341; 
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
-        /* TEXT VISIBILITY OVERRIDES */
+        /* TEXT OVERRIDES */
         .text-muted { color: var(--text-muted) !important; }
         .text-white { color: #ffffff !important; }
         .fw-bold { font-weight: 700 !important; }
@@ -38,7 +37,7 @@
         .auth-icon { color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
         .auth-icon.active { color: #2ea043; }
 
-        /* INPUTS & SELECTS (Brighter Text) */
+        /* INPUTS */
         .filter-select { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
         .form-control, .form-select { background-color: #010409; border: 1px solid var(--border); color: #ffffff; }
         .form-control:focus { background-color: #0d1117; color: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(47, 129, 247, 0.2); }
@@ -48,17 +47,15 @@
         .nav-pills .nav-link { color: var(--text-muted); font-weight: 600; border-radius: 8px; }
         .nav-pills .nav-link.active { background-color: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); }
 
-        /* MATCH CARD */
+        /* CARDS */
         .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
         .match-card:hover { transform: translateY(-2px); border-color: #555; }
         .card-top { background: #21262d; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .card-body-strip { padding: 16px; display: flex; align-items: center; }
-        
         .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
         .t-name { font-weight: 700; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
         .t-score { font-weight: 800; font-size: 1.2rem; color: var(--text-main); }
-        .t-loser { opacity: 0.4; font-weight: 500; } 
-        
+        .t-loser { opacity: 0.4; font-weight: 500; }
         .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
         .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
 
@@ -70,36 +67,30 @@
         .tourn-scores { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;}
         .score-pill { background: #010409; padding: 2px 8px; border-radius: 4px; border: 1px solid #30363d; font-family: monospace; letter-spacing: 1px; color: #e6edf3; }
 
-        /* LEADERBOARD */
+        /* ADMIN & UTILS */
+        .admin-actions { background: rgba(30, 41, 59, 0.5); padding: 10px 16px; text-align: right; border-top: 1px solid var(--border); }
+        .show-admin .admin-actions { display: block; }
+        .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
+        .btn-outline-secondary:hover { background-color: var(--border); color: white; }
+        
+        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display: flex; align-items: center; justify-content: center; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent); } .bg-r { background: var(--accent-red); }
+        .color-opt { display: none; }
+        .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
+        .color-opt:checked + .color-label { opacity: 1; border-color: white; transform: scale(1.1); }
+        .player-tag { font-size:0.8rem; background:#21262d; border:1px solid #30363d; color: var(--text-main); padding:4px 10px; border-radius: 20px; margin:3px; display:inline-flex; align-items: center; }
+        .player-tag i { margin-left: 6px; color: #fa7970; cursor: pointer; }
+        
+        /* Table & Modal */
         .table-dark-custom th { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; border-bottom-color: var(--border); letter-spacing: 0.5px; }
         .table-dark-custom td { vertical-align: middle; padding: 14px 10px; border-bottom-color: var(--border); font-weight: 600; color: var(--text-main); }
         .rank-circle { width: 24px; height: 24px; background: var(--bg-body); border: 1px solid var(--border); color: var(--text-muted); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; }
         .r-1 { background: var(--accent-yellow); color: #000; border: none; } 
-
-        /* ADMIN & UTILS */
-        .admin-actions { background: rgba(30, 41, 59, 0.5); padding: 10px 16px; text-align: right; border-top: 1px solid var(--border); }
-        .show-admin .admin-actions { display: block; }
-        
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display: flex; align-items: center; justify-content: center; }
-        #shareCanvas { display: none; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent); } .bg-r { background: var(--accent-red); }
-        
-        /* Player Tag in Form */
-        .player-tag { font-size:0.8rem; background:#21262d; border:1px solid #30363d; color: var(--text-main); padding:4px 10px; border-radius: 20px; margin:3px; display:inline-flex; align-items: center; }
-        .player-tag i { margin-left: 6px; color: #fa7970; cursor: pointer; }
-
-        /* Modal Fixes */
         .modal-content { background-color: var(--bg-card); border-color: var(--border); color: var(--text-main); }
         .modal-header, .modal-footer { border-color: var(--border); }
         .btn-close { filter: invert(1); opacity: 0.8; }
-        
-        /* Form Icons */
-        .icon-form { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
-        
-        /* Input Group Button Color */
-        .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
-        .btn-outline-secondary:hover { background-color: var(--border); color: white; }
+        #shareCanvas { display: none; }
     </style>
 </head>
 <body>
@@ -147,6 +138,13 @@
             </div>
             <div class="tab-pane fade" id="admin">
                 <div class="text-end mb-3"><button class="btn btn-sm btn-outline-light" onclick="exportToCSV()">Export CSV</button></div>
+                
+                <div class="card bg-dark border-secondary p-3 mb-3">
+                    <h6 class="fw-bold text-white small mb-2"><i class="fas fa-magic text-warning me-2"></i>MAGIC PASTE</h6>
+                    <textarea id="magicPaste" class="form-control mb-2" rows="3" placeholder="Paste match info here...&#10;10 - TeamA - blue&#10;Player1, Player2&#10;5 - TeamB - red&#10;Player3, Player4" style="font-size:0.8rem;"></textarea>
+                    <button type="button" class="btn btn-outline-warning w-100 btn-sm fw-bold" onclick="parseMagicPaste()">AUTO FILL FORM</button>
+                </div>
+
                 <div class="card bg-dark border-secondary p-3">
                     <div class="d-flex justify-content-between mb-3 border-bottom border-secondary pb-2">
                         <h6 class="fw-bold m-0 text-white" id="formTitle">NEW ENTRY</h6>
@@ -212,10 +210,7 @@
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
                                         <small class="text-warning fw-bold">YEL</small>
                                         <input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
-                                        <div class="input-group input-group-sm">
-                                            <input id="inputPlayerTournA" class="form-control p-0 text-center" list="playerList" placeholder="+">
-                                            <button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournA')"><i class="fas fa-plus fa-xs"></i></button>
-                                        </div>
+                                        <div class="input-group input-group-sm"><input id="inputPlayerTournA" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournA')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
                                     <div id="listTeamTournA" class="d-flex flex-wrap justify-content-center mt-1"></div>
                                 </div>
@@ -223,10 +218,7 @@
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
                                         <small class="text-primary fw-bold">BLU</small>
                                         <input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
-                                        <div class="input-group input-group-sm">
-                                            <input id="inputPlayerTournB" class="form-control p-0 text-center" list="playerList" placeholder="+">
-                                            <button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournB')"><i class="fas fa-plus fa-xs"></i></button>
-                                        </div>
+                                        <div class="input-group input-group-sm"><input id="inputPlayerTournB" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournB')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
                                     <div id="listTeamTournB" class="d-flex flex-wrap justify-content-center mt-1"></div>
                                 </div>
@@ -234,10 +226,7 @@
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
                                         <small class="text-danger fw-bold">RED</small>
                                         <input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
-                                        <div class="input-group input-group-sm">
-                                            <input id="inputPlayerTournC" class="form-control p-0 text-center" list="playerList" placeholder="+">
-                                            <button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournC')"><i class="fas fa-plus fa-xs"></i></button>
-                                        </div>
+                                        <div class="input-group input-group-sm"><input id="inputPlayerTournC" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournC')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
                                     <div id="listTeamTournC" class="d-flex flex-wrap justify-content-center mt-1"></div>
                                 </div>
@@ -264,6 +253,7 @@
     <div class="modal fade" id="loginModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content bg-dark border-secondary p-4"><h6 class="fw-bold text-center mb-3">ADMIN ACCESS</h6><form id="loginForm"><input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required><input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required><button type="submit" class="btn btn-light w-100">Login</button></form><div id="userInfo" class="d-none text-center"><small id="userEmailDisplay" class="d-block mb-3 text-muted"></small><button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button></div></div></div></div>
     <div class="modal fade" id="playerStatsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-header border-secondary pb-0"><h5 class="modal-title fw-bold" id="psName">Player</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body pt-3" id="psBody"></div></div></div></div>
     <div class="modal fade" id="matchDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-body" id="modalBody"></div></div></div></div>
+    <canvas id="shareCanvas" width="1080" height="1920"></canvas>
 
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
