@@ -17,11 +17,11 @@
             --border: #30363d;        
             --accent: #2f81f7;        
             --accent-red: #fa7970;    
-            --accent-yellow: #e3b341; 
+            /* FIX 3: Daha parlak sari */
+            --accent-yellow: #ffea00; 
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
-        /* TEXT OVERRIDES */
         .text-muted { color: var(--text-muted) !important; }
         .text-white { color: #ffffff !important; }
         .fw-bold { font-weight: 700 !important; }
@@ -40,14 +40,14 @@
         /* INPUTS */
         .filter-select { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
         .form-control, .form-select { background-color: #010409; border: 1px solid var(--border); color: #ffffff; }
-        .form-control:focus { background-color: #0d1117; color: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(47, 129, 247, 0.2); }
+        .form-control:focus, .form-select:focus { background-color: #0d1117; color: #ffffff; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(47, 129, 247, 0.2); }
         .form-control::placeholder { color: #555; }
 
         /* TABS */
         .nav-pills .nav-link { color: var(--text-muted); font-weight: 600; border-radius: 8px; }
         .nav-pills .nav-link.active { background-color: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); }
 
-        /* CARDS */
+        /* MATCH CARD */
         .match-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; overflow: hidden; cursor: pointer; transition: transform 0.15s; }
         .match-card:hover { transform: translateY(-2px); border-color: #555; }
         .card-top { background: #21262d; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
@@ -74,6 +74,7 @@
         .btn-outline-secondary:hover { background-color: var(--border); color: white; }
         
         #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; display: flex; align-items: center; justify-content: center; }
+        #shareCanvas { display: none; }
         .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .bg-y { background: var(--accent-yellow); } .bg-b { background: var(--accent); } .bg-r { background: var(--accent-red); }
         .color-opt { display: none; }
@@ -90,7 +91,7 @@
         .modal-content { background-color: var(--bg-card); border-color: var(--border); color: var(--text-main); }
         .modal-header, .modal-footer { border-color: var(--border); }
         .btn-close { filter: invert(1); opacity: 0.8; }
-        #shareCanvas { display: none; }
+        .icon-form { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
     </style>
 </head>
 <body>
@@ -154,8 +155,15 @@
                         <input type="hidden" id="editMatchId">
                         <div class="row g-2 mb-3">
                             <div class="col-6"><input type="date" class="form-control form-control-sm" id="matchDate" required></div>
-                            <div class="col-6"><input class="form-control form-control-sm" list="locList" id="matchLocation" placeholder="Location" required></div>
-                            <datalist id="locList"><option value="Sporthal ROC Europaboulevard"><option value="Sporthal Calvijn"><option value="Sportgebouw Bibian Mentel"><option value="Sporthallen Zuid"></datalist>
+                            <div class="col-6">
+                                <select class="form-select form-select-sm" id="matchLocation" required>
+                                    <option value="" disabled selected>Select Location</option>
+                                    <option value="Sporthal ROC Europaboulevard">Sporthal ROC Europaboulevard</option>
+                                    <option value="Sporthal Calvijn">Sporthal Calvijn</option>
+                                    <option value="Sportgebouw Bibian Mentel">Sportgebouw Bibian Mentel</option>
+                                    <option value="Sporthallen Zuid">Sporthallen Zuid</option>
+                                </select>
+                            </div>
                             <div class="col-12"><input type="url" class="form-control form-control-sm" id="matchYoutube" placeholder="YouTube Link"></div>
                         </div>
                         <div class="btn-group w-100 mb-3 btn-group-sm">
@@ -208,7 +216,7 @@
                             <div class="row g-1 mb-2">
                                 <div class="col-4">
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
-                                        <small class="text-warning fw-bold">YEL</small>
+                                        <small class="text-warning-dark fw-bold">YEL</small>
                                         <input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
                                         <div class="input-group input-group-sm"><input id="inputPlayerTournA" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournA')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
