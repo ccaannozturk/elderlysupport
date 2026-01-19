@@ -74,7 +74,7 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
-// RENDER DATA (V11.6 - SAFETY CHECK)
+// RENDER
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
@@ -169,7 +169,7 @@ function renderData() {
         });
     }
 
-    // LEADERBOARD CALC (Safety Checks Added)
+    // LEADERBOARD CALC
     let stats = {};
     filtered.forEach(m => {
         if(m.type === 'Standard') {
@@ -255,7 +255,7 @@ window.openPlayerStats = (name) => {
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
     const gd = totalGF - totalGA;
     
-    // Reverse needed because we pushed Newest First, but UI wants Oldest -> Newest (Left -> Right)
+    // Reverse for UI: Oldest -> Newest
     const formDisplay = recentForm.reverse().map(r => {
         if(r==='W') return '<i class="fas fa-check text-success mx-1"></i>';
         if(r==='D') return '<i class="far fa-circle text-warning mx-1"></i>';
@@ -323,16 +323,9 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             if(!pA.length||!pB.length||!pC.length) throw new Error("Add players!");
             const v = (id) => { const el=document.getElementById(id); return el?(parseInt(el.value)||0):0; };
             const f = { m1:{a:v('t_m1_a'),b:v('t_m1_b')}, m2:{a:v('t_m2_a'),c:v('t_m2_c')}, m3:{b:v('t_m3_b'),c:v('t_m3_c')}, m4:{a:v('t_m4_a'),b:v('t_m4_b')}, m5:{a:v('t_m5_a'),c:v('t_m5_c')}, m6:{b:v('t_m6_b'),c:v('t_m6_c')} };
-            const ranks = ['A','B','C'].sort((x,y) => {
-                let pX=0, pY=0; 
-                // Simplified rank calc for saving - normally we trust user input but we calculate for data structure
-                // Just saving basic team structure here
-                return 0; 
-            });
-            // We trust the inputs for rank (players are added to specific Team A/B/C slots)
+            const ranks = ['A','B','C'].sort((x,y) => 0); 
             matchData.fixture = f;
             matchData.teams = [{teamName:document.getElementById('nameTournA').value||'Yellow',players:pA,rank:1},{teamName:document.getElementById('nameTournB').value||'Blue',players:pB,rank:2},{teamName:document.getElementById('nameTournC').value||'Red',players:pC,rank:3}];
-            // Note: Ranks are re-calculated on display based on fixture usually, but here we just store structure.
         }
 
         const docRef = isEdit ? db.collection("matches").doc(editingId) : db.collection("matches").doc();
@@ -344,28 +337,21 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
     } catch (err) { if(load) load.classList.add('d-none'); alert("Error: " + err.message); }
 });
 
-// HELPERS
 document.getElementById('loginForm').addEventListener('submit', (e) => { e.preventDefault(); auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPass').value).then(()=>bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide()).catch(e=>alert(e.message)); });
 document.getElementById('logoutBtn').addEventListener('click', ()=>auth.signOut().then(()=>bootstrap.Modal.getInstance(document.getElementById('loginModal')).hide()));
 
 window.editMatch = (id, e) => {
     e.stopPropagation();
     const m = allMatches.find(x=>x.id===id); if(!m)return;
-    const adminTab = document.querySelector('button[data-bs-target="#admin"]');
-    if(adminTab) new bootstrap.Tab(adminTab).show();
-    
-    safeText('formTitle', "EDIT MATCH");
-    safeText('saveBtn', "UPDATE");
+    const adminTab = document.querySelector('button[data-bs-target="#admin"]'); if(adminTab) new bootstrap.Tab(adminTab).show();
+    safeText('formTitle', "EDIT MATCH"); safeText('saveBtn', "UPDATE");
     const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-light', 'btn-warning');
     const cancelBtn = document.getElementById('cancelEditBtn'); if(cancelBtn) cancelBtn.classList.remove('d-none');
-    
     document.getElementById('editMatchId').value = id;
     document.getElementById('matchDate').value = m.date.toDate().toISOString().split('T')[0];
     document.getElementById('matchLocation').value = m.location;
     document.getElementById('matchYoutube').value = m.youtubeLink||"";
-    
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k));
-
     if(m.type==='Standard') {
         document.getElementById('typeStandard').click();
         document.getElementById('nameTeamA').value=m.teams[0].teamName; document.getElementById('scoreA').value=m.teams[0].score;
@@ -412,6 +398,6 @@ function fetchPlayerNames() { db.collection("players").get().then(s=>{ const l=d
 function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); }); }
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
-function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times" onclick="removePlayer('${k}','${p}')"></i></span>`).join(''); }
+function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times ms-1 text-secondary" onclick="removePlayer('${k}','${p}')" style="cursor:pointer"></i></span>`).join(''); }
 window.exportToCSV = () => { let c="Date,Type,Loc,Score,TeamA,TeamB\n"; allMatches.forEach(m=>{c+=`${formatDate(m.date.toDate())},${m.type},${m.location},${m.type==='Standard'?m.teams[0].score+'-'+m.teams[1].score:'Win: '+m.teams[0].teamName},${m.teams[0].teamName},${m.teams[1].teamName}\n`}); const l=document.createElement("a"); l.href=encodeURI("data:text/csv;charset=utf-8,"+c); l.download="data.csv"; l.click(); };
 window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };
