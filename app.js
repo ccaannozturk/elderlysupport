@@ -17,7 +17,7 @@ let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
-// --- HELPER: CRASH PREVENTER ---
+// --- HELPER ---
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -73,6 +73,66 @@ function formatDate(dateObj) {
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
 }
+
+// --- V12.0: MAGIC PASTE ---
+window.parseMagicPaste = () => {
+    const text = document.getElementById('magicPaste').value.trim();
+    if (!text) return alert("Empty!");
+
+    // Basic cleanup: split by lines, remove empty ones
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    
+    // We expect at least 4 lines for 2 teams: Header A, Players A, Header B, Players B
+    if(lines.length < 4) return alert("Format error. Need at least 4 lines.");
+
+    // Regex for Header: Starts with number, has dashes or similar, ends with color (optional)
+    // Example: "10 - Team Name - yellow"
+    // Regex breakdown: ^(\d+) captures score. .*? non-greedy name. (yellow|blue|red) captures color.
+    const headerRegex = /^(\d+)[\s:-]+(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
+
+    // Reset current form
+    window.cancelEditMode(); 
+    document.getElementById('typeStandard').click(); // Assuming standard match for now
+
+    // --- Process Team A (Line 0 & 1) ---
+    const matchA = lines[0].match(headerRegex);
+    if(matchA) {
+        document.getElementById('scoreA').value = matchA[1];
+        document.getElementById('nameTeamA').value = matchA[2].trim();
+        const col = matchA[3] ? matchA[3].toLowerCase() : 'blue'; // default blue
+        const rb = document.querySelector(`input[name="colorA"][value="${col}"]`);
+        if(rb) rb.checked = true;
+    }
+    // Players A
+    const pListA = lines[1].split(',').map(p => p.trim()).filter(p=>p);
+    selectedPlayers.A = [];
+    pListA.forEach(p => {
+        // Capitalize
+        const cleanName = p.charAt(0).toUpperCase() + p.slice(1);
+        selectedPlayers.A.push(cleanName);
+    });
+    renderList('A');
+
+    // --- Process Team B (Line 2 & 3) ---
+    const matchB = lines[2].match(headerRegex);
+    if(matchB) {
+        document.getElementById('scoreB').value = matchB[1];
+        document.getElementById('nameTeamB').value = matchB[2].trim();
+        const col = matchB[3] ? matchB[3].toLowerCase() : 'red'; // default red
+        const rb = document.querySelector(`input[name="colorB"][value="${col}"]`);
+        if(rb) rb.checked = true;
+    }
+    // Players B
+    const pListB = lines[3].split(',').map(p => p.trim()).filter(p=>p);
+    selectedPlayers.B = [];
+    pListB.forEach(p => {
+        const cleanName = p.charAt(0).toUpperCase() + p.slice(1);
+        selectedPlayers.B.push(cleanName);
+    });
+    renderList('B');
+
+    alert("Magic Parse Complete! Please verify data.");
+};
 
 // RENDER
 function renderData() {
@@ -169,21 +229,6 @@ function renderData() {
         });
     }
 
-    // LEADERBOARD CALC
-    let stats = {};
-    filtered.forEach(m => {
-        if(m.type === 'Standard') {
-            const tA=m.teams[0], tB=m.teams[1];
-            processTeamStats(stats, tA.players||[], tA.score, tB.score, (tA.score>tB.score?3:(tA.score==tB.score?1:0)));
-            processTeamStats(stats, tB.players||[], tB.score, tA.score, (tB.score>tA.score?3:(tB.score==tA.score?1:0)));
-        } else {
-            m.teams.forEach(t => {
-                const pts = t.rank===1 ? 3 : (t.rank===2 ? 1 : 0);
-                processTeamStats(stats, t.players||[], 0, 0, pts);
-            });
-        }
-    });
-
     const tbody = document.getElementById('leaderboard-body');
     if(!tbody) return;
     tbody.innerHTML = "";
@@ -196,7 +241,7 @@ function renderData() {
 }
 
 function processTeamStats(stats, playerArr, gf, ga, pts) {
-    if(!playerArr) return; // Safety
+    if(!playerArr) return; 
     playerArr.forEach(name => {
         if(!stats[name]) stats[name] = { name:name, played:0, won:0, drawn:0, lost:0, points:0, form:[] };
         stats[name].played++; stats[name].points += pts;
@@ -204,7 +249,6 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
     });
 }
 
-// --- PLAYER STATS ---
 window.openPlayerStats = (name) => {
     const year = parseInt(document.getElementById('filterYear').value);
     const pMatches = allMatches.filter(m => {
@@ -255,7 +299,6 @@ window.openPlayerStats = (name) => {
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
     const gd = totalGF - totalGA;
     
-    // Reverse for UI: Oldest -> Newest
     const formDisplay = recentForm.reverse().map(r => {
         if(r==='W') return '<i class="fas fa-check text-success mx-1"></i>';
         if(r==='D') return '<i class="far fa-circle text-warning mx-1"></i>';
@@ -291,31 +334,23 @@ window.openPlayerStats = (name) => {
     if(modalEl) new bootstrap.Modal(modalEl).show();
 };
 
-// SAVE & AUTH LOGIC
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     if(!currentUser) return alert("Login needed");
     const load = document.getElementById('loadingOverlay'); if(load) load.classList.remove('d-none');
-    
     const isEdit = document.getElementById('editMatchId').value !== "";
     const editingId = document.getElementById('editMatchId').value;
-
     try {
         const type = document.querySelector('input[name="matchType"]:checked').value;
         const dVal = document.getElementById('matchDate').value;
-        const common = {
-            date: new Date(dVal), location: document.getElementById('matchLocation').value, youtubeLink: document.getElementById('matchYoutube').value || null,
-            type: type, updatedBy: currentUser.email, timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        };
-
+        const common = { date: new Date(dVal), location: document.getElementById('matchLocation').value, youtubeLink: document.getElementById('matchYoutube').value || null, type: type, updatedBy: currentUser.email, timestamp: firebase.firestore.FieldValue.serverTimestamp() };
         let matchData = { ...common };
-
         if(type === 'Standard') {
             const sA=parseInt(document.getElementById('scoreA').value)||0, sB=parseInt(document.getElementById('scoreB').value)||0;
             const pA=selectedPlayers.A, pB=selectedPlayers.B;
             if(!pA.length || !pB.length) throw new Error("Add players!");
-            const cA = document.querySelector('input[name="colorA"]:checked')?.value || 'blue';
-            const cB = document.querySelector('input[name="colorB"]:checked')?.value || 'red';
+            const caEl = document.querySelector('input[name="colorA"]:checked'); const cbEl = document.querySelector('input[name="colorB"]:checked');
+            const cA = caEl ? caEl.value : 'blue'; const cB = cbEl ? cbEl.value : 'red';
             matchData.colors = [cA, cB];
             matchData.teams = [{teamName: document.getElementById('nameTeamA').value, score:sA, players:pA}, {teamName: document.getElementById('nameTeamB').value, score:sB, players:pB}];
         } else {
@@ -327,7 +362,6 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             matchData.fixture = f;
             matchData.teams = [{teamName:document.getElementById('nameTournA').value||'Yellow',players:pA,rank:1},{teamName:document.getElementById('nameTournB').value||'Blue',players:pB,rank:2},{teamName:document.getElementById('nameTournC').value||'Red',players:pC,rank:3}];
         }
-
         const docRef = isEdit ? db.collection("matches").doc(editingId) : db.collection("matches").doc();
         await docRef.set(matchData);
         cancelEditMode();
@@ -395,9 +429,9 @@ function openMatchModalLogic(id) {
     const mEl = document.getElementById('matchDetailModal'); if(mEl) new bootstrap.Modal(mEl).show(); 
 }
 function fetchPlayerNames() { db.collection("players").get().then(s=>{ const l=document.getElementById('playerList'); if(!l)return; l.innerHTML=""; s.forEach(d=>l.appendChild(new Option(d.id))); }); }
-function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); }); }
+function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); el.addEventListener('input', e => { if(e.inputType === "insertReplacementText" || e.inputType == undefined) { /* Detected dropdown click */ } }); /* Manual trigger not reliable cross-browser, Button is best */ } }); }
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
-function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times ms-1 text-secondary" onclick="removePlayer('${k}','${p}')" style="cursor:pointer"></i></span>`).join(''); }
+function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times" onclick="removePlayer('${k}','${p}')"></i></span>`).join(''); }
 window.exportToCSV = () => { let c="Date,Type,Loc,Score,TeamA,TeamB\n"; allMatches.forEach(m=>{c+=`${formatDate(m.date.toDate())},${m.type},${m.location},${m.type==='Standard'?m.teams[0].score+'-'+m.teams[1].score:'Win: '+m.teams[0].teamName},${m.teams[0].teamName},${m.teams[1].teamName}\n`}); const l=document.createElement("a"); l.href=encodeURI("data:text/csv;charset=utf-8,"+c); l.download="data.csv"; l.click(); };
 window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };
