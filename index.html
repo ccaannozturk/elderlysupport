@@ -10,7 +10,7 @@
     
     <style>
         :root { 
-            /* V11.6 HIGH CONTRAST THEME */
+            /* V11.7 HIGH CONTRAST THEME */
             --bg-body: #0d1117;       /* Very Dark Blue/Black */
             --bg-card: #161b22;       /* Distinct Card Background */
             --text-main: #ffffff;     /* Pure White for Readability */
@@ -57,7 +57,7 @@
         .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
         .t-name { font-weight: 700; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
         .t-score { font-weight: 800; font-size: 1.2rem; color: var(--text-main); }
-        .t-loser { opacity: 0.4; font-weight: 500; } /* Clearer loser state */
+        .t-loser { opacity: 0.4; font-weight: 500; } 
         
         .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
         .ft-badge { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; }
@@ -96,6 +96,10 @@
         
         /* Form Icons */
         .icon-form { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 1rem; }
+        
+        /* Input Group Button Color */
+        .btn-outline-secondary { border-color: var(--border); color: var(--text-muted); }
+        .btn-outline-secondary:hover { background-color: var(--border); color: white; }
     </style>
 </head>
 <body>
@@ -104,7 +108,7 @@
 
     <div class="brand-header">
         <div class="d-flex align-items-center gap-3">
-            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo" crossorigin="anonymous">
+            <img src="https://firebasestorage.googleapis.com/v0/b/elderly-support-league.firebasestorage.app/o/channels4_profile.jpg?alt=media&token=46556a4e-75e8-4f64-a4b8-d89d51a73d49" class="logo-img" id="pageLogo">
             <div class="brand-info"><h1>Elderly Support</h1><small>EST. 2020 | AMSTERDAM</small></div>
         </div>
         <div class="header-actions">
