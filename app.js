@@ -17,7 +17,7 @@ let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
-// --- HELPER ---
+// --- HELPER: CRASH PREVENTER ---
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -78,63 +78,41 @@ function formatDate(dateObj) {
 window.parseMagicPaste = () => {
     const text = document.getElementById('magicPaste').value.trim();
     if (!text) return alert("Empty!");
-
-    // Basic cleanup: split by lines, remove empty ones
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    
-    // We expect at least 4 lines for 2 teams: Header A, Players A, Header B, Players B
-    if(lines.length < 4) return alert("Format error. Need at least 4 lines.");
-
-    // Regex for Header: Starts with number, has dashes or similar, ends with color (optional)
-    // Example: "10 - Team Name - yellow"
-    // Regex breakdown: ^(\d+) captures score. .*? non-greedy name. (yellow|blue|red) captures color.
+    if(lines.length < 4) return alert("Format error.");
     const headerRegex = /^(\d+)[\s:-]+(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
-
-    // Reset current form
     window.cancelEditMode(); 
-    document.getElementById('typeStandard').click(); // Assuming standard match for now
-
-    // --- Process Team A (Line 0 & 1) ---
+    document.getElementById('typeStandard').click();
+    
     const matchA = lines[0].match(headerRegex);
     if(matchA) {
         document.getElementById('scoreA').value = matchA[1];
         document.getElementById('nameTeamA').value = matchA[2].trim();
-        const col = matchA[3] ? matchA[3].toLowerCase() : 'blue'; // default blue
+        const col = matchA[3] ? matchA[3].toLowerCase() : 'blue';
         const rb = document.querySelector(`input[name="colorA"][value="${col}"]`);
         if(rb) rb.checked = true;
     }
-    // Players A
     const pListA = lines[1].split(',').map(p => p.trim()).filter(p=>p);
     selectedPlayers.A = [];
-    pListA.forEach(p => {
-        // Capitalize
-        const cleanName = p.charAt(0).toUpperCase() + p.slice(1);
-        selectedPlayers.A.push(cleanName);
-    });
+    pListA.forEach(p => { selectedPlayers.A.push(p.charAt(0).toUpperCase() + p.slice(1)); });
     renderList('A');
 
-    // --- Process Team B (Line 2 & 3) ---
     const matchB = lines[2].match(headerRegex);
     if(matchB) {
         document.getElementById('scoreB').value = matchB[1];
         document.getElementById('nameTeamB').value = matchB[2].trim();
-        const col = matchB[3] ? matchB[3].toLowerCase() : 'red'; // default red
+        const col = matchB[3] ? matchB[3].toLowerCase() : 'red';
         const rb = document.querySelector(`input[name="colorB"][value="${col}"]`);
         if(rb) rb.checked = true;
     }
-    // Players B
     const pListB = lines[3].split(',').map(p => p.trim()).filter(p=>p);
     selectedPlayers.B = [];
-    pListB.forEach(p => {
-        const cleanName = p.charAt(0).toUpperCase() + p.slice(1);
-        selectedPlayers.B.push(cleanName);
-    });
+    pListB.forEach(p => { selectedPlayers.B.push(p.charAt(0).toUpperCase() + p.slice(1)); });
     renderList('B');
-
-    alert("Magic Parse Complete! Please verify data.");
+    alert("Parsed!");
 };
 
-// RENDER
+// RENDER (V12.1 - Safety Update)
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
@@ -158,8 +136,6 @@ function renderData() {
     } else {
         filtered.forEach(m => {
             const dateStr = formatDate(m.date.toDate());
-            
-            // ADMIN CONTROLS
             let adminBtns = "";
             if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
                 adminBtns = `<div class="admin-actions">
@@ -167,7 +143,6 @@ function renderData() {
                     <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
                 </div>`;
             }
-
             const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
 
             let html = "";
@@ -229,6 +204,24 @@ function renderData() {
         });
     }
 
+    // LEADERBOARD CALC - CRASH GUARD
+    let stats = {};
+    filtered.forEach(m => {
+        // FIX 2: Deep safety check for malformed matches
+        if (!m.teams || m.teams.length < 2) return; 
+
+        if(m.type === 'Standard') {
+            const tA=m.teams[0], tB=m.teams[1];
+            processTeamStats(stats, tA.players||[], tA.score, tB.score, (tA.score>tB.score?3:(tA.score==tB.score?1:0)));
+            processTeamStats(stats, tB.players||[], tB.score, tA.score, (tB.score>tA.score?3:(tB.score==tA.score?1:0)));
+        } else {
+            m.teams.forEach(t => {
+                const pts = t.rank===1 ? 3 : (t.rank===2 ? 1 : 0);
+                processTeamStats(stats, t.players||[], 0, 0, pts);
+            });
+        }
+    });
+
     const tbody = document.getElementById('leaderboard-body');
     if(!tbody) return;
     tbody.innerHTML = "";
@@ -249,9 +242,12 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
     });
 }
 
+// --- PLAYER STATS ---
 window.openPlayerStats = (name) => {
     const year = parseInt(document.getElementById('filterYear').value);
     const pMatches = allMatches.filter(m => {
+        // FIX: Safety check for m.teams
+        if(!m.teams) return false;
         const t = m.teams.find(t => (t.players||[]).includes(name));
         return t && m.date.toDate().getFullYear() === year;
     }).sort((a,b) => b.date - a.date);
@@ -429,7 +425,7 @@ function openMatchModalLogic(id) {
     const mEl = document.getElementById('matchDetailModal'); if(mEl) new bootstrap.Modal(mEl).show(); 
 }
 function fetchPlayerNames() { db.collection("players").get().then(s=>{ const l=document.getElementById('playerList'); if(!l)return; l.innerHTML=""; s.forEach(d=>l.appendChild(new Option(d.id))); }); }
-function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); el.addEventListener('input', e => { if(e.inputType === "insertReplacementText" || e.inputType == undefined) { /* Detected dropdown click */ } }); /* Manual trigger not reliable cross-browser, Button is best */ } }); }
+function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); el.addEventListener('input', e => { if(e.inputType === "insertReplacementText" || e.inputType == undefined) { /* Detected dropdown click */ } }); } }); }
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
 function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times" onclick="removePlayer('${k}','${p}')"></i></span>`).join(''); }
