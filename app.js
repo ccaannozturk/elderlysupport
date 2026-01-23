@@ -429,5 +429,68 @@ function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
 function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times" onclick="removePlayer('${k}','${p}')"></i></span>`).join(''); }
-window.exportToCSV = () => { let c="Date,Type,Loc,Score,TeamA,TeamB\n"; allMatches.forEach(m=>{c+=`${formatDate(m.date.toDate())},${m.type},${m.location},${m.type==='Standard'?m.teams[0].score+'-'+m.teams[1].score:'Win: '+m.teams[0].teamName},${m.teams[0].teamName},${m.teams[1].teamName}\n`}); const l=document.createElement("a"); l.href=encodeURI("data:text/csv;charset=utf-8,"+c); l.download="data.csv"; l.click(); };
-window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };
+window.exportToCSV = () => {
+    // 1. BOM (Byte Order Mark) ekle - Excel'de emojilerin duzgun gorunmesi icin sart
+    let csvContent = "\uFEFF";
+    
+    // 2. Basliklar (Oyuncu sutunlari eklendi)
+    csvContent += "Date,Type,Location,Score,Team A,Players A,Team B,Players B,Team C,Players C\n";
+
+    allMatches.forEach(m => {
+        const date = formatDate(m.date.toDate());
+        const type = m.type;
+        // Ozel karakterleri ve virgul kargasasini onlemek icin her alani tirnak icine aliyoruz
+        // escapeQuotes fonksiyonu: Metin icindeki " isaretini "" yaparak CSV formatini korur
+        const esc = (text) => `"${(text || "").toString().replace(/"/g, '""')}"`;
+        
+        const loc = esc(m.location);
+        let score = "", tA = "", pA = "", tB = "", pB = "", tC = "", pC = "";
+
+        if (type === 'Standard') {
+            const teamA = m.teams[0];
+            const teamB = m.teams[1];
+            
+            score = esc(`${teamA.score}-${teamB.score}`);
+            
+            tA = esc(teamA.teamName);
+            pA = esc((teamA.players || []).join(", "));
+            
+            tB = esc(teamB.teamName);
+            pB = esc((teamB.players || []).join(", "));
+            
+        } else {
+            // Turnuva: Siralamaya gore sutunlara yerlestir (1., 2., 3.)
+            // m.teams sirali gelmeyebilir, rank'e gore siralayalim
+            const sorted = [...m.teams].sort((a,b) => a.rank - b.rank);
+            
+            score = esc("Tournament"); // Skor yerine turnuva oldugunu belirtelim
+            
+            if(sorted[0]) {
+                tA = esc(`1. ${sorted[0].teamName}`);
+                pA = esc((sorted[0].players || []).join(", "));
+            }
+            if(sorted[1]) {
+                tB = esc(`2. ${sorted[1].teamName}`);
+                pB = esc((sorted[1].players || []).join(", "));
+            }
+            if(sorted[2]) {
+                tC = esc(`3. ${sorted[2].teamName}`);
+                pC = esc((sorted[2].players || []).join(", "));
+            }
+        }
+
+        // Satiri birlestir
+        csvContent += `${date},${type},${loc},${score},${tA},${pA},${tB},${pB},${tC},${pC}\n`;
+    });
+
+    // 3. Blob kullanarak indirme (Daha guvenli karakter kodlamasi)
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Elderly_League_Data_${new Date().toISOString().split('T')[0]}.csv`;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };
