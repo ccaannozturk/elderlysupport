@@ -242,11 +242,10 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
     });
 }
 
-// --- PLAYER STATS ---
+// --- PLAYER STATS (PHASE 2 - ADVANCED) ---
 window.openPlayerStats = (name) => {
     const year = parseInt(document.getElementById('filterYear').value);
     const pMatches = allMatches.filter(m => {
-        // FIX: Safety check for m.teams
         if(!m.teams) return false;
         const t = m.teams.find(t => (t.players||[]).includes(name));
         return t && m.date.toDate().getFullYear() === year;
@@ -254,38 +253,63 @@ window.openPlayerStats = (name) => {
 
     if(pMatches.length === 0) return;
 
-    let w=0, played=0, pts=0;
-    let totalGF = 0, totalGA = 0;
-    let monthly = {};
-    let recentForm = [];
+    let w=0, played=0, pts=0, totalGF=0, totalGA=0;
+    let monthly = {}, recentForm = [];
+    let teammates = {}; // Tracks { games: 0, wins: 0 } per teammate
+    let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
 
     pMatches.forEach(m => {
         played++;
         const monthIdx = m.date.toDate().getMonth();
         if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0};
         
-        let matchPts=0, result='L';
-        let matchGF=0, matchGA=0;
+        let matchPts=0, result='L', matchGF=0, matchGA=0, myColor='';
+        let myTeamMates = [];
 
         if(m.type==='Standard') {
             const tA=m.teams[0]; const inA=(tA.players||[]).includes(name);
             const myS=inA?tA.score:m.teams[1].score;
             const opS=inA?m.teams[1].score:tA.score;
             matchGF = myS; matchGA = opS;
+            myColor = inA ? (m.colors?.[0]||'blue') : (m.colors?.[1]||'red');
+            myTeamMates = inA ? tA.players : m.teams[1].players;
+            
             if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
         } else {
             const myTeam = m.teams.find(t=>(t.players||[]).includes(name));
-            const teamIdx = m.teams.indexOf(myTeam); 
             const r = myTeam.rank;
+            myTeamMates = myTeam.players || [];
+            
+            // Map color
+            let ogKey = myTeam.originalKey || ''; 
+            if(ogKey) myColor = ogKey === 'A' ? 'yellow' : (ogKey === 'B' ? 'blue' : 'red');
+            else myColor = (myTeam.teamName||'').toLowerCase().includes('y') ? 'yellow' : ((myTeam.teamName||'').toLowerCase().includes('b') ? 'blue' : 'red');
+
             if(r===1) {w++; matchPts=3; result='W';} else if(r===2) {matchPts=1; result='D';}
             if(m.fixture) {
                 const f = m.fixture;
                 const add = (my, op) => { matchGF+=my; matchGA+=op; };
-                if(teamIdx === 0) { add(f.m1.a, f.m1.b); add(f.m2.a, f.m2.c); add(f.m4.a, f.m4.b); add(f.m5.a, f.m5.c); } 
-                else if(teamIdx === 1) { add(f.m1.b, f.m1.a); add(f.m3.b, f.m3.c); add(f.m4.b, f.m4.a); add(f.m6.b, f.m6.c); } 
-                else { add(f.m2.c, f.m2.a); add(f.m3.c, f.m3.b); add(f.m5.c, f.m5.a); add(f.m6.c, f.m6.b); }
+                if(ogKey === 'A') { add(f.m1.a, f.m1.b); add(f.m2.a, f.m2.c); add(f.m4.a, f.m4.b); add(f.m5.a, f.m5.c); } 
+                else if(ogKey === 'B') { add(f.m1.b, f.m1.a); add(f.m3.b, f.m3.c); add(f.m4.b, f.m4.a); add(f.m6.b, f.m6.c); } 
+                else if(ogKey === 'C') { add(f.m2.c, f.m2.a); add(f.m3.c, f.m3.b); add(f.m5.c, f.m5.a); add(f.m6.c, f.m6.b); }
             }
         }
+
+        // Tally Teammates
+        myTeamMates.forEach(mate => {
+            if(mate !== name) {
+                if(!teammates[mate]) teammates[mate] = {p:0, w:0};
+                teammates[mate].p++;
+                if(result === 'W') teammates[mate].w++;
+            }
+        });
+
+        // Tally Colors
+        if(colorStats[myColor]) {
+            colorStats[myColor].p++;
+            if(result === 'W') colorStats[myColor].w++;
+        }
+
         pts += matchPts; totalGF += matchGF; totalGA += matchGA;
         monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
         if(recentForm.length < 5) recentForm.push(result);
@@ -294,12 +318,7 @@ window.openPlayerStats = (name) => {
     const winRate = Math.round((w/played)*100);
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
     const gd = totalGF - totalGA;
-    
-    const formDisplay = recentForm.reverse().map(r => {
-        if(r==='W') return '<i class="fas fa-check text-success mx-1"></i>';
-        if(r==='D') return '<i class="far fa-circle text-warning mx-1"></i>';
-        return '<i class="fas fa-times text-danger mx-1"></i>';
-    }).join('');
+    const formDisplay = recentForm.reverse().map(r => r==='W' ? '<i class="fas fa-check text-success mx-1"></i>' : (r==='D' ? '<i class="far fa-circle text-warning mx-1"></i>' : '<i class="fas fa-times text-danger mx-1"></i>')).join('');
 
     let monthRows = "";
     Object.keys(monthly).sort((a,b)=>a-b).forEach(mIdx => {
@@ -307,21 +326,42 @@ window.openPlayerStats = (name) => {
         monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-white">${d.pts}</div></div>`;
     });
 
+    // Generate Best Teammates UI
+    const topMates = Object.entries(teammates).sort((a,b) => b[1].p - a[1].p || b[1].w - a[1].w).slice(0,3);
+    let matesHtml = topMates.map(t => `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span><i class="fas fa-user-friends me-2 opacity-50"></i>${t[0]}</span><span class="text-white">${t[1].p} Matches <span class="ms-1 text-success">(${Math.round(t[1].w/t[1].p*100)}% W)</span></span></div>`).join('');
+    if(!matesHtml) matesHtml = "<div class='small text-muted'>Not enough data yet.</div>";
+
+    // Generate Color Performance UI
+    const colMap = { 'yellow': 'text-warning', 'blue': 'text-primary', 'red': 'text-danger' };
+    let colorsHtml = Object.entries(colorStats).filter(c => c[1].p > 0).sort((a,b) => b[1].w/b[1].p - a[1].w/a[1].p).map(c => {
+        const wr = Math.round(c[1].w/c[1].p * 100);
+        return `<div class="col p-1"><div class="border border-secondary rounded p-2 text-center bg-dark"><div class="fw-bold ${colMap[c[0]]} small">${c[0].toUpperCase()}</div><div class="fw-bold text-white fs-6">${wr}%</div><div style="font-size:0.6rem" class="text-muted mt-1">${c[1].w}W - ${c[1].p}P</div></div></div>`;
+    }).join('');
+
     safeText('psName', name.toUpperCase());
     const psBody = document.getElementById('psBody');
     if(psBody) {
         psBody.innerHTML = `
         <div class="text-center mb-3"><div class="mb-2 text-muted small" style="letter-spacing:1px">CURRENT FORM</div><div class="fs-5">${formDisplay}</div></div>
+        
         <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm">
             <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div>
             <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div>
             <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
         </div>
+        
         <div class="row text-center mb-4 g-0 border border-secondary rounded overflow-hidden shadow-sm">
             <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-success">${totalGF}</div><small class="text-muted" style="font-size:0.6rem">SCORED</small></div>
             <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-danger">${totalGA}</div><small class="text-muted" style="font-size:0.6rem">CONCEDED</small></div>
             <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${gd > 0 ? '+'+gd : gd}</div><small class="text-muted" style="font-size:0.6rem">DIFF</small></div>
         </div>
+
+        <h6 class="small fw-bold text-muted mb-2">WIN RATE BY COLOR</h6>
+        <div class="row g-1 mb-4">${colorsHtml}</div>
+
+        <h6 class="small fw-bold text-muted mb-2">MOST PLAYED WITH</h6>
+        <div class="bg-dark p-2 rounded border border-secondary mb-4">${matesHtml}</div>
+
         <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>
         <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div></div>
         ${monthRows}`;
