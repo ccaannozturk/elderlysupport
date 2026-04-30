@@ -349,14 +349,73 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             const cA = caEl ? caEl.value : 'blue'; const cB = cbEl ? cbEl.value : 'red';
             matchData.colors = [cA, cB];
             matchData.teams = [{teamName: document.getElementById('nameTeamA').value, score:sA, players:pA}, {teamName: document.getElementById('nameTeamB').value, score:sB, players:pB}];
-        } else {
+       } else {
             const pA=selectedPlayers.TournA, pB=selectedPlayers.TournB, pC=selectedPlayers.TournC;
             if(!pA.length||!pB.length||!pC.length) throw new Error("Add players!");
-            const v = (id) => { const el=document.getElementById(id); return el?(parseInt(el.value)||0):0; };
-            const f = { m1:{a:v('t_m1_a'),b:v('t_m1_b')}, m2:{a:v('t_m2_a'),c:v('t_m2_c')}, m3:{b:v('t_m3_b'),c:v('t_m3_c')}, m4:{a:v('t_m4_a'),b:v('t_m4_b')}, m5:{a:v('t_m5_a'),c:v('t_m5_c')}, m6:{b:v('t_m6_b'),c:v('t_m6_c')} };
-            const ranks = ['A','B','C'].sort((x,y) => 0); 
+            
+            // Helper to get input values safely
+            const v = (id) => { const el = document.getElementById(id); return el && el.value !== "" ? parseInt(el.value) : 0; };
+            
+            // The Fixture Matrix
+            const f = { 
+                m1:{a:v('t_m1_a'),b:v('t_m1_b')}, 
+                m2:{a:v('t_m2_a'),c:v('t_m2_c')}, 
+                m3:{b:v('t_m3_b'),c:v('t_m3_c')}, 
+                m4:{a:v('t_m4_a'),b:v('t_m4_b')}, 
+                m5:{a:v('t_m5_a'),c:v('t_m5_c')}, 
+                m6:{b:v('t_m6_b'),c:v('t_m6_c')} 
+            };
+
+            // Initialize Stats objects for each team
+            let t = {
+                A: { key: 'A', name: document.getElementById('nameTournA').value || 'Yellow', players: pA, pts: 0, gf: 0, ga: 0 },
+                B: { key: 'B', name: document.getElementById('nameTournB').value || 'Blue', players: pB, pts: 0, gf: 0, ga: 0 },
+                C: { key: 'C', name: document.getElementById('nameTournC').value || 'Red', players: pC, pts: 0, gf: 0, ga: 0 }
+            };
+
+            // Processor function to tally points and goals
+            const proc = (k1, s1, k2, s2) => { 
+                // Add Goals
+                t[k1].gf += s1; t[k1].ga += s2;
+                t[k2].gf += s2; t[k2].ga += s1;
+                
+                // Add Points
+                if(s1 > s2) t[k1].pts += 3; 
+                else if(s2 > s1) t[k2].pts += 3; 
+                else { t[k1].pts += 1; t[k2].pts += 1; } 
+            };
+
+            // Run processor for all 6 matches
+            proc('A', f.m1.a, 'B', f.m1.b); 
+            proc('A', f.m2.a, 'C', f.m2.c); 
+            proc('B', f.m3.b, 'C', f.m3.c); 
+            proc('A', f.m4.a, 'B', f.m4.b); 
+            proc('A', f.m5.a, 'C', f.m5.c); 
+            proc('B', f.m6.b, 'C', f.m6.c);
+
+            // Sort the teams based on Points -> Goal Difference -> Goals For
+            const sortedTeams = Object.values(t).sort((x, y) => {
+                // 1. Points
+                if (y.pts !== x.pts) return y.pts - x.pts;
+                // 2. Goal Difference (if points are tied)
+                const gdX = x.gf - x.ga;
+                const gdY = y.gf - y.ga;
+                if (gdY !== gdX) return gdY - gdX;
+                // 3. Goals For (if GD is also tied)
+                return y.gf - x.gf;
+            });
+
             matchData.fixture = f;
-            matchData.teams = [{teamName:document.getElementById('nameTournA').value||'Yellow',players:pA,rank:1},{teamName:document.getElementById('nameTournB').value||'Blue',players:pB,rank:2},{teamName:document.getElementById('nameTournC').value||'Red',players:pC,rank:3}];
+            
+            // Map the sorted array to our final teams structure and assign true ranks
+            matchData.teams = sortedTeams.map((team, index) => {
+                return {
+                    teamName: team.name,
+                    players: team.players,
+                    rank: index + 1, // 1st, 2nd, 3rd based on the sort order
+                    originalKey: team.key // Storing this helps UI rendering (A=Yellow, B=Blue, C=Red) later
+                };
+            });
         }
         const docRef = isEdit ? db.collection("matches").doc(editingId) : db.collection("matches").doc();
         await docRef.set(matchData);
