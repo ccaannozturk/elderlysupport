@@ -204,7 +204,7 @@ function renderData() {
         });
     }
 
-  // LEADERBOARD CALC - PHASE 2 (Deep Stats)
+// LEADERBOARD CALC - PHASE 2 (Deep Stats)
     let stats = {};
     filtered.forEach(m => {
         if (!m.teams || m.teams.length < 2) return; 
@@ -227,7 +227,6 @@ function renderData() {
             m.teams.forEach(t => {
                 const pts = t.rank===1 ? 3 : (t.rank===2 ? 1 : 0);
                 let gf = 0, ga = 0;
-                // Match originalKey from Phase 1 to get exact goals
                 if(t.originalKey && tStats[t.originalKey]) {
                     gf = tStats[t.originalKey].gf; ga = tStats[t.originalKey].ga;
                 }
@@ -258,6 +257,19 @@ function renderData() {
             <td class="fw-bold text-white">${p.points}</td>
             <td class="pe-3 fw-bold text-info">${ppg}</td>
         </tr>`;
+    });
+}
+
+function processTeamStats(stats, playerArr, gf, ga, pts) {
+    if(!playerArr) return; 
+    playerArr.forEach(name => {
+        if(!stats[name]) stats[name] = { name:name, played:0, won:0, drawn:0, lost:0, gf:0, ga:0, gd:0, points:0, form:[] };
+        stats[name].played++; 
+        stats[name].points += pts;
+        stats[name].gf += gf;
+        stats[name].ga += ga;
+        stats[name].gd = stats[name].gf - stats[name].ga;
+        if(pts===3) stats[name].won++; else if(pts===1) stats[name].drawn++; else stats[name].lost++;
     });
 }
 
@@ -320,7 +332,6 @@ window.openPlayerStats = (name) => {
             const r = myTeam.rank;
             myTeamMates = myTeam.players || [];
             
-            // Map color
             let ogKey = myTeam.originalKey || ''; 
             if(ogKey) myColor = ogKey === 'A' ? 'yellow' : (ogKey === 'B' ? 'blue' : 'red');
             else myColor = (myTeam.teamName||'').toLowerCase().includes('y') ? 'yellow' : ((myTeam.teamName||'').toLowerCase().includes('b') ? 'blue' : 'red');
