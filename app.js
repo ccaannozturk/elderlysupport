@@ -204,20 +204,34 @@ function renderData() {
         });
     }
 
-    // LEADERBOARD CALC - CRASH GUARD
+  // LEADERBOARD CALC - PHASE 2 (Deep Stats)
     let stats = {};
     filtered.forEach(m => {
-        // FIX 2: Deep safety check for malformed matches
         if (!m.teams || m.teams.length < 2) return; 
 
         if(m.type === 'Standard') {
             const tA=m.teams[0], tB=m.teams[1];
-            processTeamStats(stats, tA.players||[], tA.score, tB.score, (tA.score>tB.score?3:(tA.score==tB.score?1:0)));
-            processTeamStats(stats, tB.players||[], tB.score, tA.score, (tB.score>tA.score?3:(tB.score==tA.score?1:0)));
+            const ptsA = tA.score > tB.score ? 3 : (tA.score == tB.score ? 1 : 0);
+            const ptsB = tB.score > tA.score ? 3 : (tB.score == tA.score ? 1 : 0);
+            processTeamStats(stats, tA.players||[], tA.score, tB.score, ptsA);
+            processTeamStats(stats, tB.players||[], tB.score, tA.score, ptsB);
         } else {
+            // Tournament: Calculate GF/GA from matrix
+            let tStats = { A:{gf:0,ga:0}, B:{gf:0,ga:0}, C:{gf:0,ga:0} }; 
+            if(m.fixture) {
+                const f = m.fixture;
+                const add = (t1, s1, t2, s2) => { tStats[t1].gf+=s1; tStats[t1].ga+=s2; tStats[t2].gf+=s2; tStats[t2].ga+=s1; };
+                add('A', f.m1.a, 'B', f.m1.b); add('A', f.m2.a, 'C', f.m2.c); add('B', f.m3.b, 'C', f.m3.c);
+                add('A', f.m4.a, 'B', f.m4.b); add('A', f.m5.a, 'C', f.m5.c); add('B', f.m6.b, 'C', f.m6.c);
+            }
             m.teams.forEach(t => {
                 const pts = t.rank===1 ? 3 : (t.rank===2 ? 1 : 0);
-                processTeamStats(stats, t.players||[], 0, 0, pts);
+                let gf = 0, ga = 0;
+                // Match originalKey from Phase 1 to get exact goals
+                if(t.originalKey && tStats[t.originalKey]) {
+                    gf = tStats[t.originalKey].gf; ga = tStats[t.originalKey].ga;
+                }
+                processTeamStats(stats, t.players||[], gf, ga, pts);
             });
         }
     });
@@ -225,14 +239,40 @@ function renderData() {
     const tbody = document.getElementById('leaderboard-body');
     if(!tbody) return;
     tbody.innerHTML = "";
-    const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.won-a.won));
-    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='5' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
+    const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.gd-a.gd) || (b.won-a.won));
+    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='11' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
+    
     players.forEach((p, i) => {
         const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
-        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}"><td class="ps-3 fw-bold"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td><td class="fw-bold text-light">${p.name}</td><td class="text-center text-muted">${p.played}</td><td class="text-center text-muted">${p.won}</td><td class="text-center pe-3 fw-bold text-white">${p.points}</td></tr>`;
+        const ppg = (p.points / p.played).toFixed(2);
+        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
+            <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td>
+            <td class="fw-bold text-light text-start">${p.name}</td>
+            <td class="text-muted">${p.played}</td>
+            <td class="text-muted">${p.won}</td>
+            <td class="text-muted">${p.drawn}</td>
+            <td class="text-muted">${p.lost}</td>
+            <td class="text-success">${p.gf}</td>
+            <td class="text-danger">${p.ga}</td>
+            <td class="text-white">${p.gd > 0 ? '+'+p.gd : p.gd}</td>
+            <td class="fw-bold text-white">${p.points}</td>
+            <td class="pe-3 fw-bold text-info">${ppg}</td>
+        </tr>`;
     });
 }
 
+function processTeamStats(stats, playerArr, gf, ga, pts) {
+    if(!playerArr) return; 
+    playerArr.forEach(name => {
+        if(!stats[name]) stats[name] = { name:name, played:0, won:0, drawn:0, lost:0, gf:0, ga:0, gd:0, points:0, form:[] };
+        stats[name].played++; 
+        stats[name].points += pts;
+        stats[name].gf += gf;
+        stats[name].ga += ga;
+        stats[name].gd = stats[name].gf - stats[name].ga;
+        if(pts===3) stats[name].won++; else if(pts===1) stats[name].drawn++; else stats[name].lost++;
+    });
+}
 function processTeamStats(stats, playerArr, gf, ga, pts) {
     if(!playerArr) return; 
     playerArr.forEach(name => {
