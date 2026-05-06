@@ -239,21 +239,18 @@ function renderData() {
     if(!tbody) return;
     tbody.innerHTML = "";
     const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.gd-a.gd) || (b.won-a.won));
-    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='11' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
+    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
     
     players.forEach((p, i) => {
         const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
         const ppg = (p.points / p.played).toFixed(2);
-        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
+       tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
             <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td>
             <td class="fw-bold text-light text-start">${p.name}</td>
             <td class="text-muted">${p.played}</td>
             <td class="text-muted">${p.won}</td>
             <td class="text-muted">${p.drawn}</td>
             <td class="text-muted">${p.lost}</td>
-            <td class="text-success">${p.gf}</td>
-            <td class="text-danger">${p.ga}</td>
-            <td class="text-white">${p.gd > 0 ? '+'+p.gd : p.gd}</td>
             <td class="fw-bold text-white">${p.points}</td>
             <td class="pe-3 fw-bold text-info">${ppg}</td>
         </tr>`;
