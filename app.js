@@ -17,6 +17,10 @@ let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
+// SORTING STATE
+let currentSortCol = 'points';
+let isSortDesc = true;
+
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -95,6 +99,18 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
+// SORTING LOGIC
+window.sortTable = (col) => {
+    if (currentSortCol === col) {
+        isSortDesc = !isSortDesc; // Geriye dönük sırala
+    } else {
+        currentSortCol = col;
+        isSortDesc = true; // Yeni sütunsa büyükten küçüğe başla (İsim hariç)
+        if(col === 'name') isSortDesc = false; // İsimse A-Z başla
+    }
+    renderData();
+};
+
 window.parseMagicPaste = () => {
     const text = document.getElementById('magicPaste').value.trim();
     if (!text) return alert("Empty!");
@@ -102,7 +118,6 @@ window.parseMagicPaste = () => {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
     if(lines.length < 4) return alert("Format error. Need at least 4 lines.");
 
-    // Regex yakalama: Grup 1 (Puan/Skor), Grup 2 (Takım Adı), Grup 3 (Renk)
     const headerRegex = /^(?:(\d+)[\s:-]+)?(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
     window.cancelEditMode(); 
 
@@ -128,7 +143,7 @@ window.parseMagicPaste = () => {
         const mapToForm = (tObj, suffix) => {
             if(tObj) {
                 const m = tObj.match || tObj.header.match(headerRegex);
-                if(m && m[1]) document.getElementById(`ptsTourn${suffix}`).value = m[1]; // Puan ataması
+                if(m && m[1]) document.getElementById(`ptsTourn${suffix}`).value = m[1];
                 document.getElementById(`nameTourn${suffix}`).value = m ? m[2].trim() : tObj.header;
                 selectedPlayers[`Tourn${suffix}`] = tObj.players.split(',').map(p=> {
                     let clean = p.trim(); return clean.charAt(0).toUpperCase() + clean.slice(1);
@@ -187,71 +202,71 @@ function renderData() {
     });
 
     const list = document.getElementById('match-history-list');
-    if(!list) return;
-    
-    list.innerHTML = "";
-    
-    if(filtered.length === 0) {
-        list.innerHTML = "<div class='text-center py-5 text-muted small'>No matches found.</div>";
-    } else {
-        filtered.forEach(m => {
-            const dateStr = formatDate(m.date.toDate());
-            let adminBtns = "";
-            if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
-                adminBtns = `<div class="admin-actions">
-                    <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch('${m.id}', event)">Edit</button> 
-                    <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
-                </div>`;
-            }
-            const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
+    if(list) {
+        list.innerHTML = "";
+        
+        if(filtered.length === 0) {
+            list.innerHTML = "<div class='text-center py-5 text-muted small'>No matches found.</div>";
+        } else {
+            filtered.forEach(m => {
+                const dateStr = formatDate(m.date.toDate());
+                let adminBtns = "";
+                if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
+                    adminBtns = `<div class="admin-actions">
+                        <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch('${m.id}', event)">Edit</button> 
+                        <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
+                    </div>`;
+                }
+                const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
 
-            let html = "";
-            if(m.type === 'Standard') {
-                const tA=m.teams[0], tB=m.teams[1];
-                const cA=m.colors?.[0]||'blue', cB=m.colors?.[1]||'red';
-                const winA = tA.score > tB.score ? 'text-white' : 't-loser';
-                const winB = tB.score > tA.score ? 'text-white' : 't-loser';
-                const pA = (tA.players||[]).join(', '); const pB = (tB.players||[]).join(', ');
+                let html = "";
+                if(m.type === 'Standard') {
+                    const tA=m.teams[0], tB=m.teams[1];
+                    const cA=m.colors?.[0]||'blue', cB=m.colors?.[1]||'red';
+                    const winA = tA.score > tB.score ? 'text-white' : 't-loser';
+                    const winB = tB.score > tA.score ? 'text-white' : 't-loser';
+                    const pA = (tA.players||[]).join(', '); const pB = (tB.players||[]).join(', ');
 
-                html = `
-                <div class="match-card" onclick="openMatchModal('${m.id}')">
-                    <div class="card-top"><span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
-                    <div class="card-body-strip">
-                        <div class="team-block">
-                            <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${tA.teamName||'A'}</div><div class="t-score ${winA}">${tA.score}</div></div>
-                            <div class="team-players text-muted small" style="font-size:0.75rem">${pA}</div>
+                    html = `
+                    <div class="match-card" onclick="openMatchModal('${m.id}')">
+                        <div class="card-top"><span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
+                        <div class="card-body-strip">
+                            <div class="team-block">
+                                <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${tA.teamName||'A'}</div><div class="t-score ${winA}">${tA.score}</div></div>
+                                <div class="team-players text-muted small" style="font-size:0.75rem">${pA}</div>
+                            </div>
+                            <div class="match-meta"><span class="ft-badge">FT</span></div>
+                            <div class="team-block text-end">
+                                <div class="team-row mb-2 justify-content-end"><div class="t-score ${winB} me-2">${tB.score}</div><div class="t-name justify-content-end ${winB}">${tB.teamName||'B'}<span class="dot bg-${cB.charAt(0)} ms-2"></span></div></div>
+                                <div class="team-players text-end text-muted small" style="font-size:0.75rem">${pB}</div>
+                            </div>
                         </div>
-                        <div class="match-meta"><span class="ft-badge">FT</span></div>
-                        <div class="team-block text-end">
-                            <div class="team-row mb-2 justify-content-end"><div class="t-score ${winB} me-2">${tB.score}</div><div class="t-name justify-content-end ${winB}">${tB.teamName||'B'}<span class="dot bg-${cB.charAt(0)} ms-2"></span></div></div>
-                            <div class="team-players text-end text-muted small" style="font-size:0.75rem">${pB}</div>
-                        </div>
-                    </div>
-                    ${adminBtns}
-                </div>`;
-            } else {
-                const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
-                const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
-                const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
-                const getCol = (t) => { const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); };
-                
-                const pts1 = r1.points !== undefined ? `${r1.points} pts` : '';
-                const pts2 = r2.points !== undefined ? `${r2.points} pts` : '';
-                const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
+                        ${adminBtns}
+                    </div>`;
+                } else {
+                    const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
+                    const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
+                    const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
+                    const getCol = (t) => { const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); };
+                    
+                    const pts1 = r1.points !== undefined ? `${r1.points} pts` : '';
+                    const pts2 = r2.points !== undefined ? `${r2.points} pts` : '';
+                    const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
 
-                html = `
-                <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #facc15;">
-                    <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
-                    <div class="p-3 bg-card">
-                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${r1.teamName} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${(r1.players||[]).join(', ')}</div></div>
-                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${r2.teamName} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${(r2.players||[]).join(', ')}</div></div>
-                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${r3.teamName} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${(r3.players||[]).join(', ')}</div></div>
-                    </div>
-                    ${adminBtns}
-                </div>`;
-            }
-            list.innerHTML += html;
-        });
+                    html = `
+                    <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #ffea00;">
+                        <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
+                        <div class="p-3 bg-card">
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${r1.teamName} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${(r1.players||[]).join(', ')}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${r2.teamName} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${(r2.players||[]).join(', ')}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${r3.teamName} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${(r3.players||[]).join(', ')}</div></div>
+                        </div>
+                        ${adminBtns}
+                    </div>`;
+                }
+                list.innerHTML += html;
+            });
+        }
     }
 
     let stats = {};
@@ -273,25 +288,44 @@ function renderData() {
     });
 
     const tbody = document.getElementById('leaderboard-body');
-    if(!tbody) return;
-    tbody.innerHTML = "";
-    const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.won-a.won));
-    if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
-    
-    players.forEach((p, i) => {
-        const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
-        const ppg = (p.points / p.played).toFixed(2);
-        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
-            <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td>
-            <td class="fw-bold text-light text-start">${p.name}</td>
-            <td class="text-muted">${p.played}</td>
-            <td class="text-muted">${p.won}</td>
-            <td class="text-muted">${p.drawn}</td>
-            <td class="text-muted">${p.lost}</td>
-            <td class="fw-bold text-white">${p.points}</td>
-            <td class="pe-3 fw-bold text-info">${ppg}</td>
-        </tr>`;
-    });
+    if(tbody) {
+        tbody.innerHTML = "";
+        
+        // SORTING ENGINE (DİNAMİK)
+        const players = Object.values(stats).sort((a,b) => {
+            let valA = a[currentSortCol];
+            let valB = b[currentSortCol];
+            
+            // Eğer sütun PPG ise hesapla
+            if(currentSortCol === 'ppg') { valA = a.points/a.played; valB = b.points/b.played; }
+            if(currentSortCol === 'name') {
+                return isSortDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+            }
+            
+            if (valA === valB) return b.won - a.won; // Beraberlik bozucu
+            return isSortDesc ? valB - valA : valA - valB;
+        });
+
+        if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
+        
+        players.forEach((p, i) => {
+            const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
+            const ppg = (p.points / p.played).toFixed(2);
+            tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
+                <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0&&currentSortCol==='points'&&isSortDesc?'r-1':''}">${i+1}</span></td>
+                <td class="fw-bold text-light text-start">${p.name}</td>
+                <td class="text-muted">${p.played}</td>
+                <td class="text-muted">${p.won}</td>
+                <td class="text-muted">${p.drawn}</td>
+                <td class="text-muted">${p.lost}</td>
+                <td class="fw-bold text-white">${p.points}</td>
+                <td class="pe-3 fw-bold text-info">${ppg}</td>
+            </tr>`;
+        });
+    }
+
+    // --- YENİ STATS (INSIGHTS) EKRANINI OLUŞTUR ---
+    generateInsights(filtered);
 }
 
 function processTeamStats(stats, playerArr, gf, ga, pts) {
@@ -308,6 +342,112 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
         else if(pts === 1) stats[name].drawn++; 
         else if(pts === 0) stats[name].lost++;
     });
+}
+
+// KOMBİNASYON YARDIMCISI (İkili/Üçlü Bulmak İçin)
+function getCombinations(arr, k) {
+    let result = [];
+    function combine(start, combo) {
+        if (combo.length === k) { result.push([...combo]); return; }
+        for (let i = start; i < arr.length; i++) {
+            combo.push(arr[i]); combine(i + 1, combo); combo.pop();
+        }
+    }
+    combine(0, []);
+    return result;
+}
+
+// --- V12.4: INSIGHTS ENGINE (FUN FACTS) ---
+function generateInsights(matches) {
+    let duos = {}, trios = {}, fullTeams = {};
+    
+    matches.forEach(m => {
+        if (!m.teams || m.teams.length < 2) return;
+        
+        m.teams.forEach(t => {
+            let isWin = false;
+            let pts = 0;
+            if(m.type === 'Standard') {
+                const isA = t === m.teams[0];
+                const myS = isA ? m.teams[0].score : m.teams[1].score;
+                const opS = isA ? m.teams[1].score : m.teams[0].score;
+                if(myS > opS) { isWin = true; pts = 3; }
+                else if (myS == opS) pts = 1;
+            } else {
+                pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
+                if(pts >= 3) isWin = true;
+            }
+            
+            const players = (t.players || []).sort();
+            if(players.length === 0) return;
+            
+            const teamKey = players.join(', ');
+            if(!fullTeams[teamKey]) fullTeams[teamKey] = {p:0, w:0, pts:0};
+            fullTeams[teamKey].p++; fullTeams[teamKey].pts+=pts; if(isWin) fullTeams[teamKey].w++;
+            
+            if(players.length >= 2) {
+                getCombinations(players, 2).forEach(c => {
+                    const key = c.join(' & ');
+                    if(!duos[key]) duos[key] = {p:0, w:0, pts:0};
+                    duos[key].p++; duos[key].pts+=pts; if(isWin) duos[key].w++;
+                });
+            }
+            if(players.length >= 3) {
+                getCombinations(players, 3).forEach(c => {
+                    const key = c.join(', ');
+                    if(!trios[key]) trios[key] = {p:0, w:0, pts:0};
+                    trios[key].p++; trios[key].pts+=pts; if(isWin) trios[key].w++;
+                });
+            }
+        });
+    });
+
+    const minMatches = 3; // En az 3 kere beraber oynamış olmalılar
+    const validDuos = Object.entries(duos).filter(e => e[1].p >= minMatches).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
+    const validTrios = Object.entries(trios).filter(e => e[1].p >= minMatches).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
+    const validTeams = Object.entries(fullTeams).filter(e => e[1].p >= 2).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
+    
+    validDuos.sort((a,b) => b.wr - a.wr || b.p - a.p);
+    validTrios.sort((a,b) => b.wr - a.wr || b.p - a.p);
+    validTeams.sort((a,b) => b.wr - a.wr || b.p - a.p);
+
+    const container = document.getElementById('insightsContainer');
+    if(!container) return;
+
+    if(validDuos.length === 0) {
+        container.innerHTML = `<div class="text-center py-5 text-muted small"><i class="fas fa-ghost fs-1 mb-3 d-block opacity-25"></i>Not enough data for insights yet.<br>Play a few more matches!</div>`;
+        return;
+    }
+
+    const bestDuo = validDuos[0];
+    const worstDuo = validDuos[validDuos.length-1];
+    const bestTrio = validTrios.length > 0 ? validTrios[0] : null;
+    const worstTrio = validTrios.length > 0 ? validTrios[validTrios.length-1] : null;
+    const bestTeam = validTeams.length > 0 ? validTeams[0] : null;
+
+    const renderCard = (title, icon, color, data, desc) => {
+        if(!data) return '';
+        return `
+        <div class="col-12 col-md-6 mb-2">
+            <div class="p-3 border border-secondary rounded bg-dark h-100 position-relative overflow-hidden">
+                <i class="fas ${icon} position-absolute opacity-10" style="font-size: 5rem; right: -10px; bottom: -10px;"></i>
+                <div class="text-${color} fw-bold mb-2"><i class="fas ${icon} me-2"></i>${title}</div>
+                <div class="text-white fw-bold fs-6 mb-1">${data.name}</div>
+                <div class="text-muted small">${Math.round(data.wr*100)}% Win Rate (${data.w}W - ${data.p}P)</div>
+                <div class="text-muted small mt-2 border-top border-secondary pt-2" style="font-size:0.7rem"><i>${desc}</i></div>
+            </div>
+        </div>`;
+    };
+
+    let html = `<div class="row g-2 px-1">`;
+    html += renderCard('UNSTOPPABLE DUO', 'fa-fire', 'warning', bestDuo, 'They carry the team.');
+    html += renderCard('TERRIBLE DUO', 'fa-skull-crossbones', 'danger', worstDuo, 'Maybe play on different teams next time.');
+    html += renderCard('DREAM TRIO', 'fa-star', 'info', bestTrio, 'The holy trinity.');
+    html += renderCard('TRAGIC TRIO', 'fa-dumpster-fire', 'danger', worstTrio, 'A complete disaster together.');
+    html += renderCard('BEST EXACT ROSTER', 'fa-trophy', 'success', bestTeam, 'The most dominant complete lineup.');
+    html += `</div>`;
+    
+    container.innerHTML = html;
 }
 
 window.openPlayerStats = (name) => {
@@ -374,7 +514,7 @@ window.openPlayerStats = (name) => {
 
     const winRate = Math.round((w/played)*100);
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-    const gd = totalGF - totalGA;
+    
     const formDisplay = recentForm.reverse().map(r => r==='W' ? '<i class="fas fa-check text-success mx-1"></i>' : (r==='D' ? '<i class="far fa-circle text-warning mx-1"></i>' : '<i class="fas fa-times text-danger mx-1"></i>')).join('');
 
     let monthRows = "";
@@ -398,19 +538,15 @@ window.openPlayerStats = (name) => {
     if(psBody) {
         psBody.innerHTML = `
         <div class="text-center mb-3"><div class="mb-2 text-muted small" style="letter-spacing:1px">CURRENT FORM</div><div class="fs-5">${formDisplay}</div></div>
-        
         <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm">
             <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div>
             <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div>
             <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
         </div>
-        
         <h6 class="small fw-bold text-muted mb-2">WIN RATE BY COLOR</h6>
         <div class="row g-1 mb-4">${colorsHtml}</div>
-
         <h6 class="small fw-bold text-muted mb-2">MOST PLAYED WITH</h6>
         <div class="bg-dark p-2 rounded border border-secondary mb-4">${matesHtml}</div>
-
         <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>
         <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div></div>
         ${monthRows}`;
@@ -453,7 +589,6 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
                 {teamName: document.getElementById('nameTournC').value || 'Red', players: pC, points: ptsC, originalKey: 'C'}
             ];
             
-            // Sort by points to assign rank
             tArr.sort((a,b) => b.points - a.points);
             tArr.forEach((t, i) => t.rank = i + 1);
             matchData.teams = tArr;
