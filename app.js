@@ -102,6 +102,7 @@ window.parseMagicPaste = () => {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l);
     if(lines.length < 4) return alert("Format error. Need at least 4 lines.");
 
+    // Regex yakalama: Grup 1 (Puan/Skor), Grup 2 (Takım Adı), Grup 3 (Renk)
     const headerRegex = /^(?:(\d+)[\s:-]+)?(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
     window.cancelEditMode(); 
 
@@ -116,8 +117,8 @@ window.parseMagicPaste = () => {
         teamsArr.forEach(t => {
             const match = t.header.match(headerRegex);
             let color = match && match[3] ? match[3].toLowerCase() : null;
-            if(color && !assigned[color]) assigned[color] = t;
-            else unassigned.push(t);
+            if(color && !assigned[color]) assigned[color] = { ...t, match };
+            else unassigned.push({ ...t, match });
         });
         
         ['yellow', 'blue', 'red'].forEach(c => {
@@ -126,7 +127,8 @@ window.parseMagicPaste = () => {
         
         const mapToForm = (tObj, suffix) => {
             if(tObj) {
-                const m = tObj.header.match(headerRegex);
+                const m = tObj.match || tObj.header.match(headerRegex);
+                if(m && m[1]) document.getElementById(`ptsTourn${suffix}`).value = m[1]; // Puan ataması
                 document.getElementById(`nameTourn${suffix}`).value = m ? m[2].trim() : tObj.header;
                 selectedPlayers[`Tourn${suffix}`] = tObj.players.split(',').map(p=> {
                     let clean = p.trim(); return clean.charAt(0).toUpperCase() + clean.slice(1);
@@ -139,7 +141,7 @@ window.parseMagicPaste = () => {
         mapToForm(assigned['blue'], 'B');   
         mapToForm(assigned['red'], 'C');    
         
-        alert("Parsed Tournament! Please add the points for each team.");
+        alert("Parsed Tournament!");
     } else {
         document.getElementById('typeStandard').click();
         const matchA = lines[0].match(headerRegex);
@@ -233,7 +235,6 @@ function renderData() {
                 const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
                 const getCol = (t) => { const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); };
                 
-                // Show points explicitly on the card instead of matrix
                 const pts1 = r1.points !== undefined ? `${r1.points} pts` : '';
                 const pts2 = r2.points !== undefined ? `${r2.points} pts` : '';
                 const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
@@ -264,7 +265,6 @@ function renderData() {
             processTeamStats(stats, tA.players||[], tA.score, tB.score, ptsA);
             processTeamStats(stats, tB.players||[], tB.score, tA.score, ptsB);
         } else {
-            // Simplified Tournament Logic: Read points directly, goals are 0
             m.teams.forEach(t => {
                 const pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
                 processTeamStats(stats, t.players||[], 0, 0, pts);
@@ -275,7 +275,6 @@ function renderData() {
     const tbody = document.getElementById('leaderboard-body');
     if(!tbody) return;
     tbody.innerHTML = "";
-    // Removed GD from the sorting fallback since we hid it from table, sorting by Points then Wins
     const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.won-a.won));
     if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
     
@@ -305,7 +304,6 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
         stats[name].ga += ga;
         stats[name].gd = stats[name].gf - stats[name].ga;
         
-        // For win/draw/loss counts
         if(pts >= 3) stats[name].won++; 
         else if(pts === 1) stats[name].drawn++; 
         else if(pts === 0) stats[name].lost++;
@@ -407,12 +405,6 @@ window.openPlayerStats = (name) => {
             <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
         </div>
         
-        <div class="row text-center mb-4 g-0 border border-secondary rounded overflow-hidden shadow-sm">
-            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-success">${totalGF}</div><small class="text-muted" style="font-size:0.6rem">SCORED</small></div>
-            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-danger">${totalGA}</div><small class="text-muted" style="font-size:0.6rem">CONCEDED</small></div>
-            <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${gd > 0 ? '+'+gd : gd}</div><small class="text-muted" style="font-size:0.6rem">DIFF</small></div>
-        </div>
-
         <h6 class="small fw-bold text-muted mb-2">WIN RATE BY COLOR</h6>
         <div class="row g-1 mb-4">${colorsHtml}</div>
 
