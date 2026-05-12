@@ -225,12 +225,13 @@
                             </div>
                         </div>
 
-                        <div id="tournamentSection" class="d-none">
+                       <div id="tournamentSection" class="d-none">
                             <div class="row g-1 mb-2">
                                 <div class="col-4">
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
-                                        <small class="text-warning-dark fw-bold">YEL</small>
+                                        <small class="text-warning fw-bold">YEL</small>
                                         <input id="nameTournA" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
+                                        <input type="number" id="ptsTournA" class="form-control form-control-sm p-0 text-center mb-1 fw-bold text-white bg-dark border-secondary" placeholder="Pts">
                                         <div class="input-group input-group-sm"><input id="inputPlayerTournA" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournA')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
                                     <div id="listTeamTournA" class="d-flex flex-wrap justify-content-center mt-1"></div>
@@ -239,6 +240,7 @@
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
                                         <small class="text-primary fw-bold">BLU</small>
                                         <input id="nameTournB" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
+                                        <input type="number" id="ptsTournB" class="form-control form-control-sm p-0 text-center mb-1 fw-bold text-white bg-dark border-secondary" placeholder="Pts">
                                         <div class="input-group input-group-sm"><input id="inputPlayerTournB" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournB')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
                                     <div id="listTeamTournB" class="d-flex flex-wrap justify-content-center mt-1"></div>
@@ -247,11 +249,13 @@
                                     <div class="p-1 border border-secondary rounded text-center bg-secondary bg-opacity-10">
                                         <small class="text-danger fw-bold">RED</small>
                                         <input id="nameTournC" class="form-control form-control-sm p-0 text-center mb-1" placeholder="Name">
+                                        <input type="number" id="ptsTournC" class="form-control form-control-sm p-0 text-center mb-1 fw-bold text-white bg-dark border-secondary" placeholder="Pts">
                                         <div class="input-group input-group-sm"><input id="inputPlayerTournC" class="form-control p-0 text-center" list="playerList" placeholder="+"><button class="btn btn-outline-secondary px-1" type="button" onclick="addPlayer('TournC')"><i class="fas fa-plus fa-xs"></i></button></div>
                                     </div>
                                     <div id="listTeamTournC" class="d-flex flex-wrap justify-content-center mt-1"></div>
                                 </div>
                             </div>
+                        </div>
                             <div class="border border-secondary rounded p-2 bg-dark small text-center">
                                 <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m1_a" class="bg-dark text-white border-secondary text-center" style="width:25px; height:20px"> - <input type="number" id="t_m1_b" class="bg-dark text-white border-secondary text-center" style="width:25px; height:20px"> <span class="badge bg-primary">B</span></div>
                                 <div class="mb-1"><span class="badge bg-warning text-dark">Y</span> <input type="number" id="t_m2_a" class="bg-dark text-white border-secondary text-center" style="width:25px; height:20px"> - <input type="number" id="t_m2_c" class="bg-dark text-white border-secondary text-center" style="width:25px; height:20px"> <span class="badge bg-danger">R</span></div>
