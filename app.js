@@ -17,7 +17,6 @@ let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
-// --- HELPER: CRASH PREVENTER ---
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -60,7 +59,29 @@ function updateAuthUI() {
 function fetchMatches() {
     db.collection("matches").orderBy("date", "desc").onSnapshot(snap => {
         allMatches = [];
-        snap.forEach(doc => allMatches.push({ id: doc.id, ...doc.data() }));
+        let uniqueYears = new Set(); 
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            allMatches.push({ id: doc.id, ...data });
+            if (data.date) {
+                uniqueYears.add(data.date.toDate().getFullYear());
+            }
+        });
+        
+        const yearSelect = document.getElementById('filterYear');
+        if (yearSelect && uniqueYears.size > 0) {
+            const currentSelected = parseInt(yearSelect.value);
+            yearSelect.innerHTML = ''; 
+            const sortedYears = Array.from(uniqueYears).sort((a, b) => b - a);
+            sortedYears.forEach(year => {
+                const isSelected = year === currentSelected ? 'selected' : '';
+                yearSelect.innerHTML += `<option value="${year}" ${isSelected}>${year}</option>`;
+            });
+            if (!sortedYears.includes(currentSelected)) {
+                yearSelect.value = sortedYears[0];
+            }
+        }
         renderData();
     });
 }
@@ -74,45 +95,82 @@ function formatDate(dateObj) {
     return `${day}/${month}/${year}`;
 }
 
-// --- V12.0: MAGIC PASTE ---
 window.parseMagicPaste = () => {
     const text = document.getElementById('magicPaste').value.trim();
     if (!text) return alert("Empty!");
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    if(lines.length < 4) return alert("Format error.");
-    const headerRegex = /^(\d+)[\s:-]+(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
-    window.cancelEditMode(); 
-    document.getElementById('typeStandard').click();
     
-    const matchA = lines[0].match(headerRegex);
-    if(matchA) {
-        document.getElementById('scoreA').value = matchA[1];
-        document.getElementById('nameTeamA').value = matchA[2].trim();
-        const col = matchA[3] ? matchA[3].toLowerCase() : 'blue';
-        const rb = document.querySelector(`input[name="colorA"][value="${col}"]`);
-        if(rb) rb.checked = true;
-    }
-    const pListA = lines[1].split(',').map(p => p.trim()).filter(p=>p);
-    selectedPlayers.A = [];
-    pListA.forEach(p => { selectedPlayers.A.push(p.charAt(0).toUpperCase() + p.slice(1)); });
-    renderList('A');
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    if(lines.length < 4) return alert("Format error. Need at least 4 lines.");
 
-    const matchB = lines[2].match(headerRegex);
-    if(matchB) {
-        document.getElementById('scoreB').value = matchB[1];
-        document.getElementById('nameTeamB').value = matchB[2].trim();
-        const col = matchB[3] ? matchB[3].toLowerCase() : 'red';
-        const rb = document.querySelector(`input[name="colorB"][value="${col}"]`);
-        if(rb) rb.checked = true;
+    const headerRegex = /^(?:(\d+)[\s:-]+)?(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
+    window.cancelEditMode(); 
+
+    if (lines.length >= 6) {
+        document.getElementById('typeTournament').click();
+        let teamsArr = [];
+        for(let i=0; i<6; i+=2) teamsArr.push({ header: lines[i], players: lines[i+1] });
+        
+        let assigned = { 'yellow': null, 'blue': null, 'red': null };
+        let unassigned = [];
+        
+        teamsArr.forEach(t => {
+            const match = t.header.match(headerRegex);
+            let color = match && match[3] ? match[3].toLowerCase() : null;
+            if(color && !assigned[color]) assigned[color] = t;
+            else unassigned.push(t);
+        });
+        
+        ['yellow', 'blue', 'red'].forEach(c => {
+            if(!assigned[c] && unassigned.length > 0) assigned[c] = unassigned.shift();
+        });
+        
+        const mapToForm = (tObj, suffix) => {
+            if(tObj) {
+                const m = tObj.header.match(headerRegex);
+                document.getElementById(`nameTourn${suffix}`).value = m ? m[2].trim() : tObj.header;
+                selectedPlayers[`Tourn${suffix}`] = tObj.players.split(',').map(p=> {
+                    let clean = p.trim(); return clean.charAt(0).toUpperCase() + clean.slice(1);
+                }).filter(p=>p);
+            }
+            renderList(`Tourn${suffix}`);
+        };
+        
+        mapToForm(assigned['yellow'], 'A'); 
+        mapToForm(assigned['blue'], 'B');   
+        mapToForm(assigned['red'], 'C');    
+        
+        alert("Parsed Tournament! Please add the points for each team.");
+    } else {
+        document.getElementById('typeStandard').click();
+        const matchA = lines[0].match(headerRegex);
+        if(matchA) {
+            if(matchA[1]) document.getElementById('scoreA').value = matchA[1];
+            document.getElementById('nameTeamA').value = matchA[2].trim();
+            const col = matchA[3] ? matchA[3].toLowerCase() : 'blue';
+            const rb = document.querySelector(`input[name="colorA"][value="${col}"]`);
+            if(rb) rb.checked = true;
+        }
+        const pListA = lines[1].split(',').map(p => p.trim()).filter(p=>p);
+        selectedPlayers.A = [];
+        pListA.forEach(p => { selectedPlayers.A.push(p.charAt(0).toUpperCase() + p.slice(1)); });
+        renderList('A');
+
+        const matchB = lines[2].match(headerRegex);
+        if(matchB) {
+            if(matchB[1]) document.getElementById('scoreB').value = matchB[1];
+            document.getElementById('nameTeamB').value = matchB[2].trim();
+            const col = matchB[3] ? matchB[3].toLowerCase() : 'red';
+            const rb = document.querySelector(`input[name="colorB"][value="${col}"]`);
+            if(rb) rb.checked = true;
+        }
+        const pListB = lines[3].split(',').map(p => p.trim()).filter(p=>p);
+        selectedPlayers.B = [];
+        pListB.forEach(p => { selectedPlayers.B.push(p.charAt(0).toUpperCase() + p.slice(1)); });
+        renderList('B');
+        alert("Parsed Standard Match!");
     }
-    const pListB = lines[3].split(',').map(p => p.trim()).filter(p=>p);
-    selectedPlayers.B = [];
-    pListB.forEach(p => { selectedPlayers.B.push(p.charAt(0).toUpperCase() + p.slice(1)); });
-    renderList('B');
-    alert("Parsed!");
 };
 
-// RENDER (V12.1 - Safety Update)
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
@@ -174,28 +232,19 @@ function renderData() {
                 const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
                 const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
                 const getCol = (t) => { const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); };
-                let scoreHtml = "";
-                if(m.fixture) {
-                    const f = m.fixture;
-                    scoreHtml = `
-                    <div class="tourn-scores">
-                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m1.a}-${f.m1.b}<span class="dot bg-b" style="margin-left:2px; width:6px; height:6px;"></span></span>
-                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m2.a}-${f.m2.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
-                        <span class="score-pill"><span class="dot bg-b" style="margin-right:2px; width:6px; height:6px;"></span>${f.m3.b}-${f.m3.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
-                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m4.a}-${f.m4.b}<span class="dot bg-b" style="margin-left:2px; width:6px; height:6px;"></span></span>
-                        <span class="score-pill"><span class="dot bg-y" style="margin-right:2px; width:6px; height:6px;"></span>${f.m5.a}-${f.m5.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
-                        <span class="score-pill"><span class="dot bg-b" style="margin-right:2px; width:6px; height:6px;"></span>${f.m6.b}-${f.m6.c}<span class="dot bg-r" style="margin-left:2px; width:6px; height:6px;"></span></span>
-                    </div>`;
-                }
+                
+                // Show points explicitly on the card instead of matrix
+                const pts1 = r1.points !== undefined ? `${r1.points} pts` : '';
+                const pts2 = r2.points !== undefined ? `${r2.points} pts` : '';
+                const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
 
                 html = `
                 <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #facc15;">
                     <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
                     <div class="p-3 bg-card">
-                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${r1.teamName}</span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${(r1.players||[]).join(', ')}</div></div>
-                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${r2.teamName}</span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${(r2.players||[]).join(', ')}</div></div>
-                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${r3.teamName}</span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${(r3.players||[]).join(', ')}</div></div>
-                        ${scoreHtml}
+                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${r1.teamName} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${(r1.players||[]).join(', ')}</div></div>
+                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${r2.teamName} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${(r2.players||[]).join(', ')}</div></div>
+                        <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${r3.teamName} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${(r3.players||[]).join(', ')}</div></div>
                     </div>
                     ${adminBtns}
                 </div>`;
@@ -204,7 +253,6 @@ function renderData() {
         });
     }
 
-// LEADERBOARD CALC - PHASE 2 (Deep Stats)
     let stats = {};
     filtered.forEach(m => {
         if (!m.teams || m.teams.length < 2) return; 
@@ -216,21 +264,10 @@ function renderData() {
             processTeamStats(stats, tA.players||[], tA.score, tB.score, ptsA);
             processTeamStats(stats, tB.players||[], tB.score, tA.score, ptsB);
         } else {
-            // Tournament: Calculate GF/GA from matrix
-            let tStats = { A:{gf:0,ga:0}, B:{gf:0,ga:0}, C:{gf:0,ga:0} }; 
-            if(m.fixture) {
-                const f = m.fixture;
-                const add = (t1, s1, t2, s2) => { tStats[t1].gf+=s1; tStats[t1].ga+=s2; tStats[t2].gf+=s2; tStats[t2].ga+=s1; };
-                add('A', f.m1.a, 'B', f.m1.b); add('A', f.m2.a, 'C', f.m2.c); add('B', f.m3.b, 'C', f.m3.c);
-                add('A', f.m4.a, 'B', f.m4.b); add('A', f.m5.a, 'C', f.m5.c); add('B', f.m6.b, 'C', f.m6.c);
-            }
+            // Simplified Tournament Logic: Read points directly, goals are 0
             m.teams.forEach(t => {
-                const pts = t.rank===1 ? 3 : (t.rank===2 ? 1 : 0);
-                let gf = 0, ga = 0;
-                if(t.originalKey && tStats[t.originalKey]) {
-                    gf = tStats[t.originalKey].gf; ga = tStats[t.originalKey].ga;
-                }
-                processTeamStats(stats, t.players||[], gf, ga, pts);
+                const pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
+                processTeamStats(stats, t.players||[], 0, 0, pts);
             });
         }
     });
@@ -238,13 +275,14 @@ function renderData() {
     const tbody = document.getElementById('leaderboard-body');
     if(!tbody) return;
     tbody.innerHTML = "";
-    const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.gd-a.gd) || (b.won-a.won));
+    // Removed GD from the sorting fallback since we hid it from table, sorting by Points then Wins
+    const players = Object.values(stats).sort((a,b) => (b.points-a.points) || (b.won-a.won));
     if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
     
     players.forEach((p, i) => {
         const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
         const ppg = (p.points / p.played).toFixed(2);
-       tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
+        tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
             <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0?'r-1':''}">${i+1}</span></td>
             <td class="fw-bold text-light text-start">${p.name}</td>
             <td class="text-muted">${p.played}</td>
@@ -266,32 +304,14 @@ function processTeamStats(stats, playerArr, gf, ga, pts) {
         stats[name].gf += gf;
         stats[name].ga += ga;
         stats[name].gd = stats[name].gf - stats[name].ga;
-        if(pts===3) stats[name].won++; else if(pts===1) stats[name].drawn++; else stats[name].lost++;
+        
+        // For win/draw/loss counts
+        if(pts >= 3) stats[name].won++; 
+        else if(pts === 1) stats[name].drawn++; 
+        else if(pts === 0) stats[name].lost++;
     });
 }
 
-function processTeamStats(stats, playerArr, gf, ga, pts) {
-    if(!playerArr) return; 
-    playerArr.forEach(name => {
-        if(!stats[name]) stats[name] = { name:name, played:0, won:0, drawn:0, lost:0, gf:0, ga:0, gd:0, points:0, form:[] };
-        stats[name].played++; 
-        stats[name].points += pts;
-        stats[name].gf += gf;
-        stats[name].ga += ga;
-        stats[name].gd = stats[name].gf - stats[name].ga;
-        if(pts===3) stats[name].won++; else if(pts===1) stats[name].drawn++; else stats[name].lost++;
-    });
-}
-function processTeamStats(stats, playerArr, gf, ga, pts) {
-    if(!playerArr) return; 
-    playerArr.forEach(name => {
-        if(!stats[name]) stats[name] = { name:name, played:0, won:0, drawn:0, lost:0, points:0, form:[] };
-        stats[name].played++; stats[name].points += pts;
-        if(pts===3) stats[name].won++; else if(pts===1) stats[name].drawn++; else stats[name].lost++;
-    });
-}
-
-// --- PLAYER STATS (PHASE 2 - ADVANCED) ---
 window.openPlayerStats = (name) => {
     const year = parseInt(document.getElementById('filterYear').value);
     const pMatches = allMatches.filter(m => {
@@ -304,7 +324,7 @@ window.openPlayerStats = (name) => {
 
     let w=0, played=0, pts=0, totalGF=0, totalGA=0;
     let monthly = {}, recentForm = [];
-    let teammates = {}; // Tracks { games: 0, wins: 0 } per teammate
+    let teammates = {}; 
     let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
 
     pMatches.forEach(m => {
@@ -326,24 +346,16 @@ window.openPlayerStats = (name) => {
             if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
         } else {
             const myTeam = m.teams.find(t=>(t.players||[]).includes(name));
-            const r = myTeam.rank;
             myTeamMates = myTeam.players || [];
+            matchPts = myTeam.points !== undefined ? myTeam.points : (myTeam.rank===1 ? 3 : (myTeam.rank===2 ? 1 : 0));
             
             let ogKey = myTeam.originalKey || ''; 
             if(ogKey) myColor = ogKey === 'A' ? 'yellow' : (ogKey === 'B' ? 'blue' : 'red');
             else myColor = (myTeam.teamName||'').toLowerCase().includes('y') ? 'yellow' : ((myTeam.teamName||'').toLowerCase().includes('b') ? 'blue' : 'red');
 
-            if(r===1) {w++; matchPts=3; result='W';} else if(r===2) {matchPts=1; result='D';}
-            if(m.fixture) {
-                const f = m.fixture;
-                const add = (my, op) => { matchGF+=my; matchGA+=op; };
-                if(ogKey === 'A') { add(f.m1.a, f.m1.b); add(f.m2.a, f.m2.c); add(f.m4.a, f.m4.b); add(f.m5.a, f.m5.c); } 
-                else if(ogKey === 'B') { add(f.m1.b, f.m1.a); add(f.m3.b, f.m3.c); add(f.m4.b, f.m4.a); add(f.m6.b, f.m6.c); } 
-                else if(ogKey === 'C') { add(f.m2.c, f.m2.a); add(f.m3.c, f.m3.b); add(f.m5.c, f.m5.a); add(f.m6.c, f.m6.b); }
-            }
+            if(matchPts >= 3) {w++; result='W';} else if(matchPts === 1) {result='D';} else {result='L';}
         }
 
-        // Tally Teammates
         myTeamMates.forEach(mate => {
             if(mate !== name) {
                 if(!teammates[mate]) teammates[mate] = {p:0, w:0};
@@ -352,7 +364,6 @@ window.openPlayerStats = (name) => {
             }
         });
 
-        // Tally Colors
         if(colorStats[myColor]) {
             colorStats[myColor].p++;
             if(result === 'W') colorStats[myColor].w++;
@@ -374,12 +385,10 @@ window.openPlayerStats = (name) => {
         monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-white">${d.pts}</div></div>`;
     });
 
-    // Generate Best Teammates UI
     const topMates = Object.entries(teammates).sort((a,b) => b[1].p - a[1].p || b[1].w - a[1].w).slice(0,3);
     let matesHtml = topMates.map(t => `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span><i class="fas fa-user-friends me-2 opacity-50"></i>${t[0]}</span><span class="text-white">${t[1].p} Matches <span class="ms-1 text-success">(${Math.round(t[1].w/t[1].p*100)}% W)</span></span></div>`).join('');
     if(!matesHtml) matesHtml = "<div class='small text-muted'>Not enough data yet.</div>";
 
-    // Generate Color Performance UI
     const colMap = { 'yellow': 'text-warning', 'blue': 'text-primary', 'red': 'text-danger' };
     let colorsHtml = Object.entries(colorStats).filter(c => c[1].p > 0).sort((a,b) => b[1].w/b[1].p - a[1].w/a[1].p).map(c => {
         const wr = Math.round(c[1].w/c[1].p * 100);
@@ -429,6 +438,7 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         const dVal = document.getElementById('matchDate').value;
         const common = { date: new Date(dVal), location: document.getElementById('matchLocation').value, youtubeLink: document.getElementById('matchYoutube').value || null, type: type, updatedBy: currentUser.email, timestamp: firebase.firestore.FieldValue.serverTimestamp() };
         let matchData = { ...common };
+        
         if(type === 'Standard') {
             const sA=parseInt(document.getElementById('scoreA').value)||0, sB=parseInt(document.getElementById('scoreB').value)||0;
             const pA=selectedPlayers.A, pB=selectedPlayers.B;
@@ -437,76 +447,29 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             const cA = caEl ? caEl.value : 'blue'; const cB = cbEl ? cbEl.value : 'red';
             matchData.colors = [cA, cB];
             matchData.teams = [{teamName: document.getElementById('nameTeamA').value, score:sA, players:pA}, {teamName: document.getElementById('nameTeamB').value, score:sB, players:pB}];
-       } else {
+        } else {
             const pA=selectedPlayers.TournA, pB=selectedPlayers.TournB, pC=selectedPlayers.TournC;
             if(!pA.length||!pB.length||!pC.length) throw new Error("Add players!");
             
-            // Helper to get input values safely
-            const v = (id) => { const el = document.getElementById(id); return el && el.value !== "" ? parseInt(el.value) : 0; };
+            const ptsA = parseInt(document.getElementById('ptsTournA').value) || 0;
+            const ptsB = parseInt(document.getElementById('ptsTournB').value) || 0;
+            const ptsC = parseInt(document.getElementById('ptsTournC').value) || 0;
             
-            // The Fixture Matrix
-            const f = { 
-                m1:{a:v('t_m1_a'),b:v('t_m1_b')}, 
-                m2:{a:v('t_m2_a'),c:v('t_m2_c')}, 
-                m3:{b:v('t_m3_b'),c:v('t_m3_c')}, 
-                m4:{a:v('t_m4_a'),b:v('t_m4_b')}, 
-                m5:{a:v('t_m5_a'),c:v('t_m5_c')}, 
-                m6:{b:v('t_m6_b'),c:v('t_m6_c')} 
-            };
-
-            // Initialize Stats objects for each team
-            let t = {
-                A: { key: 'A', name: document.getElementById('nameTournA').value || 'Yellow', players: pA, pts: 0, gf: 0, ga: 0 },
-                B: { key: 'B', name: document.getElementById('nameTournB').value || 'Blue', players: pB, pts: 0, gf: 0, ga: 0 },
-                C: { key: 'C', name: document.getElementById('nameTournC').value || 'Red', players: pC, pts: 0, gf: 0, ga: 0 }
-            };
-
-            // Processor function to tally points and goals
-            const proc = (k1, s1, k2, s2) => { 
-                // Add Goals
-                t[k1].gf += s1; t[k1].ga += s2;
-                t[k2].gf += s2; t[k2].ga += s1;
-                
-                // Add Points
-                if(s1 > s2) t[k1].pts += 3; 
-                else if(s2 > s1) t[k2].pts += 3; 
-                else { t[k1].pts += 1; t[k2].pts += 1; } 
-            };
-
-            // Run processor for all 6 matches
-            proc('A', f.m1.a, 'B', f.m1.b); 
-            proc('A', f.m2.a, 'C', f.m2.c); 
-            proc('B', f.m3.b, 'C', f.m3.c); 
-            proc('A', f.m4.a, 'B', f.m4.b); 
-            proc('A', f.m5.a, 'C', f.m5.c); 
-            proc('B', f.m6.b, 'C', f.m6.c);
-
-            // Sort the teams based on Points -> Goal Difference -> Goals For
-            const sortedTeams = Object.values(t).sort((x, y) => {
-                // 1. Points
-                if (y.pts !== x.pts) return y.pts - x.pts;
-                // 2. Goal Difference (if points are tied)
-                const gdX = x.gf - x.ga;
-                const gdY = y.gf - y.ga;
-                if (gdY !== gdX) return gdY - gdX;
-                // 3. Goals For (if GD is also tied)
-                return y.gf - x.gf;
-            });
-
-            matchData.fixture = f;
+            let tArr = [
+                {teamName: document.getElementById('nameTournA').value || 'Yellow', players: pA, points: ptsA, originalKey: 'A'},
+                {teamName: document.getElementById('nameTournB').value || 'Blue', players: pB, points: ptsB, originalKey: 'B'},
+                {teamName: document.getElementById('nameTournC').value || 'Red', players: pC, points: ptsC, originalKey: 'C'}
+            ];
             
-            // Map the sorted array to our final teams structure and assign true ranks
-            matchData.teams = sortedTeams.map((team, index) => {
-                return {
-                    teamName: team.name,
-                    players: team.players,
-                    rank: index + 1, // 1st, 2nd, 3rd based on the sort order
-                    originalKey: team.key // Storing this helps UI rendering (A=Yellow, B=Blue, C=Red) later
-                };
-            });
+            // Sort by points to assign rank
+            tArr.sort((a,b) => b.points - a.points);
+            tArr.forEach((t, i) => t.rank = i + 1);
+            matchData.teams = tArr;
         }
+        
         const docRef = isEdit ? db.collection("matches").doc(editingId) : db.collection("matches").doc();
         await docRef.set(matchData);
+        fetchPlayerNames(); 
         cancelEditMode();
         if(load) load.classList.add('d-none');
         const matchesTab = document.querySelector('button[data-bs-target="#matches"]');
@@ -529,6 +492,7 @@ window.editMatch = (id, e) => {
     document.getElementById('matchLocation').value = m.location;
     document.getElementById('matchYoutube').value = m.youtubeLink||"";
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k));
+    
     if(m.type==='Standard') {
         document.getElementById('typeStandard').click();
         document.getElementById('nameTeamA').value=m.teams[0].teamName; document.getElementById('scoreA').value=m.teams[0].score;
@@ -539,16 +503,29 @@ window.editMatch = (id, e) => {
         renderList('A'); renderList('B');
     } else {
         const rb = document.getElementById('typeTournament'); if(rb){rb.checked=true; toggleMatchType();}
-        const f=m.fixture||{}; Object.keys(f).forEach(k=>Object.keys(f[k]).forEach(s=>{ const el=document.getElementById(`t_${k}_${s}`); if(el)el.value=f[k][s]; }));
-        if(m.teams.length >= 3) {
-            document.getElementById('nameTournA').value=m.teams[0].teamName; (m.teams[0].players||[]).forEach(p=>selectedPlayers.TournA.push(p));
-            document.getElementById('nameTournB').value=m.teams[1].teamName; (m.teams[1].players||[]).forEach(p=>selectedPlayers.TournB.push(p));
-            document.getElementById('nameTournC').value=m.teams[2].teamName; (m.teams[2].players||[]).forEach(p=>selectedPlayers.TournC.push(p));
+        if(m.teams && m.teams.length >= 3) {
+            const tY = m.teams.find(t=>t.originalKey==='A') || m.teams[0];
+            const tB = m.teams.find(t=>t.originalKey==='B') || m.teams[1];
+            const tR = m.teams.find(t=>t.originalKey==='C') || m.teams[2];
+            
+            document.getElementById('nameTournA').value=tY.teamName; 
+            document.getElementById('ptsTournA').value=tY.points || 0;
+            (tY.players||[]).forEach(p=>selectedPlayers.TournA.push(p));
+            
+            document.getElementById('nameTournB').value=tB.teamName; 
+            document.getElementById('ptsTournB').value=tB.points || 0;
+            (tB.players||[]).forEach(p=>selectedPlayers.TournB.push(p));
+            
+            document.getElementById('nameTournC').value=tR.teamName; 
+            document.getElementById('ptsTournC').value=tR.points || 0;
+            (tR.players||[]).forEach(p=>selectedPlayers.TournC.push(p));
         }
         renderList('TournA'); renderList('TournB'); renderList('TournC');
     }
 };
+
 window.deleteMatch = (id, e) => { e.stopPropagation(); if(confirm("Delete?")) db.collection("matches").doc(id).delete(); };
+
 window.cancelEditMode = () => { 
     safeText('formTitle', "NEW MATCH ENTRY"); safeText('saveBtn', "SAVE RECORD");
     const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-warning','btn-light');
@@ -557,7 +534,9 @@ window.cancelEditMode = () => {
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k)); 
     document.querySelectorAll('.border input[type="number"]').forEach(i=>i.value="");
 };
+
 window.openMatchModal = (id) => { currentMatchForImage=allMatches.find(x=>x.id===id); openMatchModalLogic(id); }; 
+
 function openMatchModalLogic(id) { 
     const m=allMatches.find(x=>x.id===id); 
     const body=document.getElementById('modalBody');
@@ -567,70 +546,45 @@ function openMatchModalLogic(id) {
         body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${tA.teamName||'A'}</span><div class="display-4 fw-bold text-white">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${tB.teamName||'B'}</span><div class="display-4 fw-bold text-white">${tB.score}</div></div></div><div class="row text-center small text-light"><div class="col-6">${(tA.players||[]).join(', ')}</div><div class="col-6">${(tB.players||[]).join(', ')}</div></div>`;
     } else {
         const r1=m.teams.find(t=>t.rank===1),r2=m.teams.find(t=>t.rank===2),r3=m.teams.find(t=>t.rank===3);
-        body.innerHTML=`<div class="text-center mb-3 text-muted small">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold text-white">${r1.teamName}</h3><small class="text-light">${(r1.players||[]).join(', ')}</small></div><ul class="list-group list-group-flush bg-dark small"><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>2. ${r2.teamName}</span><span>${(r2.players||[]).join(', ')}</span></li><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>3. ${r3.teamName}</span><span>${(r3.players||[]).join(', ')}</span></li></ul>`;
+        const pts1 = r1.points !== undefined ? `(${r1.points} pts)` : '';
+        const pts2 = r2.points !== undefined ? `(${r2.points} pts)` : '';
+        const pts3 = r3.points !== undefined ? `(${r3.points} pts)` : '';
+        
+        body.innerHTML=`<div class="text-center mb-3 text-muted small">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold text-white">${r1.teamName} <span class="text-warning fs-6">${pts1}</span></h3><small class="text-light">${(r1.players||[]).join(', ')}</small></div><ul class="list-group list-group-flush bg-dark small"><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>2. ${r2.teamName} <span class="text-muted">${pts2}</span></span><span>${(r2.players||[]).join(', ')}</span></li><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>3. ${r3.teamName} <span class="text-muted">${pts3}</span></span><span>${(r3.players||[]).join(', ')}</span></li></ul>`;
     }
     const mEl = document.getElementById('matchDetailModal'); if(mEl) new bootstrap.Modal(mEl).show(); 
 }
+
 function fetchPlayerNames() { db.collection("players").get().then(s=>{ const l=document.getElementById('playerList'); if(!l)return; l.innerHTML=""; s.forEach(d=>l.appendChild(new Option(d.id))); }); }
-function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); el.addEventListener('input', e => { if(e.inputType === "insertReplacementText" || e.inputType == undefined) { /* Detected dropdown click */ } }); } }); }
+function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); el.addEventListener('input', e => { const listId = el.getAttribute('list'); const listEl = document.getElementById(listId); if (listEl) { const options = Array.from(listEl.options).map(opt => opt.value); if (options.includes(el.value.trim())) { addPlayer(id.replace('inputPlayer','')); } } }); } }); }
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
 function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times" onclick="removePlayer('${k}','${p}')"></i></span>`).join(''); }
-window.exportToCSV = () => {
-    // 1. BOM (Byte Order Mark) ekle - Excel'de emojilerin duzgun gorunmesi icin sart
-    let csvContent = "\uFEFF";
-    
-    // 2. Basliklar (Oyuncu sutunlari eklendi)
-    csvContent += "Date,Type,Location,Score,Team A,Players A,Team B,Players B,Team C,Players C\n";
 
+window.exportToCSV = () => {
+    let csvContent = "\uFEFF";
+    csvContent += "Date,Type,Location,Score,Team A,Players A,Team B,Players B,Team C,Players C\n";
     allMatches.forEach(m => {
         const date = formatDate(m.date.toDate());
         const type = m.type;
-        // Ozel karakterleri ve virgul kargasasini onlemek icin her alani tirnak icine aliyoruz
-        // escapeQuotes fonksiyonu: Metin icindeki " isaretini "" yaparak CSV formatini korur
         const esc = (text) => `"${(text || "").toString().replace(/"/g, '""')}"`;
-        
         const loc = esc(m.location);
         let score = "", tA = "", pA = "", tB = "", pB = "", tC = "", pC = "";
 
         if (type === 'Standard') {
-            const teamA = m.teams[0];
-            const teamB = m.teams[1];
-            
+            const teamA = m.teams[0]; const teamB = m.teams[1];
             score = esc(`${teamA.score}-${teamB.score}`);
-            
-            tA = esc(teamA.teamName);
-            pA = esc((teamA.players || []).join(", "));
-            
-            tB = esc(teamB.teamName);
-            pB = esc((teamB.players || []).join(", "));
-            
+            tA = esc(teamA.teamName); pA = esc((teamA.players || []).join(", "));
+            tB = esc(teamB.teamName); pB = esc((teamB.players || []).join(", "));
         } else {
-            // Turnuva: Siralamaya gore sutunlara yerlestir (1., 2., 3.)
-            // m.teams sirali gelmeyebilir, rank'e gore siralayalim
             const sorted = [...m.teams].sort((a,b) => a.rank - b.rank);
-            
-            score = esc("Tournament"); // Skor yerine turnuva oldugunu belirtelim
-            
-            if(sorted[0]) {
-                tA = esc(`1. ${sorted[0].teamName}`);
-                pA = esc((sorted[0].players || []).join(", "));
-            }
-            if(sorted[1]) {
-                tB = esc(`2. ${sorted[1].teamName}`);
-                pB = esc((sorted[1].players || []).join(", "));
-            }
-            if(sorted[2]) {
-                tC = esc(`3. ${sorted[2].teamName}`);
-                pC = esc((sorted[2].players || []).join(", "));
-            }
+            score = esc("Tournament"); 
+            if(sorted[0]) { tA = esc(`1. ${sorted[0].teamName} (${sorted[0].points}pts)`); pA = esc((sorted[0].players || []).join(", ")); }
+            if(sorted[1]) { tB = esc(`2. ${sorted[1].teamName} (${sorted[1].points}pts)`); pB = esc((sorted[1].players || []).join(", ")); }
+            if(sorted[2]) { tC = esc(`3. ${sorted[2].teamName} (${sorted[2].points}pts)`); pC = esc((sorted[2].players || []).join(", ")); }
         }
-
-        // Satiri birlestir
         csvContent += `${date},${type},${loc},${score},${tA},${pA},${tB},${pB},${tC},${pC}\n`;
     });
-
-    // 3. Blob kullanarak indirme (Daha guvenli karakter kodlamasi)
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -640,4 +594,5 @@ window.exportToCSV = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-};window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };
+};
+window.toggleMatchType = () => { const isTourn = document.getElementById('typeTournament').checked; document.getElementById('standardSection').classList.toggle('d-none', isTourn); document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); };
