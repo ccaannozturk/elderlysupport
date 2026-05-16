@@ -244,10 +244,18 @@ function renderData() {
                         ${adminBtns}
                     </div>`;
                 } else {
-                    const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
-                    const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
-                    const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
-                    const getCol = (t) => { const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); };
+                const r1 = m.teams.find(t=>t.rank===1)||m.teams[0];
+                const r2 = m.teams.find(t=>t.rank===2)||m.teams[1];
+                const r3 = m.teams.find(t=>t.rank===3)||m.teams[2];
+                
+                // FIX: Sıralamaya göre değil, formdaki asıl rengine (originalKey) göre renk ver
+                const getCol = (t) => { 
+                    if (t.originalKey === 'A') return 'y';
+                    if (t.originalKey === 'B') return 'b';
+                    if (t.originalKey === 'C') return 'r';
+                    // Eski veriler için yedek kurgu
+                    const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); 
+                };
                     
                     const pts1 = r1.points !== undefined ? `${r1.points} pts` : '';
                     const pts2 = r2.points !== undefined ? `${r2.points} pts` : '';
