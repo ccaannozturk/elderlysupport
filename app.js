@@ -357,9 +357,10 @@ function getCombinations(arr, k) {
     return result;
 }
 
-// --- V12.4: INSIGHTS ENGINE (FUN FACTS) ---
+// --- V12.4+: INSIGHTS ENGINE (FUN FACTS + COLOR WIN RATES) ---
 function generateInsights(matches) {
     let duos = {}, trios = {}, fullTeams = {};
+    let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
     
     matches.forEach(m => {
         if (!m.teams || m.teams.length < 2) return;
@@ -367,15 +368,28 @@ function generateInsights(matches) {
         m.teams.forEach(t => {
             let isWin = false;
             let pts = 0;
+            let color = '';
+            
             if(m.type === 'Standard') {
                 const isA = t === m.teams[0];
                 const myS = isA ? m.teams[0].score : m.teams[1].score;
                 const opS = isA ? m.teams[1].score : m.teams[0].score;
                 if(myS > opS) { isWin = true; pts = 3; }
                 else if (myS == opS) pts = 1;
+                
+                color = isA ? (m.colors?.[0]||'blue') : (m.colors?.[1]||'red');
             } else {
                 pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
                 if(pts >= 3) isWin = true;
+                
+                if(t.originalKey) color = t.originalKey === 'A' ? 'yellow' : (t.originalKey === 'B' ? 'blue' : 'red');
+                else color = (t.teamName||'').toLowerCase().includes('y') ? 'yellow' : ((t.teamName||'').toLowerCase().includes('b') ? 'blue' : 'red');
+            }
+            
+            // Renk İstatistiğini Kaydet
+            if(colorStats[color]) {
+                colorStats[color].p++;
+                if(isWin) colorStats[color].w++;
             }
             
             const players = (t.players || []).sort();
@@ -402,7 +416,7 @@ function generateInsights(matches) {
         });
     });
 
-    const minMatches = 3; // En az 3 kere beraber oynamış olmalılar
+    const minMatches = 3; 
     const validDuos = Object.entries(duos).filter(e => e[1].p >= minMatches).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
     const validTrios = Object.entries(trios).filter(e => e[1].p >= minMatches).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
     const validTeams = Object.entries(fullTeams).filter(e => e[1].p >= 2).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
@@ -414,13 +428,20 @@ function generateInsights(matches) {
     const container = document.getElementById('insightsContainer');
     if(!container) return;
 
-    if(validDuos.length === 0) {
+    if(validDuos.length === 0 && colorStats['blue'].p === 0) {
         container.innerHTML = `<div class="text-center py-5 text-muted small"><i class="fas fa-ghost fs-1 mb-3 d-block opacity-25"></i>Not enough data for insights yet.<br>Play a few more matches!</div>`;
         return;
     }
 
-    const bestDuo = validDuos[0];
-    const worstDuo = validDuos[validDuos.length-1];
+    // Renkleri UI'a Dönüştür
+    const colMap = { 'yellow': 'text-warning', 'blue': 'text-primary', 'red': 'text-danger' };
+    let colorsHtml = Object.entries(colorStats).filter(c => c[1].p > 0).sort((a,b) => (b[1].w/b[1].p) - (a[1].w/a[1].p)).map(c => {
+        const wr = Math.round(c[1].w/c[1].p * 100);
+        return `<div class="col p-1"><div class="border border-secondary rounded p-2 text-center bg-dark"><div class="fw-bold ${colMap[c[0]]} small">${c[0].toUpperCase()}</div><div class="fw-bold text-white fs-6">${wr}%</div><div style="font-size:0.6rem" class="text-muted mt-1">${c[1].w}W - ${c[1].p}P</div></div></div>`;
+    }).join('');
+
+    const bestDuo = validDuos.length > 0 ? validDuos[0] : null;
+    const worstDuo = validDuos.length > 0 ? validDuos[validDuos.length-1] : null;
     const bestTrio = validTrios.length > 0 ? validTrios[0] : null;
     const worstTrio = validTrios.length > 0 ? validTrios[validTrios.length-1] : null;
     const bestTeam = validTeams.length > 0 ? validTeams[0] : null;
@@ -439,7 +460,10 @@ function generateInsights(matches) {
         </div>`;
     };
 
-    let html = `<div class="row g-2 px-1">`;
+    let html = `<h6 class="small fw-bold text-muted mb-2 px-1">WIN RATE BY COLOR</h6>`;
+    html += `<div class="row g-1 mb-4 px-1">${colorsHtml}</div>`;
+    html += `<h6 class="small fw-bold text-muted mb-2 px-1">TOP TEAM COMBINATIONS</h6>`;
+    html += `<div class="row g-2 px-1">`;
     html += renderCard('UNSTOPPABLE DUO', 'fa-fire', 'warning', bestDuo, 'They carry the team.');
     html += renderCard('TERRIBLE DUO', 'fa-skull-crossbones', 'danger', worstDuo, 'Maybe play on different teams next time.');
     html += renderCard('DREAM TRIO', 'fa-star', 'info', bestTrio, 'The holy trinity.');
