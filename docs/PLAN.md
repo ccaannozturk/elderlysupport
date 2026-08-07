@@ -21,7 +21,7 @@ Branch: `stage-a-fixes`
   - Make match save write any new player names to the `players` collection. Nothing
     currently does, which is why autocomplete goes stale.
 
-- [ ] **8. Timestamp sort bug**
+- [x] **8. Timestamp sort bug**
   - `openPlayerStats()` sorts with `b.date - a.date` on Firestore `Timestamp`
     objects, which produces `NaN`. It only appears to work because `allMatches`
     arrives pre-sorted from the query. Use `.toMillis()`.
@@ -32,7 +32,7 @@ Branch: `stage-a-fixes`
     only, so a player modal opened under a month filter shows numbers that don't
     reconcile with the table. Make it respect both.
 
-- [ ] **12. Defensive render**
+- [x] **12. Defensive render**
   - `renderData()` calls `m.date.toDate()` unguarded — a single document with a
     missing or malformed date takes down the entire page. Filter invalid documents
     out early and log a warning.

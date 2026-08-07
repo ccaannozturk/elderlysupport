@@ -87,10 +87,12 @@ function fetchMatches() {
 
         snap.forEach(doc => {
             const data = doc.data();
-            allMatches.push({ id: doc.id, ...data });
-            if (data.date) {
-                uniqueYears.add(data.date.toDate().getFullYear());
+            if (!data.date || typeof data.date.toDate !== 'function') {
+                console.warn(`Skipping match ${doc.id}: missing or invalid date`);
+                return;
             }
+            allMatches.push({ id: doc.id, ...data });
+            uniqueYears.add(data.date.toDate().getFullYear());
         });
         
         const yearSelect = document.getElementById('filterYear');
@@ -508,7 +510,7 @@ window.openPlayerStats = (name) => {
         if(!m.teams) return false;
         const t = m.teams.find(t => (t.players||[]).includes(name));
         return t && m.date.toDate().getFullYear() === year;
-    }).sort((a,b) => b.date - a.date);
+    }).sort((a,b) => b.date.toMillis() - a.date.toMillis());
 
     if(pMatches.length === 0) return;
 
