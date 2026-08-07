@@ -27,7 +27,7 @@ Branch: `stage-a-fixes`
     arrives pre-sorted from the query. Use `.toMillis()`.
   - Audit for the same pattern elsewhere.
 
-- [ ] **11. Filter consistency**
+- [x] **11. Filter consistency**
   - Leaderboard and Stats respect year + month. `openPlayerStats()` respects year
     only, so a player modal opened under a month filter shows numbers that don't
     reconcile with the table. Make it respect both.
@@ -41,7 +41,7 @@ Branch: `stage-a-fixes`
   - Minimum **10 appearances** to rank. Unqualified players render greyed out below
     a separator line, still visible, not sorted into the main ranking.
 
-- [ ] **15. "All Time" filter option**
+- [x] **15. "All Time" filter option**
   - Add to the year dropdown. Must work indefinitely as seasons accumulate — derive
     from the data, don't hardcode years. Currently career totals are unviewable.
 

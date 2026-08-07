@@ -97,19 +97,23 @@ function fetchMatches() {
         
         const yearSelect = document.getElementById('filterYear');
         if (yearSelect && uniqueYears.size > 0) {
-            const currentSelected = parseInt(yearSelect.value);
-            yearSelect.innerHTML = ''; 
+            const currentSelected = yearSelect.value;
             const sortedYears = Array.from(uniqueYears).sort((a, b) => b - a);
-            sortedYears.forEach(year => {
-                const isSelected = year === currentSelected ? 'selected' : '';
-                yearSelect.innerHTML += `<option value="${year}" ${isSelected}>${year}</option>`;
-            });
-            if (!sortedYears.includes(currentSelected)) {
-                yearSelect.value = sortedYears[0];
-            }
+            yearSelect.innerHTML = `<option value="all">All Time</option>` +
+                sortedYears.map(year => `<option value="${year}">${year}</option>`).join('');
+            yearSelect.value = (currentSelected === 'all' || sortedYears.includes(parseInt(currentSelected)))
+                ? currentSelected : sortedYears[0];
         }
         renderData();
     });
+}
+
+// Shared by renderData() and openPlayerStats() so both filters always agree.
+function matchesFilter(m, year, month) {
+    const d = m.date.toDate();
+    const yMatch = year === 'all' || d.getFullYear() === year;
+    const mMatch = month === 'all' || d.getMonth() === parseInt(month);
+    return yMatch && mMatch;
 }
 
 function formatDate(dateObj) {
@@ -213,15 +217,10 @@ window.parseMagicPaste = () => {
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
-    const year = fYear ? parseInt(fYear.value) : 2026;
+    const year = fYear ? (fYear.value === 'all' ? 'all' : parseInt(fYear.value)) : 2026;
     const month = fMonth ? fMonth.value : 'all';
-    
-    const filtered = allMatches.filter(m => {
-        const d = m.date.toDate();
-        const yMatch = d.getFullYear() === year;
-        const mMatch = month === 'all' || d.getMonth() === parseInt(month);
-        return yMatch && mMatch;
-    });
+
+    const filtered = allMatches.filter(m => matchesFilter(m, year, month));
 
     const list = document.getElementById('match-history-list');
     if(list) {
@@ -505,11 +504,14 @@ function generateInsights(matches) {
 }
 
 window.openPlayerStats = (name) => {
-    const year = parseInt(document.getElementById('filterYear').value);
+    const fYear = document.getElementById('filterYear');
+    const fMonth = document.getElementById('filterMonth');
+    const year = fYear.value === 'all' ? 'all' : parseInt(fYear.value);
+    const month = fMonth ? fMonth.value : 'all';
     const pMatches = allMatches.filter(m => {
         if(!m.teams) return false;
         const t = m.teams.find(t => (t.players||[]).includes(name));
-        return t && m.date.toDate().getFullYear() === year;
+        return t && matchesFilter(m, year, month);
     }).sort((a,b) => b.date.toMillis() - a.date.toMillis());
 
     if(pMatches.length === 0) return;
