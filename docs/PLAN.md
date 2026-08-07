@@ -11,7 +11,7 @@ stage, items can be done in any order unless noted.
 
 Branch: `stage-a-fixes`
 
-- [ ] **3. Escaping + roster writes**
+- [x] **3. Escaping + roster writes**
   - Add `esc()` (HTML-escape) and `safeUrl()` (scheme allowlist: http/https only)
     helpers. Apply to every interpolated value in every `innerHTML` template.
   - `renderList()` currently emits `onclick="removePlayer('${k}','${p}')"`. A name
@@ -21,31 +21,31 @@ Branch: `stage-a-fixes`
   - Make match save write any new player names to the `players` collection. Nothing
     currently does, which is why autocomplete goes stale.
 
-- [ ] **8. Timestamp sort bug**
+- [x] **8. Timestamp sort bug**
   - `openPlayerStats()` sorts with `b.date - a.date` on Firestore `Timestamp`
     objects, which produces `NaN`. It only appears to work because `allMatches`
     arrives pre-sorted from the query. Use `.toMillis()`.
   - Audit for the same pattern elsewhere.
 
-- [ ] **11. Filter consistency**
+- [x] **11. Filter consistency**
   - Leaderboard and Stats respect year + month. `openPlayerStats()` respects year
     only, so a player modal opened under a month filter shows numbers that don't
     reconcile with the table. Make it respect both.
 
-- [ ] **12. Defensive render**
+- [x] **12. Defensive render**
   - `renderData()` calls `m.date.toDate()` unguarded — a single document with a
     missing or malformed date takes down the entire page. Filter invalid documents
     out early and log a warning.
 
-- [ ] **13. PPG minimum-appearance qualifier**
+- [x] **13. PPG minimum-appearance qualifier**
   - Minimum **10 appearances** to rank. Unqualified players render greyed out below
     a separator line, still visible, not sorted into the main ranking.
 
-- [ ] **15. "All Time" filter option**
+- [x] **15. "All Time" filter option**
   - Add to the year dropdown. Must work indefinitely as seasons accumulate — derive
     from the data, don't hardcode years. Currently career totals are unviewable.
 
-- [ ] **21. Venue and match-level stats**
+- [x] **21. Venue and match-level stats**
   - Goals per game by venue (indoor Sporthallen Zuid vs. outdoor Zeeburgereiland
     are expected to differ materially).
   - Biggest blowout, highest-scoring match, most draws.
