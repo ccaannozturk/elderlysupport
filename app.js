@@ -12,6 +12,11 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
 
+if (location.hostname === 'localhost') {
+    db.useEmulator('localhost', 8080);
+    auth.useEmulator('http://localhost:9099');
+}
+
 let currentUser = null;
 let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
@@ -22,6 +27,8 @@ let currentSortCol = 'points';
 let isSortDesc = true;
 
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
+function esc(value) { return (value ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function safeUrl(url) { return /^https?:\/\//i.test(url || '') ? url : ''; }
 
 document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(user => {
@@ -39,6 +46,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if(dDate) dDate.valueAsDate = new Date();
     
     setupEnterKeys();
+
+    document.addEventListener('click', (e) => {
+        const icon = e.target.closest('.player-tag i.fa-times');
+        if(!icon) return;
+        const tag = icon.closest('.player-tag');
+        removePlayer(tag.dataset.team, tag.dataset.player);
+    });
+
+    const lb = document.getElementById('leaderboard-body');
+    if(lb) lb.addEventListener('click', (e) => {
+        const row = e.target.closest('tr[data-player]');
+        if(row) window.openPlayerStats(row.dataset.player);
+    });
 });
 
 function updateAuthUI() {
@@ -217,7 +237,7 @@ function renderData() {
                         <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
                     </div>`;
                 }
-                const ytLink = m.youtubeLink ? `<a href="${m.youtubeLink}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
+                const ytLink = m.youtubeLink ? `<a href="${esc(safeUrl(m.youtubeLink))}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
 
                 let html = "";
                 if(m.type === 'Standard') {
@@ -225,19 +245,19 @@ function renderData() {
                     const cA=m.colors?.[0]||'blue', cB=m.colors?.[1]||'red';
                     const winA = tA.score > tB.score ? 'text-white' : 't-loser';
                     const winB = tB.score > tA.score ? 'text-white' : 't-loser';
-                    const pA = (tA.players||[]).join(', '); const pB = (tB.players||[]).join(', ');
+                    const pA = esc((tA.players||[]).join(', ')); const pB = esc((tB.players||[]).join(', '));
 
                     html = `
                     <div class="match-card" onclick="openMatchModal('${m.id}')">
-                        <div class="card-top"><span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
+                        <div class="card-top"><span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> ${ytLink}</div>
                         <div class="card-body-strip">
                             <div class="team-block">
-                                <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${tA.teamName||'A'}</div><div class="t-score ${winA}">${tA.score}</div></div>
+                                <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${esc(tA.teamName||'A')}</div><div class="t-score ${winA}">${tA.score}</div></div>
                                 <div class="team-players text-muted small" style="font-size:0.75rem">${pA}</div>
                             </div>
                             <div class="match-meta"><span class="ft-badge">FT</span></div>
                             <div class="team-block text-end">
-                                <div class="team-row mb-2 justify-content-end"><div class="t-score ${winB} me-2">${tB.score}</div><div class="t-name justify-content-end ${winB}">${tB.teamName||'B'}<span class="dot bg-${cB.charAt(0)} ms-2"></span></div></div>
+                                <div class="team-row mb-2 justify-content-end"><div class="t-score ${winB} me-2">${tB.score}</div><div class="t-name justify-content-end ${winB}">${esc(tB.teamName||'B')}<span class="dot bg-${cB.charAt(0)} ms-2"></span></div></div>
                                 <div class="team-players text-end text-muted small" style="font-size:0.75rem">${pB}</div>
                             </div>
                         </div>
@@ -263,11 +283,11 @@ function renderData() {
 
                     html = `
                     <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #ffea00;">
-                        <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${m.location}</span> ${ytLink}</div>
+                        <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> ${ytLink}</div>
                         <div class="p-3 bg-card">
-                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${r1.teamName} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${(r1.players||[]).join(', ')}</div></div>
-                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${r2.teamName} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${(r2.players||[]).join(', ')}</div></div>
-                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${r3.teamName} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${(r3.players||[]).join(', ')}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${esc(r1.teamName)} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${esc((r1.players||[]).join(', '))}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${esc(r2.teamName)} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${esc((r2.players||[]).join(', '))}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${esc(r3.teamName)} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${esc((r3.players||[]).join(', '))}</div></div>
                         </div>
                         ${adminBtns}
                     </div>`;
@@ -319,9 +339,9 @@ function renderData() {
         players.forEach((p, i) => {
             const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
             const ppg = (p.points / p.played).toFixed(2);
-            tbody.innerHTML += `<tr onclick="window.openPlayerStats('${p.name}')" style="cursor:pointer" class="${rowClass}">
+            tbody.innerHTML += `<tr data-player="${esc(p.name)}" style="cursor:pointer" class="${rowClass}">
                 <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0&&currentSortCol==='points'&&isSortDesc?'r-1':''}">${i+1}</span></td>
-                <td class="fw-bold text-light text-start">${p.name}</td>
+                <td class="fw-bold text-light text-start">${esc(p.name)}</td>
                 <td class="text-muted">${p.played}</td>
                 <td class="text-muted">${p.won}</td>
                 <td class="text-muted">${p.drawn}</td>
@@ -461,7 +481,7 @@ function generateInsights(matches) {
             <div class="p-3 border border-secondary rounded bg-dark h-100 position-relative overflow-hidden">
                 <i class="fas ${icon} position-absolute opacity-10" style="font-size: 5rem; right: -10px; bottom: -10px;"></i>
                 <div class="text-${color} fw-bold mb-2"><i class="fas ${icon} me-2"></i>${title}</div>
-                <div class="text-white fw-bold fs-6 mb-1">${data.name}</div>
+                <div class="text-white fw-bold fs-6 mb-1">${esc(data.name)}</div>
                 <div class="text-muted small">${Math.round(data.wr*100)}% Win Rate (${data.w}W - ${data.p}P)</div>
                 <div class="text-muted small mt-2 border-top border-secondary pt-2" style="font-size:0.7rem"><i>${desc}</i></div>
             </div>
@@ -556,7 +576,7 @@ window.openPlayerStats = (name) => {
     });
 
     const topMates = Object.entries(teammates).sort((a,b) => b[1].p - a[1].p || b[1].w - a[1].w).slice(0,3);
-    let matesHtml = topMates.map(t => `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span><i class="fas fa-user-friends me-2 opacity-50"></i>${t[0]}</span><span class="text-white">${t[1].p} Matches <span class="ms-1 text-success">(${Math.round(t[1].w/t[1].p*100)}% W)</span></span></div>`).join('');
+    let matesHtml = topMates.map(t => `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span><i class="fas fa-user-friends me-2 opacity-50"></i>${esc(t[0])}</span><span class="text-white">${t[1].p} Matches <span class="ms-1 text-success">(${Math.round(t[1].w/t[1].p*100)}% W)</span></span></div>`).join('');
     if(!matesHtml) matesHtml = "<div class='small text-muted'>Not enough data yet.</div>";
 
     const colMap = { 'yellow': 'text-warning', 'blue': 'text-primary', 'red': 'text-danger' };
@@ -628,7 +648,11 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         
         const docRef = isEdit ? db.collection("matches").doc(editingId) : db.collection("matches").doc();
         await docRef.set(matchData);
-        fetchPlayerNames(); 
+        const allNames = matchData.teams.flatMap(t => t.players || []);
+        const rosterBatch = db.batch();
+        allNames.forEach(n => rosterBatch.set(db.collection("players").doc(n), {}, {merge: true}));
+        if(allNames.length) await rosterBatch.commit();
+        fetchPlayerNames();
         cancelEditMode();
         if(load) load.classList.add('d-none');
         const matchesTab = document.querySelector('button[data-bs-target="#matches"]');
@@ -702,14 +726,14 @@ function openMatchModalLogic(id) {
     const date=formatDate(m.date.toDate());
     if(m.type==='Standard') {
         const tA=m.teams[0], tB=m.teams[1];
-        body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${tA.teamName||'A'}</span><div class="display-4 fw-bold text-white">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${tB.teamName||'B'}</span><div class="display-4 fw-bold text-white">${tB.score}</div></div></div><div class="row text-center small text-light"><div class="col-6">${(tA.players||[]).join(', ')}</div><div class="col-6">${(tB.players||[]).join(', ')}</div></div>`;
+        body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${esc(tA.teamName||'A')}</span><div class="display-4 fw-bold text-white">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${esc(tB.teamName||'B')}</span><div class="display-4 fw-bold text-white">${tB.score}</div></div></div><div class="row text-center small text-light"><div class="col-6">${esc((tA.players||[]).join(', '))}</div><div class="col-6">${esc((tB.players||[]).join(', '))}</div></div>`;
     } else {
         const r1=m.teams.find(t=>t.rank===1),r2=m.teams.find(t=>t.rank===2),r3=m.teams.find(t=>t.rank===3);
         const pts1 = r1.points !== undefined ? `(${r1.points} pts)` : '';
         const pts2 = r2.points !== undefined ? `(${r2.points} pts)` : '';
         const pts3 = r3.points !== undefined ? `(${r3.points} pts)` : '';
         
-        body.innerHTML=`<div class="text-center mb-3 text-muted small">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold text-white">${r1.teamName} <span class="text-warning fs-6">${pts1}</span></h3><small class="text-light">${(r1.players||[]).join(', ')}</small></div><ul class="list-group list-group-flush bg-dark small"><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>2. ${r2.teamName} <span class="text-muted">${pts2}</span></span><span>${(r2.players||[]).join(', ')}</span></li><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>3. ${r3.teamName} <span class="text-muted">${pts3}</span></span><span>${(r3.players||[]).join(', ')}</span></li></ul>`;
+        body.innerHTML=`<div class="text-center mb-3 text-muted small">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold text-white">${esc(r1.teamName)} <span class="text-warning fs-6">${pts1}</span></h3><small class="text-light">${esc((r1.players||[]).join(', '))}</small></div><ul class="list-group list-group-flush bg-dark small"><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>2. ${esc(r2.teamName)} <span class="text-muted">${pts2}</span></span><span>${esc((r2.players||[]).join(', '))}</span></li><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>3. ${esc(r3.teamName)} <span class="text-muted">${pts3}</span></span><span>${esc((r3.players||[]).join(', '))}</span></li></ul>`;
     }
     const mEl = document.getElementById('matchDetailModal'); if(mEl) new bootstrap.Modal(mEl).show(); 
 }
@@ -718,7 +742,7 @@ function fetchPlayerNames() { db.collection("players").get().then(s=>{ const l=d
 function setupEnterKeys() { ['inputPlayerA','inputPlayerB','inputPlayerTournA','inputPlayerTournB','inputPlayerTournC'].forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keypress',e=>{if(e.key==='Enter'){e.preventDefault();addPlayer(id.replace('inputPlayer',''))}}); el.addEventListener('input', e => { const listId = el.getAttribute('list'); const listEl = document.getElementById(listId); if (listEl) { const options = Array.from(listEl.options).map(opt => opt.value); if (options.includes(el.value.trim())) { addPlayer(id.replace('inputPlayer','')); } } }); } }); }
 function addPlayer(k) { const i=document.getElementById(`inputPlayer${k}`); let v=i.value.trim(); if(!v)return; v=v.charAt(0).toUpperCase()+v.slice(1); if(selectedPlayers[k].includes(v))return alert("Added"); selectedPlayers[k].push(v); renderList(k); i.value=""; i.focus(); }
 function removePlayer(k,n) { selectedPlayers[k]=selectedPlayers[k].filter(x=>x!==n); renderList(k); }
-function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag">${p}<i class="fas fa-times" onclick="removePlayer('${k}','${p}')"></i></span>`).join(''); }
+function renderList(k) { const el=document.getElementById(`listTeam${k}`); if(el) el.innerHTML=selectedPlayers[k].map(p=>`<span class="player-tag" data-team="${k}" data-player="${esc(p)}">${esc(p)}<i class="fas fa-times"></i></span>`).join(''); }
 
 window.exportToCSV = () => {
     let csvContent = "\uFEFF";

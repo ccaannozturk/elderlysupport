@@ -11,7 +11,7 @@ stage, items can be done in any order unless noted.
 
 Branch: `stage-a-fixes`
 
-- [ ] **3. Escaping + roster writes**
+- [x] **3. Escaping + roster writes**
   - Add `esc()` (HTML-escape) and `safeUrl()` (scheme allowlist: http/https only)
     helpers. Apply to every interpolated value in every `innerHTML` template.
   - `renderList()` currently emits `onclick="removePlayer('${k}','${p}')"`. A name
