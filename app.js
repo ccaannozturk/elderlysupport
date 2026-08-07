@@ -336,21 +336,33 @@ function renderData() {
         });
 
         if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
-        
-        players.forEach((p, i) => {
-            const rowClass = i%2===0 ? "" : "bg-white bg-opacity-5"; 
+
+        const MIN_APPEARANCES = 10;
+        const qualified = players.filter(p => p.played >= MIN_APPEARANCES);
+        const unqualified = players.filter(p => p.played < MIN_APPEARANCES);
+
+        const rowHtml = (p, rankLabel, i, greyed) => {
             const ppg = (p.points / p.played).toFixed(2);
-            tbody.innerHTML += `<tr data-player="${esc(p.name)}" style="cursor:pointer" class="${rowClass}">
-                <td class="ps-3 fw-bold text-start"><span class="rank-circle ${i===0&&currentSortCol==='points'&&isSortDesc?'r-1':''}">${i+1}</span></td>
-                <td class="fw-bold text-light text-start">${esc(p.name)}</td>
-                <td class="text-muted">${p.played}</td>
-                <td class="text-muted">${p.won}</td>
-                <td class="text-muted">${p.drawn}</td>
-                <td class="text-muted">${p.lost}</td>
-                <td class="fw-bold text-white">${p.points}</td>
-                <td class="pe-3 fw-bold text-info">${ppg}</td>
+            const rowClass = (greyed ? 'text-muted opacity-50 ' : '') + (i%2===0 ? "" : "bg-white bg-opacity-5");
+            const isGoldRank = !greyed && i===0 && currentSortCol==='points' && isSortDesc;
+            return `<tr data-player="${esc(p.name)}" style="cursor:pointer" class="${rowClass}">
+                <td class="ps-3 fw-bold text-start"><span class="rank-circle ${isGoldRank?'r-1':''}">${rankLabel}</span></td>
+                <td class="fw-bold text-start ${greyed ? '' : 'text-light'}">${esc(p.name)}</td>
+                <td>${p.played}</td>
+                <td>${p.won}</td>
+                <td>${p.drawn}</td>
+                <td>${p.lost}</td>
+                <td class="${greyed ? '' : 'fw-bold text-white'}">${p.points}</td>
+                <td class="pe-3 ${greyed ? '' : 'fw-bold text-info'}">${ppg}</td>
             </tr>`;
-        });
+        };
+
+        qualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, i + 1, i, false); });
+
+        if(unqualified.length) {
+            tbody.innerHTML += `<tr><td colspan="8" class="text-center text-muted small py-2 border-top border-secondary" style="letter-spacing:1px">FEWER THAN ${MIN_APPEARANCES} APPEARANCES</td></tr>`;
+            unqualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, '-', i, true); });
+        }
     }
 
     // --- YENİ STATS (INSIGHTS) EKRANINI OLUŞTUR ---

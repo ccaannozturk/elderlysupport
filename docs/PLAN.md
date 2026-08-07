@@ -37,7 +37,7 @@ Branch: `stage-a-fixes`
     missing or malformed date takes down the entire page. Filter invalid documents
     out early and log a warning.
 
-- [ ] **13. PPG minimum-appearance qualifier**
+- [x] **13. PPG minimum-appearance qualifier**
   - Minimum **10 appearances** to rank. Unqualified players render greyed out below
     a separator line, still visible, not sorted into the main ranking.
 
