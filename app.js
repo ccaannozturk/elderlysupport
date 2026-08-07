@@ -403,9 +403,28 @@ function generateInsights(matches) {
     let duos = {}, trios = {}, fullTeams = {};
     let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
     
+    let venueGoals = {}; // location -> {games, goals}
+    let biggestBlowout = null; // {margin, m}
+    let highestScoring = null; // {total, m}
+    let draws = 0;
+
     matches.forEach(m => {
         if (!m.teams || m.teams.length < 2) return;
-        
+
+        if (m.type === 'Standard') {
+            const tA = m.teams[0], tB = m.teams[1];
+            const total = (tA.score||0) + (tB.score||0);
+            const margin = Math.abs((tA.score||0) - (tB.score||0));
+
+            if(!venueGoals[m.location]) venueGoals[m.location] = {games:0, goals:0};
+            venueGoals[m.location].games++;
+            venueGoals[m.location].goals += total;
+
+            if(tA.score === tB.score) draws++;
+            if(!highestScoring || total > highestScoring.total) highestScoring = {total, m};
+            if(!biggestBlowout || margin > biggestBlowout.margin) biggestBlowout = {margin, m};
+        }
+
         m.teams.forEach(t => {
             let isWin = false;
             let pts = 0;
@@ -511,7 +530,35 @@ function generateInsights(matches) {
     html += renderCard('TRAGIC TRIO', 'fa-dumpster-fire', 'danger', worstTrio, 'A complete disaster together.');
     html += renderCard('BEST EXACT ROSTER', 'fa-trophy', 'success', bestTeam, 'The most dominant complete lineup.');
     html += `</div>`;
-    
+
+    // --- VENUE & MATCH-LEVEL STATS (Standard matches only - no goals recorded for Tournaments) ---
+    let venueHtml = Object.entries(venueGoals).sort((a,b) => (b[1].goals/b[1].games) - (a[1].goals/a[1].games)).map(([loc, v]) => {
+        const gpg = (v.goals / v.games).toFixed(2);
+        return `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span>${esc(loc)}</span><span class="text-white">${gpg} goals/game <span class="text-muted">(${v.games} games)</span></span></div>`;
+    }).join('') || "<div class='small text-muted'>Not enough data yet.</div>";
+
+    const matchCard = (title, icon, color, data, extra) => {
+        if(!data) return '';
+        const tA = data.m.teams[0], tB = data.m.teams[1];
+        return `
+        <div class="col-12 col-md-6 mb-2">
+            <div class="p-3 border border-secondary rounded bg-dark h-100">
+                <div class="text-${color} fw-bold mb-2"><i class="fas ${icon} me-2"></i>${title}</div>
+                <div class="text-white fw-bold fs-6">${esc(tA.teamName||'A')} ${tA.score} - ${tB.score} ${esc(tB.teamName||'B')}</div>
+                <div class="text-muted small mt-1">${formatDate(data.m.date.toDate())} &middot; ${esc(data.m.location)} &middot; ${extra}</div>
+            </div>
+        </div>`;
+    };
+
+    html += `<h6 class="small fw-bold text-muted mb-2 px-1 mt-2">GOALS PER GAME BY VENUE <span class="opacity-50">(standard matches)</span></h6>`;
+    html += `<div class="bg-dark p-2 rounded border border-secondary mb-4">${venueHtml}</div>`;
+    html += `<h6 class="small fw-bold text-muted mb-2 px-1">MATCH RECORDS</h6>`;
+    html += `<div class="row g-2 px-1 mb-2">`;
+    html += matchCard('BIGGEST BLOWOUT', 'fa-bomb', 'danger', biggestBlowout, `${biggestBlowout ? biggestBlowout.margin : 0} goal margin`);
+    html += matchCard('HIGHEST SCORING', 'fa-futbol', 'warning', highestScoring, `${highestScoring ? highestScoring.total : 0} goals total`);
+    html += `</div>`;
+    html += `<div class="text-muted small px-1">${draws} draw${draws===1?'':'s'} across all standard matches.</div>`;
+
     container.innerHTML = html;
 }
 
@@ -530,8 +577,9 @@ window.openPlayerStats = (name) => {
 
     let w=0, played=0, pts=0, totalGF=0, totalGA=0;
     let monthly = {}, recentForm = [];
-    let teammates = {}; 
+    let teammates = {};
     let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
+    let venueStats = {};
 
     pMatches.forEach(m => {
         played++;
@@ -575,6 +623,10 @@ window.openPlayerStats = (name) => {
             if(result === 'W') colorStats[myColor].w++;
         }
 
+        if(!venueStats[m.location]) venueStats[m.location] = {p:0, w:0};
+        venueStats[m.location].p++;
+        if(result === 'W') venueStats[m.location].w++;
+
         pts += matchPts; totalGF += matchGF; totalGA += matchGA;
         monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
         if(recentForm.length < 5) recentForm.push(result);
@@ -601,6 +653,12 @@ window.openPlayerStats = (name) => {
         return `<div class="col p-1"><div class="border border-secondary rounded p-2 text-center bg-dark"><div class="fw-bold ${colMap[c[0]]} small">${c[0].toUpperCase()}</div><div class="fw-bold text-white fs-6">${wr}%</div><div style="font-size:0.6rem" class="text-muted mt-1">${c[1].w}W - ${c[1].p}P</div></div></div>`;
     }).join('');
 
+    let venuesHtml = Object.entries(venueStats).filter(v => v[1].p > 0).sort((a,b) => (b[1].w/b[1].p) - (a[1].w/a[1].p)).map(v => {
+        const wr = Math.round(v[1].w/v[1].p * 100);
+        return `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span>${esc(v[0])}</span><span class="text-white">${wr}% <span class="text-muted">(${v[1].w}W-${v[1].p}P)</span></span></div>`;
+    }).join('');
+    if(!venuesHtml) venuesHtml = "<div class='small text-muted'>Not enough data yet.</div>";
+
     safeText('psName', name.toUpperCase());
     const psBody = document.getElementById('psBody');
     if(psBody) {
@@ -613,6 +671,8 @@ window.openPlayerStats = (name) => {
         </div>
         <h6 class="small fw-bold text-muted mb-2">WIN RATE BY COLOR</h6>
         <div class="row g-1 mb-4">${colorsHtml}</div>
+        <h6 class="small fw-bold text-muted mb-2">WIN RATE BY VENUE</h6>
+        <div class="bg-dark p-2 rounded border border-secondary mb-4">${venuesHtml}</div>
         <h6 class="small fw-bold text-muted mb-2">MOST PLAYED WITH</h6>
         <div class="bg-dark p-2 rounded border border-secondary mb-4">${matesHtml}</div>
         <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>

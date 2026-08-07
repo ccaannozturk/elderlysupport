@@ -45,7 +45,7 @@ Branch: `stage-a-fixes`
   - Add to the year dropdown. Must work indefinitely as seasons accumulate — derive
     from the data, don't hardcode years. Currently career totals are unviewable.
 
-- [ ] **21. Venue and match-level stats**
+- [x] **21. Venue and match-level stats**
   - Goals per game by venue (indoor Sporthallen Zuid vs. outdoor Zeeburgereiland
     are expected to differ materially).
   - Biggest blowout, highest-scoring match, most draws.
