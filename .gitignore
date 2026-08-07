@@ -1,0 +1,35 @@
+# === CREDENTIALS — never commit these ===
+# A service-account JSON bypasses all security rules. It is root access to the
+# database, not "an admin login". If one of these ever gets committed, revoke the
+# key in the Google Cloud console immediately — deleting the commit is not enough.
+*serviceAccount*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Firebase local state
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+
+# Emulator seed data — regenerate from backups instead of committing
+emulator-data/
+
+# Node
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

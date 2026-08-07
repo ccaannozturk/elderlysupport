@@ -1,0 +1,85 @@
+rules_version = '2';
+
+// Elderly Support League — Firestore Security Rules
+//
+// DEPLOY MANUALLY, never from an automated tool:
+//   firebase deploy --only firestore:rules
+//
+// Changes from the previous version:
+//   - players write is now admin-only. It was `request.auth != null`, meaning any
+//     signed-in account could delete the collection. Harmless while it was just
+//     autocomplete strings; unacceptable once players_v2 is the canonical registry
+//     that every statistic depends on.
+//   - match create is now an explicit email allowlist rather than "any signed-in
+//     user". Add editors to the list deliberately.
+//   - added basic shape validation so a malformed write can't corrupt the render.
+//
+// ALSO CHECK: Firebase Console > Authentication > Settings > User actions.
+// If self-signup is enabled, anyone can create an account in seconds. Disable it.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'can.ozturk1907@gmail.com';
+    }
+
+    // Add trusted editors here. Keep it explicit.
+    function isEditor() {
+      return isAdmin();
+      // Example of adding a second editor:
+      // return isAdmin() || request.auth.token.email == 'someone@example.com';
+    }
+
+    function validMatch() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['date', 'type', 'teams'])
+        && d.date is timestamp
+        && d.type in ['Standard', 'Tournament']
+        && d.teams is list
+        && d.teams.size() >= 2
+        && d.teams.size() <= 3;
+    }
+
+    /* ========== MATCHES ========== */
+    match /matches/{matchId} {
+      allow read: if true;
+      allow create: if isEditor() && validMatch();
+      allow update: if isAdmin() && validMatch();
+      allow delete: if isAdmin();
+    }
+
+    /* ========== MATCHES V2 (migration target, Stage B) ========== */
+    match /matches_v2/{matchId} {
+      allow read: if true;
+      allow create: if isEditor() && validMatch();
+      allow update: if isAdmin() && validMatch();
+      allow delete: if isAdmin();
+    }
+
+    /* ========== PLAYERS (legacy autocomplete) ========== */
+    match /players/{playerId} {
+      allow read: if true;
+      allow create: if isEditor();
+      allow update, delete: if isAdmin();
+    }
+
+    /* ========== PLAYERS V2 (canonical registry, Stage B) ========== */
+    // Read-only to the world, admin-only to write. This collection is the source
+    // of truth for player identity — corrupting it corrupts all history.
+    match /players_v2/{playerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    /* ========== DEFAULT DENY ========== */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
