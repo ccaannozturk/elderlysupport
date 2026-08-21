@@ -3,12 +3,16 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
+      "functions/node_modules/**",
       "scripts/**",
       "docs/**",
       "data/**",
@@ -22,6 +26,9 @@
     },
     "firestore": {
       "port": 8080
+    },
+    "functions": {
+      "port": 5001
     },
     "hosting": {
       "port": 5000

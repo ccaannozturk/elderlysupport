@@ -11,18 +11,21 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const auth = firebase.auth();
+const functions = firebase.functions();
 
 if (location.hostname === 'localhost') {
     db.useEmulator('localhost', 8080);
     auth.useEmulator('http://localhost:9099');
+    functions.useEmulator('localhost', 5001);
 }
 
-// STAGE B: Collection Configuration (1-line rollback: change version to 'v1')
+// STAGE B & C: Collection Configuration
 const DB_CONFIG = {
     version: 'v2',
     collections: {
         matches: 'matches_v2',
-        players: 'players_v2'
+        players: 'players_v2',
+        geminiMeta: 'gemini_meta'
     }
 };
 
@@ -31,6 +34,7 @@ let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
 let playersRegistry = new Map(); // playerId -> { id, displayName, aliases, active }
 let currentModalContext = null; // { teamKey, index, rawInput, candidates, top3 }
+let activeTeamTarget = 'A'; // 'A' | 'B' | 'TournA' | 'TournB' | 'TournC'
 const SUPER_ADMIN = "can.ozturk1907@gmail.com";
 
 // SORTING STATE
@@ -70,6 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if(dDate) dDate.valueAsDate = new Date();
     
     setupEnterKeys();
+    setupRosterSearch();
+    setupGeminiKeyForm();
 
     const lb = document.getElementById('leaderboard-body');
     if(lb) lb.addEventListener('click', (e) => {
@@ -139,6 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectedPlayers[teamKey].push(resolved);
                 }
                 renderList(teamKey);
+                renderRosterGrid();
             }
 
             const modalEl = document.getElementById('createPlayerModal');
@@ -194,10 +201,10 @@ function fetchMatches() {
                 ? currentSelected : sortedYears[0];
         }
         renderData();
+        renderRosterGrid();
     });
 }
 
-// Shared by renderData() and openPlayerStats() so both filters always agree.
 function matchesFilter(m, year, month) {
     const d = m.date.toDate();
     const yMatch = year === 'all' || d.getFullYear() === year;
@@ -262,6 +269,17 @@ function getCurrentlyPlacedPlayerIds(excludeTeam = null) {
     return placed;
 }
 
+function getPlacedTeamForPlayer(playerId) {
+    for (const [k, list] of Object.entries(selectedPlayers)) {
+        for (const item of list) {
+            if (item && item.status === 'resolved' && item.id === playerId) {
+                return k;
+            }
+        }
+    }
+    return null;
+}
+
 function resolvePlayerInput(rawInput, teamKey) {
     const clean = rawInput.trim();
     if (!clean) return null;
@@ -270,7 +288,7 @@ function resolvePlayerInput(rawInput, teamKey) {
     const placedIds = getCurrentlyPlacedPlayerIds(teamKey);
     const availablePlayers = Array.from(playersRegistry.values()).filter(p => !placedIds.has(p.id));
 
-    // 1. Exact alias match
+    // 1. Exact alias match (case-insensitive)
     const exactMatches = availablePlayers.filter(p => {
         const aliases = (p.aliases || []).map(a => a.toLowerCase());
         return aliases.includes(lower) || p.displayName.toLowerCase() === lower || p.id.toLowerCase() === lower;
@@ -332,111 +350,540 @@ function resolvePlayerInput(rawInput, teamKey) {
     }
 }
 
-window.parseMagicPaste = () => {
-    const text = document.getElementById('magicPaste').value.trim();
-    if (!text) return alert("Empty!");
+/* ==========================================================================
+   STAGE C: ROSTER GRID (TAP-TO-ADD CHIPS & ACTIVE TARGET)
+   ========================================================================== */
+
+window.setActiveTeamTarget = (target) => {
+    activeTeamTarget = target;
+    renderActiveTeamPills();
+    renderRosterGrid();
+};
+
+function renderActiveTeamPills() {
+    const container = document.getElementById('activeTeamTargetPills');
+    if (!container) return;
+    const isTourn = document.getElementById('typeTournament')?.checked;
     
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    if(lines.length < 4) return alert("Format error. Need at least 4 lines.");
+    if (!isTourn) {
+        if (!['A', 'B'].includes(activeTeamTarget)) activeTeamTarget = 'A';
+        container.innerHTML = `
+            <button type="button" class="btn btn-sm ${activeTeamTarget==='A'?'btn-primary':'btn-outline-primary'} py-0 px-2 fw-bold" onclick="setActiveTeamTarget('A')">+ Team A</button>
+            <button type="button" class="btn btn-sm ${activeTeamTarget==='B'?'btn-danger':'btn-outline-danger'} py-0 px-2 fw-bold" onclick="setActiveTeamTarget('B')">+ Team B</button>
+        `;
+    } else {
+        if (!['TournA', 'TournB', 'TournC'].includes(activeTeamTarget)) activeTeamTarget = 'TournA';
+        container.innerHTML = `
+            <button type="button" class="btn btn-sm ${activeTeamTarget==='TournA'?'btn-warning text-dark':'btn-outline-warning'} py-0 px-2 fw-bold" onclick="setActiveTeamTarget('TournA')">+ Yellow</button>
+            <button type="button" class="btn btn-sm ${activeTeamTarget==='TournB'?'btn-primary':'btn-outline-primary'} py-0 px-2 fw-bold" onclick="setActiveTeamTarget('TournB')">+ Blue</button>
+            <button type="button" class="btn btn-sm ${activeTeamTarget==='TournC'?'btn-danger':'btn-outline-danger'} py-0 px-2 fw-bold" onclick="setActiveTeamTarget('TournC')">+ Red</button>
+        `;
+    }
+}
 
-    const headerRegex = /^(?:(\d+)[\s:-]+)?(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
-    window.cancelEditMode(); 
+function setupRosterSearch() {
+    const input = document.getElementById('rosterSearchInput');
+    if (input) {
+        input.addEventListener('input', () => {
+            renderRosterGrid();
+        });
+    }
+}
 
-    if (lines.length >= 6) {
-        document.getElementById('typeTournament').click();
-        let teamsArr = [];
-        for(let i=0; i<6; i+=2) teamsArr.push({ header: lines[i], players: lines[i+1] });
-        
-        let assigned = { 'yellow': null, 'blue': null, 'red': null };
-        let unassigned = [];
-        
-        teamsArr.forEach(t => {
-            const match = t.header.match(headerRegex);
-            let color = match && match[3] ? match[3].toLowerCase() : null;
-            if(color && !assigned[color]) assigned[color] = { ...t, match };
-            else unassigned.push({ ...t, match });
+function renderRosterGrid() {
+    const container = document.getElementById('rosterChipsContainer');
+    if (!container) return;
+    renderActiveTeamPills();
+
+    const searchTerm = (document.getElementById('rosterSearchInput')?.value || '').trim().toLowerCase();
+
+    // Compute player appearances to sort regulars first
+    const appearanceCounts = new Map();
+    allMatches.forEach(m => {
+        (m.teams || []).forEach(t => {
+            (t.players || []).forEach(p => {
+                appearanceCounts.set(p, (appearanceCounts.get(p) || 0) + 1);
+            });
         });
-        
-        ['yellow', 'blue', 'red'].forEach(c => {
-            if(!assigned[c] && unassigned.length > 0) assigned[c] = unassigned.shift();
+    });
+
+    const allPlayers = Array.from(playersRegistry.values()).filter(p => p.active !== false);
+
+    allPlayers.sort((a, b) => {
+        const countA = appearanceCounts.get(a.id) || 0;
+        const countB = appearanceCounts.get(b.id) || 0;
+        if (countB !== countA) return countB - countA;
+        return a.displayName.localeCompare(b.displayName);
+    });
+
+    const filtered = allPlayers.filter(p => {
+        if (!searchTerm) return (appearanceCounts.get(p.id) || 0) >= 8; // Top ~26 regulars default
+        const aliases = (p.aliases || []).join(' ').toLowerCase();
+        return p.displayName.toLowerCase().includes(searchTerm) || p.id.toLowerCase().includes(searchTerm) || aliases.includes(searchTerm);
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = `<span class="small text-muted py-2">No players match "${esc(searchTerm)}". Use "+ Add player" box below for new names.</span>`;
+        return;
+    }
+
+    container.innerHTML = filtered.map(p => {
+        const placedTeam = getPlacedTeamForPlayer(p.id);
+        let chipClass = '';
+        let badge = '';
+
+        if (placedTeam === 'A') { chipClass = 'placed-a'; badge = '<span class="badge bg-primary ms-1">A</span>'; }
+        else if (placedTeam === 'B') { chipClass = 'placed-b'; badge = '<span class="badge bg-danger ms-1">B</span>'; }
+        else if (placedTeam === 'TournA') { chipClass = 'placed-tourn-a'; badge = '<span class="badge bg-warning text-dark ms-1">Y</span>'; }
+        else if (placedTeam === 'TournB') { chipClass = 'placed-tourn-b'; badge = '<span class="badge bg-primary ms-1">B</span>'; }
+        else if (placedTeam === 'TournC') { chipClass = 'placed-tourn-c'; badge = '<span class="badge bg-danger ms-1">R</span>'; }
+
+        return `
+            <span class="roster-chip ${chipClass}" onclick="toggleRosterPlayer('${p.id}')" title="${esc(p.displayName)}">
+                ${esc(p.displayName)}${badge}
+            </span>
+        `;
+    }).join('');
+}
+
+window.toggleRosterPlayer = (playerId) => {
+    const player = playersRegistry.get(playerId);
+    if (!player) return;
+
+    const placedTeam = getPlacedTeamForPlayer(playerId);
+    if (placedTeam) {
+        // Player is already on a team -> remove them
+        removePlayer(placedTeam, playerId);
+    } else {
+        // Player is unplaced -> add to active target team
+        const target = activeTeamTarget;
+        selectedPlayers[target].push({
+            status: 'resolved',
+            id: player.id,
+            displayName: player.displayName,
+            rawInput: player.displayName
         });
-        
-        const mapToForm = (tObj, suffix) => {
-            if(tObj) {
-                const m = tObj.match || tObj.header.match(headerRegex);
-                if(m && m[1]) document.getElementById(`ptsTourn${suffix}`).value = m[1];
-                document.getElementById(`nameTourn${suffix}`).value = m ? m[2].trim() : tObj.header;
-                selectedPlayers[`Tourn${suffix}`] = [];
-                tObj.players.split(',').map(p => p.trim()).filter(Boolean).forEach(pName => {
-                    const res = resolvePlayerInput(pName, `Tourn${suffix}`);
-                    if (res) {
-                        if (res.status === 'new') {
-                            selectedPlayers[`Tourn${suffix}`].push({
-                                status: 'red',
-                                rawInput: pName,
-                                candidates: res.top3,
-                                top3: res.top3
-                            });
-                        } else {
-                            selectedPlayers[`Tourn${suffix}`].push(res);
+        renderList(target);
+    }
+    renderRosterGrid();
+};
+
+/* ==========================================================================
+   STAGE C: TOURNAMENT RANK BUTTONS (1st / 2nd / 3rd)
+   ========================================================================== */
+
+window.setTournRank = (teamKey, rank) => {
+    const ptsMap = { 1: 3, 2: 1, 3: 0 };
+    const pts = ptsMap[rank];
+    
+    const rankInput = document.getElementById(`rank${teamKey}`);
+    const ptsInput = document.getElementById(`pts${teamKey}`);
+    if (rankInput) rankInput.value = rank;
+    if (ptsInput) ptsInput.value = pts;
+
+    // Enforce uniqueness across TournA, TournB, TournC
+    const allTournKeys = ['TournA', 'TournB', 'TournC'];
+    const otherKeys = allTournKeys.filter(k => k !== teamKey);
+    const usedRanks = [rank];
+
+    otherKeys.forEach(k => {
+        const otherRankInput = document.getElementById(`rank${k}`);
+        if (otherRankInput && parseInt(otherRankInput.value) === rank) {
+            const available = [1, 2, 3].filter(r => !usedRanks.includes(r));
+            const newRank = available[0] || 3;
+            usedRanks.push(newRank);
+            otherRankInput.value = newRank;
+            const otherPtsInput = document.getElementById(`pts${k}`);
+            if (otherPtsInput) otherPtsInput.value = ptsMap[newRank];
+        } else if (otherRankInput) {
+            usedRanks.push(parseInt(otherRankInput.value));
+        }
+    });
+
+    allTournKeys.forEach(k => {
+        const rVal = parseInt(document.getElementById(`rank${k}`)?.value || '1');
+        const grp = document.getElementById(`rankGroup${k}`);
+        if (grp) {
+            const btns = grp.querySelectorAll('button');
+            const colorClass = k === 'TournA' ? 'btn-warning text-dark' : (k === 'TournB' ? 'btn-primary' : 'btn-danger');
+            btns.forEach((btn, idx) => {
+                const btnRank = idx + 1;
+                if (btnRank === rVal) {
+                    btn.className = `btn btn-sm ${colorClass} fw-bold py-0`;
+                } else {
+                    btn.className = `btn btn-sm btn-outline-secondary py-0`;
+                }
+            });
+        }
+    });
+};
+
+/* ==========================================================================
+   STAGE C: GEMINI SETTINGS & CLOUD FUNCTIONS INTEGRATION
+   ========================================================================== */
+
+function setupGeminiKeyForm() {
+    const form = document.getElementById('saveGeminiKeyForm');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentUser) return alert("Please log in as admin first.");
+
+        const apiKeyInput = document.getElementById('inputGeminiApiKey');
+        const apiKey = (apiKeyInput ? apiKeyInput.value : '').trim();
+        if (!apiKey) return;
+
+        const spinner = document.getElementById('saveKeySpinner');
+        const btn = document.getElementById('saveGeminiKeyBtn');
+        if (spinner) spinner.classList.remove('d-none');
+        if (btn) btn.disabled = true;
+
+        try {
+            const setKeyFn = functions.httpsCallable('setGeminiKey');
+            const res = await setKeyFn({ apiKey });
+            if (res.data && res.data.ok) {
+                alert(`✓ Gemini API key validated and saved successfully (ends in ...${res.data.last4}).`);
+                if (apiKeyInput) apiKeyInput.value = '';
+                openGeminiSettings();
+            }
+        } catch (err) {
+            alert(`Error saving Gemini API key: ${err.message}`);
+        } finally {
+            if (spinner) spinner.classList.add('d-none');
+            if (btn) btn.disabled = false;
+        }
+    });
+}
+
+window.openGeminiSettings = async () => {
+    if (!currentUser) return;
+    try {
+        const docSnap = await db.collection('config').doc('gemini_meta').get();
+        const maskedEl = document.getElementById('geminiKeyMasked');
+        const lastUpEl = document.getElementById('geminiKeyLastUpdated');
+        const modelSelect = document.getElementById('selectGeminiModel');
+
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            if (maskedEl) maskedEl.innerText = data.last4 ? `••••••••${data.last4}` : 'Not configured';
+            if (lastUpEl) {
+                const d = data.updatedAt ? data.updatedAt.toDate() : null;
+                lastUpEl.innerText = d ? `Updated: ${formatDate(d)}` : '';
+            }
+            if (modelSelect && data.selectedModel) {
+                modelSelect.value = data.selectedModel;
+            }
+        } else {
+            if (maskedEl) maskedEl.innerText = 'Not configured';
+            if (lastUpEl) lastUpEl.innerText = '';
+        }
+    } catch (err) {
+        console.warn("Error reading gemini_meta:", err);
+    }
+};
+
+window.testGeminiConnectionHandler = async () => {
+    if (!currentUser) return alert("Please log in as admin first.");
+
+    const spinner = document.getElementById('testConnSpinner');
+    const icon = document.getElementById('testConnIcon');
+    const btn = document.getElementById('testConnectionBtn');
+    const resultDiv = document.getElementById('connResult');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (icon) icon.classList.add('d-none');
+    if (btn) btn.disabled = true;
+    if (resultDiv) resultDiv.classList.add('d-none');
+
+    try {
+        const testFn = functions.httpsCallable('testGeminiConnection');
+        const res = await testFn();
+        const data = res.data;
+
+        if (data && data.ok) {
+            if (resultDiv) {
+                resultDiv.className = 'mb-3 p-2 rounded border border-success bg-success bg-opacity-10 small text-success';
+                resultDiv.innerHTML = `<b>✓ Connection Successful</b> (${data.latencyMs} ms latency)<br>Retrieved ${data.models.length} generative models from Google AI Studio.`;
+                resultDiv.classList.remove('d-none');
+            }
+
+            const modelSelect = document.getElementById('selectGeminiModel');
+            if (modelSelect && data.models && data.models.length > 0) {
+                const currentVal = modelSelect.value;
+                modelSelect.innerHTML = data.models.map(m => `
+                    <option value="${esc(m.id)}">${esc(m.displayName || m.id)}</option>
+                `).join('');
+                if (data.models.some(m => m.id === currentVal)) {
+                    modelSelect.value = currentVal;
+                }
+            }
+        }
+    } catch (err) {
+        if (resultDiv) {
+            resultDiv.className = 'mb-3 p-2 rounded border border-danger bg-danger bg-opacity-10 small text-danger';
+            resultDiv.innerHTML = `<b>Connection Failed:</b> ${esc(err.message)}`;
+            resultDiv.classList.remove('d-none');
+        }
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+        if (icon) icon.classList.remove('d-none');
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.onSelectModel = async (modelId) => {
+    if (!currentUser || !modelId) return;
+    try {
+        const setModelFn = functions.httpsCallable('setGeminiModel');
+        await setModelFn({ modelId });
+    } catch (err) {
+        console.warn("Failed to set model:", err);
+    }
+};
+
+/* ==========================================================================
+   STAGE C: AI MAGIC PASTE (LINEUP PARSER WITH REGEX FALLBACK)
+   ========================================================================== */
+
+window.parseMagicPaste = async () => {
+    const text = document.getElementById('magicPaste').value.trim();
+    if (!text) return alert("Please paste a WhatsApp message first.");
+
+    const spinner = document.getElementById('magicPasteSpinner');
+    const icon = document.getElementById('magicPasteIcon');
+    const btn = document.getElementById('magicPasteBtn');
+    const unparsedAlert = document.getElementById('unparsedAlert');
+    const unparsedList = document.getElementById('unparsedList');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (icon) icon.classList.add('d-none');
+    if (btn) btn.disabled = true;
+    if (unparsedAlert) unparsedAlert.classList.add('d-none');
+
+    window.cancelEditMode();
+
+    try {
+        // 1. Try Cloud Function AI Parser
+        let parsed = null;
+        try {
+            const parseFn = functions.httpsCallable('parseLineup');
+            const res = await parseFn({ rawText: text });
+            parsed = res.data;
+        } catch (aiErr) {
+            console.warn("Cloud Function parseLineup unavailable or failed, falling back to local parser:", aiErr);
+            parsed = fallbackLocalParser(text);
+        }
+
+        if (!parsed || !parsed.teams || parsed.teams.length < 2) {
+            throw new Error("Could not parse match teams from the provided text.");
+        }
+
+        // 2. Set Date & Venue if found
+        if (parsed.date) {
+            const dateInput = document.getElementById('matchDate');
+            if (dateInput) dateInput.value = parsed.date;
+        }
+        if (parsed.venue) {
+            const locSelect = document.getElementById('matchLocation');
+            if (locSelect) {
+                const opts = Array.from(locSelect.options).map(o => o.value);
+                if (opts.includes(parsed.venue)) locSelect.value = parsed.venue;
+            }
+        }
+
+        // 3. Set Match Type
+        const isTourn = parsed.matchType === 'Tournament' || parsed.teams.length >= 3;
+        if (isTourn) {
+            document.getElementById('typeTournament').click();
+            const keys = ['TournA', 'TournB', 'TournC'];
+            
+            parsed.teams.slice(0, 3).forEach((t, i) => {
+                const k = keys[i];
+                const nameEl = document.getElementById(`name${k}`);
+                if (nameEl) nameEl.value = t.name || (i === 0 ? 'Yellow' : (i === 1 ? 'Blue' : 'Red'));
+                
+                const rankVal = t.rank || (i + 1);
+                setTournRank(k, rankVal);
+
+                selectedPlayers[k] = [];
+                (t.players || []).forEach(p => {
+                    if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
+                        selectedPlayers[k].push({
+                            status: 'resolved',
+                            id: p.playerId,
+                            displayName: playersRegistry.get(p.playerId).displayName,
+                            rawInput: p.rawName || playersRegistry.get(p.playerId).displayName
+                        });
+                    } else {
+                        const resolved = resolvePlayerInput(p.rawName || p.playerId, k);
+                        if (resolved) {
+                            if (resolved.status === 'new') {
+                                selectedPlayers[k].push({
+                                    status: 'red',
+                                    rawInput: p.rawName,
+                                    candidates: resolved.top3,
+                                    top3: resolved.top3
+                                });
+                            } else {
+                                selectedPlayers[k].push(resolved);
+                            }
                         }
                     }
                 });
-            }
-            renderList(`Tourn${suffix}`);
-        };
-        
-        mapToForm(assigned['yellow'], 'A'); 
-        mapToForm(assigned['blue'], 'B');   
-        mapToForm(assigned['red'], 'C');    
-        
-        alert("Parsed Tournament! Please review player chips.");
-    } else {
-        document.getElementById('typeStandard').click();
-        const matchA = lines[0].match(headerRegex);
-        if(matchA) {
-            if(matchA[1]) document.getElementById('scoreA').value = matchA[1];
-            document.getElementById('nameTeamA').value = matchA[2].trim();
-            const col = matchA[3] ? matchA[3].toLowerCase() : 'blue';
-            const rb = document.querySelector(`input[name="colorA"][value="${col}"]`);
-            if(rb) rb.checked = true;
-        }
-        selectedPlayers.A = [];
-        lines[1].split(',').map(p => p.trim()).filter(Boolean).forEach(pName => {
-            const res = resolvePlayerInput(pName, 'A');
-            if (res) {
-                if (res.status === 'new') {
-                    selectedPlayers.A.push({ status: 'red', rawInput: pName, candidates: res.top3, top3: res.top3 });
-                } else {
-                    selectedPlayers.A.push(res);
-                }
-            }
-        });
-        renderList('A');
+                renderList(k);
+            });
+        } else {
+            document.getElementById('typeStandard').click();
+            const tA = parsed.teams[0];
+            const tB = parsed.teams[1];
 
-        const matchB = lines[2].match(headerRegex);
-        if(matchB) {
-            if(matchB[1]) document.getElementById('scoreB').value = matchB[1];
-            document.getElementById('nameTeamB').value = matchB[2].trim();
-            const col = matchB[3] ? matchB[3].toLowerCase() : 'red';
-            const rb = document.querySelector(`input[name="colorB"][value="${col}"]`);
-            if(rb) rb.checked = true;
-        }
-        selectedPlayers.B = [];
-        lines[3].split(',').map(p => p.trim()).filter(Boolean).forEach(pName => {
-            const res = resolvePlayerInput(pName, 'B');
-            if (res) {
-                if (res.status === 'new') {
-                    selectedPlayers.B.push({ status: 'red', rawInput: pName, candidates: res.top3, top3: res.top3 });
+            document.getElementById('nameTeamA').value = tA.name || 'Team A';
+            document.getElementById('scoreA').value = tA.score !== null && tA.score !== undefined ? tA.score : 0;
+            selectedPlayers.A = [];
+            (tA.players || []).forEach(p => {
+                if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
+                    selectedPlayers.A.push({
+                        status: 'resolved',
+                        id: p.playerId,
+                        displayName: playersRegistry.get(p.playerId).displayName,
+                        rawInput: p.rawName || playersRegistry.get(p.playerId).displayName
+                    });
                 } else {
-                    selectedPlayers.B.push(res);
+                    const resolved = resolvePlayerInput(p.rawName || p.playerId, 'A');
+                    if (resolved) {
+                        if (resolved.status === 'new') {
+                            selectedPlayers.A.push({ status: 'red', rawInput: p.rawName, candidates: resolved.top3, top3: resolved.top3 });
+                        } else {
+                            selectedPlayers.A.push(resolved);
+                        }
+                    }
                 }
-            }
-        });
-        renderList('B');
-        alert("Parsed Standard Match! Please review player chips.");
+            });
+            renderList('A');
+
+            document.getElementById('nameTeamB').value = tB.name || 'Team B';
+            document.getElementById('scoreB').value = tB.score !== null && tB.score !== undefined ? tB.score : 0;
+            selectedPlayers.B = [];
+            (tB.players || []).forEach(p => {
+                if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
+                    selectedPlayers.B.push({
+                        status: 'resolved',
+                        id: p.playerId,
+                        displayName: playersRegistry.get(p.playerId).displayName,
+                        rawInput: p.rawName || playersRegistry.get(p.playerId).displayName
+                    });
+                } else {
+                    const resolved = resolvePlayerInput(p.rawName || p.playerId, 'B');
+                    if (resolved) {
+                        if (resolved.status === 'new') {
+                            selectedPlayers.B.push({ status: 'red', rawInput: p.rawName, candidates: resolved.top3, top3: resolved.top3 });
+                        } else {
+                            selectedPlayers.B.push(resolved);
+                        }
+                    }
+                }
+            });
+            renderList('B');
+        }
+
+        // 4. Surface unparsed lines prominently
+        if (parsed.unparsed && parsed.unparsed.length > 0 && unparsedAlert && unparsedList) {
+            unparsedList.innerHTML = parsed.unparsed.map(l => `<li>${esc(l)}</li>`).join('');
+            unparsedAlert.classList.remove('d-none');
+        }
+
+        renderRosterGrid();
+        updateSaveButtonState();
+    } catch (err) {
+        alert(`Magic Paste failed: ${err.message}`);
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+        if (icon) icon.classList.remove('d-none');
+        if (btn) btn.disabled = false;
     }
 };
+
+function fallbackLocalParser(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+    const headerRegex = /^(?:(\d+)[\s:-]+)?(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
+
+    if (lines.length >= 6) {
+        let teams = [];
+        for (let i = 0; i < 6; i += 2) {
+            const h = lines[i];
+            const p = lines[i+1] || '';
+            const m = h.match(headerRegex);
+            teams.push({
+                name: m ? m[2].trim() : h,
+                score: null,
+                rank: i / 2 + 1,
+                players: p.split(',').map(x => x.trim()).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
+            });
+        }
+        return { matchType: 'Tournament', teams, unparsed: lines.slice(6) };
+    } else {
+        const mA = lines[0]?.match(headerRegex);
+        const mB = lines[2]?.match(headerRegex);
+        return {
+            matchType: 'Standard',
+            teams: [
+                {
+                    name: mA ? mA[2].trim() : 'Team A',
+                    score: mA && mA[1] ? parseInt(mA[1]) : 0,
+                    players: (lines[1] || '').split(',').map(x => x.trim()).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
+                },
+                {
+                    name: mB ? mB[2].trim() : 'Team B',
+                    score: mB && mB[1] ? parseInt(mB[1]) : 0,
+                    players: (lines[3] || '').split(',').map(x => x.trim()).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
+                }
+            ],
+            unparsed: lines.slice(4)
+        };
+    }
+}
+
+/* ==========================================================================
+   STATISTICS ENGINE (STAGE C: GOALS FIX FOR TOURNAMENTS)
+   ========================================================================== */
+
+function processTeamStats(stats, playerArr, gf, ga, pts, isStandard = false) {
+    if(!playerArr) return; 
+    playerArr.forEach(idOrName => {
+        const displayName = getPlayerDisplayName(idOrName);
+        const key = idOrName;
+        if(!stats[key]) {
+            stats[key] = { 
+                id: key, 
+                name: displayName, 
+                played: 0, 
+                standardPlayed: 0, 
+                won: 0, 
+                drawn: 0, 
+                lost: 0, 
+                gf: 0, 
+                ga: 0, 
+                gd: 0, 
+                points: 0, 
+                form: [] 
+            };
+        }
+        stats[key].played++; 
+        stats[key].points += pts;
+
+        if (isStandard) {
+            stats[key].standardPlayed++;
+            stats[key].gf += gf;
+            stats[key].ga += ga;
+            stats[key].gd = stats[key].gf - stats[key].ga;
+        }
+        
+        if(pts >= 3) stats[key].won++; 
+        else if(pts === 1) stats[key].drawn++; 
+        else if(pts === 0) stats[key].lost++;
+    });
+}
 
 function renderData() {
     const fYear = document.getElementById('filterYear');
@@ -529,12 +976,12 @@ function renderData() {
             const tA=m.teams[0], tB=m.teams[1];
             const ptsA = tA.score > tB.score ? 3 : (tA.score == tB.score ? 1 : 0);
             const ptsB = tB.score > tA.score ? 3 : (tB.score == tA.score ? 1 : 0);
-            processTeamStats(stats, tA.players||[], tA.score, tB.score, ptsA);
-            processTeamStats(stats, tB.players||[], tB.score, tA.score, ptsB);
+            processTeamStats(stats, tA.players||[], tA.score, tB.score, ptsA, true);
+            processTeamStats(stats, tB.players||[], tB.score, tA.score, ptsB, true);
         } else {
             m.teams.forEach(t => {
                 const pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
-                processTeamStats(stats, t.players||[], 0, 0, pts);
+                processTeamStats(stats, t.players||[], 0, 0, pts, false);
             });
         }
     });
@@ -589,24 +1036,6 @@ function renderData() {
     generateInsights(filtered);
 }
 
-function processTeamStats(stats, playerArr, gf, ga, pts) {
-    if(!playerArr) return; 
-    playerArr.forEach(idOrName => {
-        const displayName = getPlayerDisplayName(idOrName);
-        const key = idOrName;
-        if(!stats[key]) stats[key] = { id: key, name: displayName, played:0, won:0, drawn:0, lost:0, gf:0, ga:0, gd:0, points:0, form:[] };
-        stats[key].played++; 
-        stats[key].points += pts;
-        stats[key].gf += gf;
-        stats[key].ga += ga;
-        stats[key].gd = stats[key].gf - stats[key].ga;
-        
-        if(pts >= 3) stats[key].won++; 
-        else if(pts === 1) stats[key].drawn++; 
-        else if(pts === 0) stats[key].lost++;
-    });
-}
-
 function getCombinations(arr, k) {
     let result = [];
     function combine(start, combo) {
@@ -648,159 +1077,158 @@ function generateInsights(matches) {
         m.teams.forEach(t => {
             let isWin = false;
             let pts = 0;
-            let color = '';
-            
             if(m.type === 'Standard') {
-                const isA = t === m.teams[0];
-                const myS = isA ? m.teams[0].score : m.teams[1].score;
-                const opS = isA ? m.teams[1].score : m.teams[0].score;
-                if(myS > opS) { isWin = true; pts = 3; }
-                else if (myS == opS) pts = 1;
-                
-                color = isA ? (m.colors?.[0]||'blue') : (m.colors?.[1]||'red');
+                const opp = m.teams.find(other => other !== t);
+                if(t.score > opp.score) { isWin = true; pts = 3; }
+                else if(t.score === opp.score) { pts = 1; }
             } else {
                 pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
                 if(pts >= 3) isWin = true;
-                
-                if(t.originalKey) color = t.originalKey === 'A' ? 'yellow' : (t.originalKey === 'B' ? 'blue' : 'red');
-                else color = (t.teamName||'').toLowerCase().includes('y') ? 'yellow' : ((t.teamName||'').toLowerCase().includes('b') ? 'blue' : 'red');
             }
-            
+
+            let color = '';
+            if (m.type === 'Standard') {
+                color = t === m.teams[0] ? (m.colors?.[0]||'blue') : (m.colors?.[1]||'red');
+            } else {
+                color = t.originalKey === 'A' ? 'yellow' : (t.originalKey === 'B' ? 'blue' : 'red');
+            }
             if(colorStats[color]) {
                 colorStats[color].p++;
                 if(isWin) colorStats[color].w++;
             }
+
+            const cleanPlayers = (t.players||[]).map(p => getPlayerDisplayName(p)).sort();
             
-            const players = (t.players || []).map(p => getPlayerDisplayName(p)).sort();
-            if(players.length === 0) return;
-            
-            const teamKey = players.join(', ');
-            if(!fullTeams[teamKey]) fullTeams[teamKey] = {p:0, w:0, pts:0};
-            fullTeams[teamKey].p++; fullTeams[teamKey].pts+=pts; if(isWin) fullTeams[teamKey].w++;
-            
-            if(players.length >= 2) {
-                getCombinations(players, 2).forEach(c => {
-                    const key = c.join(' & ');
+            if (cleanPlayers.length >= 2) {
+                getCombinations(cleanPlayers, 2).forEach(pair => {
+                    const key = pair.join(" & ");
                     if(!duos[key]) duos[key] = {p:0, w:0, pts:0};
-                    duos[key].p++; duos[key].pts+=pts; if(isWin) duos[key].w++;
+                    duos[key].p++; duos[key].pts += pts;
+                    if(isWin) duos[key].w++;
                 });
             }
-            if(players.length >= 3) {
-                getCombinations(players, 3).forEach(c => {
-                    const key = c.join(', ');
+
+            if (cleanPlayers.length >= 3) {
+                getCombinations(cleanPlayers, 3).forEach(trio => {
+                    const key = trio.join(", ");
                     if(!trios[key]) trios[key] = {p:0, w:0, pts:0};
-                    trios[key].p++; trios[key].pts+=pts; if(isWin) trios[key].w++;
+                    trios[key].p++; trios[key].pts += pts;
+                    if(isWin) trios[key].w++;
                 });
+            }
+
+            if (cleanPlayers.length >= 4) {
+                const key = cleanPlayers.join(", ");
+                if(!fullTeams[key]) fullTeams[key] = {p:0, w:0, pts:0};
+                fullTeams[key].p++; fullTeams[key].pts += pts;
+                if(isWin) fullTeams[key].w++;
             }
         });
     });
 
-    const minMatches = 3; 
-    const validDuos = Object.entries(duos).filter(e => e[1].p >= minMatches).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
-    const validTrios = Object.entries(trios).filter(e => e[1].p >= minMatches).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
-    const validTeams = Object.entries(fullTeams).filter(e => e[1].p >= 2).map(e => ({name:e[0], ...e[1], wr: e[1].w/e[1].p}));
-    
-    validDuos.sort((a,b) => b.wr - a.wr || b.p - a.p);
-    validTrios.sort((a,b) => b.wr - a.wr || b.p - a.p);
-    validTeams.sort((a,b) => b.wr - a.wr || b.p - a.p);
+    const calcInsights = (recordObj, minGames) => {
+        let bestWR = null, worstWR = null, mostPlayed = null;
+        Object.entries(recordObj).forEach(([names, data]) => {
+            const wr = (data.w / data.p) * 100;
+            const ppg = data.pts / data.p;
+            const item = { names, ...data, wr, ppg };
 
-    const container = document.getElementById('insightsContainer');
-    if(!container) return;
+            if(data.p >= minGames) {
+                if(!bestWR || wr > bestWR.wr || (wr === bestWR.wr && data.p > bestWR.p)) bestWR = item;
+                if(!worstWR || wr < worstWR.wr || (wr === worstWR.wr && data.p > worstWR.p)) worstWR = item;
+            }
+            if(!mostPlayed || data.p > mostPlayed.p) mostPlayed = item;
+        });
+        return { bestWR, worstWR, mostPlayed };
+    };
 
-    if(validDuos.length === 0 && colorStats['blue'].p === 0) {
-        container.innerHTML = `<div class="text-center py-5 text-muted small"><i class="fas fa-ghost fs-1 mb-3 d-block opacity-25"></i>Not enough data for insights yet.<br>Play a few more matches!</div>`;
-        return;
-    }
+    const duoStats = calcInsights(duos, 4);
+    const trioStats = calcInsights(trios, 3);
+    const fullTeamStats = calcInsights(fullTeams, 2);
 
-    const colMap = { 'yellow': 'text-warning', 'blue': 'text-primary', 'red': 'text-danger' };
-    let colorsHtml = Object.entries(colorStats).filter(c => c[1].p > 0).sort((a,b) => (b[1].w/b[1].p) - (a[1].w/a[1].p)).map(c => {
-        const wr = Math.round(c[1].w/c[1].p * 100);
-        return `<div class="col p-1"><div class="border border-secondary rounded p-2 text-center bg-dark"><div class="fw-bold ${colMap[c[0]]} small">${c[0].toUpperCase()}</div><div class="fw-bold text-white fs-6">${wr}%</div><div style="font-size:0.6rem" class="text-muted mt-1">${c[1].w}W - ${c[1].p}P</div></div></div>`;
+    const formatCard = (title, icon, data, type="wr") => {
+        if(!data) return `<div class="col-12 col-md-4 mb-3"><div class="card bg-dark border-secondary p-3 h-100"><div class="text-muted small fw-bold">${title}</div><div class="small text-muted my-2">Not enough matches yet</div></div></div>`;
+        
+        let statDisplay = "";
+        if (type === "wr") {
+            statDisplay = `<div class="fs-4 fw-bold text-success">${Math.round(data.wr)}% <span class="fs-6 text-muted font-monospace">(${data.w}W/${data.p}P)</span></div>`;
+        } else if (type === "worst") {
+            statDisplay = `<div class="fs-4 fw-bold text-danger">${Math.round(data.wr)}% <span class="fs-6 text-muted font-monospace">(${data.w}W/${data.p}P)</span></div>`;
+        } else {
+            statDisplay = `<div class="fs-4 fw-bold text-info">${data.p} <span class="fs-6 text-muted">Matches</span></div><div class="small text-muted">${data.w} Wins (${Math.round(data.wr)}% WR)</div>`;
+        }
+
+        return `
+        <div class="col-12 col-md-4 mb-3">
+            <div class="card bg-dark border-secondary p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted small fw-bold" style="letter-spacing:0.5px">${title}</span>
+                    <i class="${icon} text-warning opacity-75"></i>
+                </div>
+                <div class="fw-bold text-white small mb-1 text-truncate" title="${esc(data.names)}">${esc(data.names)}</div>
+                ${statDisplay}
+            </div>
+        </div>`;
+    };
+
+    let venueCards = Object.entries(venueGoals).map(([v, d]) => {
+        const avg = (d.goals / d.games).toFixed(1);
+        return `<div class="col-6 col-md-3 mb-2"><div class="bg-dark border border-secondary rounded p-2 text-center"><div class="text-white small fw-bold text-truncate">${esc(v)}</div><div class="fs-5 fw-bold text-info my-1">${avg}</div><small class="text-muted" style="font-size:0.65rem">${d.goals} Goals / ${d.games} Games</small></div></div>`;
     }).join('');
 
-    const bestDuo = validDuos.length > 0 ? validDuos[0] : null;
-    const worstDuo = validDuos.length > 0 ? validDuos[validDuos.length-1] : null;
-    const bestTrio = validTrios.length > 0 ? validTrios[0] : null;
-    const worstTrio = validTrios.length > 0 ? validTrios[validTrios.length-1] : null;
-    const bestTeam = validTeams.length > 0 ? validTeams[0] : null;
+    const insightsContainer = document.getElementById('insightsContainer');
+    if(!insightsContainer) return;
 
-    const renderCard = (title, icon, color, data, desc) => {
-        if(!data) return '';
-        return `
-        <div class="col-12 col-md-6 mb-2">
-            <div class="p-3 border border-secondary rounded bg-dark h-100 position-relative overflow-hidden">
-                <i class="fas ${icon} position-absolute opacity-10" style="font-size: 5rem; right: -10px; bottom: -10px;"></i>
-                <div class="text-${color} fw-bold mb-2"><i class="fas ${icon} me-2"></i>${title}</div>
-                <div class="text-white fw-bold fs-6 mb-1">${esc(data.name)}</div>
-                <div class="text-muted small">${Math.round(data.wr*100)}% Win Rate (${data.w}W - ${data.p}P)</div>
-                <div class="text-muted small mt-2 border-top border-secondary pt-2" style="font-size:0.7rem"><i>${desc}</i></div>
-            </div>
-        </div>`;
-    };
+    insightsContainer.innerHTML = `
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-user-friends text-primary me-2"></i>DUOS & COMBOS</h6>
+        <div class="row mb-3">
+            ${formatCard("DEADLIEST DUO (MIN 4P)", "fas fa-skull-crossbones", duoStats.bestWR, "wr")}
+            ${formatCard("WORST DUO (MIN 4P)", "fas fa-heart-broken", duoStats.worstWR, "worst")}
+            ${formatCard("MOST FREQUENT DUO", "fas fa-link", duoStats.mostPlayed, "played")}
+        </div>
 
-    let html = `<h6 class="small fw-bold text-muted mb-2 px-1">WIN RATE BY COLOR</h6>`;
-    html += `<div class="row g-1 mb-4 px-1">${colorsHtml}</div>`;
-    html += `<h6 class="small fw-bold text-muted mb-2 px-1">TOP TEAM COMBINATIONS</h6>`;
-    html += `<div class="row g-2 px-1">`;
-    html += renderCard('UNSTOPPABLE DUO', 'fa-fire', 'warning', bestDuo, 'They carry the team.');
-    html += renderCard('TERRIBLE DUO', 'fa-skull-crossbones', 'danger', worstDuo, 'Maybe play on different teams next time.');
-    html += renderCard('DREAM TRIO', 'fa-star', 'info', bestTrio, 'The holy trinity.');
-    html += renderCard('TRAGIC TRIO', 'fa-dumpster-fire', 'danger', worstTrio, 'A complete disaster together.');
-    html += renderCard('BEST EXACT ROSTER', 'fa-trophy', 'success', bestTeam, 'The most dominant complete lineup.');
-    html += `</div>`;
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-users text-warning me-2"></i>TRIOS</h6>
+        <div class="row mb-3">
+            ${formatCard("BEST TRIO (MIN 3P)", "fas fa-crown", trioStats.bestWR, "wr")}
+            ${formatCard("WORST TRIO (MIN 3P)", "fas fa-poo", trioStats.worstWR, "worst")}
+            ${formatCard("MOST FREQUENT TRIO", "fas fa-fire", trioStats.mostPlayed, "played")}
+        </div>
 
-    let venueHtml = Object.entries(venueGoals).sort((a,b) => (b[1].goals/b[1].games) - (a[1].goals/a[1].games)).map(([loc, v]) => {
-        const gpg = (v.goals / v.games).toFixed(2);
-        return `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span>${esc(loc)}</span><span class="text-white">${gpg} goals/game <span class="text-muted">(${v.games} games)</span></span></div>`;
-    }).join('') || "<div class='small text-muted'>Not enough data yet.</div>";
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-shield-alt text-info me-2"></i>FULL SQUADS</h6>
+        <div class="row mb-4">
+            ${formatCard("BEST RECURRING SQUAD", "fas fa-award", fullTeamStats.bestWR, "wr")}
+            ${formatCard("MOST FREQUENT SQUAD", "fas fa-history", fullTeamStats.mostPlayed, "played")}
+        </div>
 
-    const matchCard = (title, icon, color, data, extra) => {
-        if(!data) return '';
-        const tA = data.m.teams[0], tB = data.m.teams[1];
-        return `
-        <div class="col-12 col-md-6 mb-2">
-            <div class="p-3 border border-secondary rounded bg-dark h-100">
-                <div class="text-${color} fw-bold mb-2"><i class="fas ${icon} me-2"></i>${title}</div>
-                <div class="text-white fw-bold fs-6">${esc(tA.teamName||'A')} ${tA.score} - ${tB.score} ${esc(tB.teamName||'B')}</div>
-                <div class="text-muted small mt-1">${formatDate(data.m.date.toDate())} &middot; ${esc(data.m.location)} &middot; ${extra}</div>
-            </div>
-        </div>`;
-    };
-
-    html += `<h6 class="small fw-bold text-muted mb-2 px-1 mt-2">GOALS PER GAME BY VENUE <span class="opacity-50">(standard matches)</span></h6>`;
-    html += `<div class="bg-dark p-2 rounded border border-secondary mb-4">${venueHtml}</div>`;
-    html += `<h6 class="small fw-bold text-muted mb-2 px-1">MATCH RECORDS</h6>`;
-    html += `<div class="row g-2 px-1 mb-2">`;
-    html += matchCard('BIGGEST BLOWOUT', 'fa-bomb', 'danger', biggestBlowout, `${biggestBlowout ? biggestBlowout.margin : 0} goal margin`);
-    html += matchCard('HIGHEST SCORING', 'fa-futbol', 'warning', highestScoring, `${highestScoring ? highestScoring.total : 0} goals total`);
-    html += `</div>`;
-    html += `<div class="text-muted small px-1">${draws} draw${draws===1?'':'s'} across all standard matches.</div>`;
-
-    container.innerHTML = html;
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-map-marker-alt text-danger me-2"></i>VENUE GOAL AVERAGES (STANDARD MATCHES ONLY)</h6>
+        <div class="row mb-4">${venueCards || '<div class="small text-muted">No venue goal stats.</div>'}</div>
+    `;
 }
 
 window.openPlayerStats = (targetIdOrName) => {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
-    const year = fYear.value === 'all' ? 'all' : parseInt(fYear.value);
+    const year = fYear ? (fYear.value === 'all' ? 'all' : parseInt(fYear.value)) : 2026;
     const month = fMonth ? fMonth.value : 'all';
 
     const matchesPlayer = (p) => {
         if (!p) return false;
         if (p === targetIdOrName) return true;
-        if (getPlayerDisplayName(p) === getPlayerDisplayName(targetIdOrName)) return true;
-        return false;
+        if (playersRegistry.has(targetIdOrName)) {
+            const reg = playersRegistry.get(targetIdOrName);
+            if (p === reg.id || p.toLowerCase() === reg.displayName.toLowerCase()) return true;
+            if ((reg.aliases || []).map(a => a.toLowerCase()).includes(p.toLowerCase())) return true;
+        }
+        return p.toLowerCase() === targetIdOrName.toLowerCase();
     };
 
-    const pMatches = allMatches.filter(m => {
-        if(!m.teams) return false;
-        const t = m.teams.find(t => (t.players||[]).some(matchesPlayer));
-        return t && matchesFilter(m, year, month);
-    }).sort((a,b) => b.date.toMillis() - a.date.toMillis());
+    const pMatches = allMatches.filter(m => matchesFilter(m, year, month)).filter(m => 
+        (m.teams||[]).some(t => (t.players||[]).some(matchesPlayer))
+    );
 
     if(pMatches.length === 0) return;
 
-    let w=0, played=0, pts=0, totalGF=0, totalGA=0;
+    let w=0, played=0, standardPlayed=0, pts=0, totalGF=0, totalGA=0;
     let monthly = {}, recentForm = [];
     let teammates = {};
     let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
@@ -815,6 +1243,7 @@ window.openPlayerStats = (targetIdOrName) => {
         let myTeamMates = [];
 
         if(m.type==='Standard') {
+            standardPlayed++;
             const tA=m.teams[0]; const inA=(tA.players||[]).some(matchesPlayer);
             const myS=inA?tA.score:m.teams[1].score;
             const opS=inA?m.teams[1].score:tA.score;
@@ -859,6 +1288,7 @@ window.openPlayerStats = (targetIdOrName) => {
     });
 
     const winRate = Math.round((w/played)*100);
+    const goalsPerGame = standardPlayed > 0 ? (totalGF / standardPlayed).toFixed(2) : '0.00';
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
     
     const formDisplay = recentForm.reverse().map(r => r==='W' ? '<i class="fas fa-check text-success mx-1"></i>' : (r==='D' ? '<i class="far fa-circle text-warning mx-1"></i>' : '<i class="fas fa-times text-danger mx-1"></i>')).join('');
@@ -892,9 +1322,14 @@ window.openPlayerStats = (targetIdOrName) => {
         psBody.innerHTML = `
         <div class="text-center mb-3"><div class="mb-2 text-muted small" style="letter-spacing:1px">CURRENT FORM</div><div class="fs-5">${formDisplay}</div></div>
         <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm">
-            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div>
-            <div class="col-4 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div>
-            <div class="col-4 bg-dark p-2"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
+            <div class="col-3 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div>
+            <div class="col-3 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div>
+            <div class="col-3 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
+            <div class="col-3 bg-dark p-2"><div class="fw-bold text-info">${goalsPerGame}</div><small class="text-muted" style="font-size:0.6rem">G/G (STD)</small></div>
+        </div>
+        <div class="mb-3 p-2 rounded bg-body border border-secondary small text-muted">
+            <div class="d-flex justify-content-between"><span>Goals (Standard Matches Only):</span><span class="text-white fw-bold">${totalGF} GF / ${totalGA} GA (GD: ${totalGF - totalGA})</span></div>
+            <div class="d-flex justify-content-between mt-1"><span>Standard Matches:</span><span class="text-white">${standardPlayed}</span></div>
         </div>
         <h6 class="small fw-bold text-muted mb-2">WIN RATE BY COLOR</h6>
         <div class="row g-1 mb-4">${colorsHtml}</div>
@@ -957,6 +1392,7 @@ window.confirmAmberChip = (k, idx) => {
         rawInput: item.rawInput
     };
     renderList(k);
+    renderRosterGrid();
 };
 
 window.openDisambiguateModal = (k, idx) => {
@@ -992,6 +1428,7 @@ window.selectDisambiguatedPlayer = (playerId) => {
         rawInput: item.rawInput
     };
     renderList(teamKey);
+    renderRosterGrid();
 
     const modalEl = document.getElementById('disambiguateModal');
     if (modalEl) {
@@ -1045,6 +1482,7 @@ window.selectClosestCandidate = (playerId) => {
         selectedPlayers[teamKey].push(resolved);
     }
     renderList(teamKey);
+    renderRosterGrid();
 
     const modalEl = document.getElementById('createPlayerModal');
     if (modalEl) {
@@ -1052,6 +1490,10 @@ window.selectClosestCandidate = (playerId) => {
         if (modal) modal.hide();
     }
 };
+
+/* ==========================================================================
+   MATCH SAVE & DUPLICATE GUARD
+   ========================================================================== */
 
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1078,17 +1520,33 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         }
     }
 
-    const load = document.getElementById('loadingOverlay'); 
-    if(load) load.classList.remove('d-none');
+    const dVal = document.getElementById('matchDate').value;
+    const locVal = document.getElementById('matchLocation').value;
     const isEdit = document.getElementById('editMatchId').value !== "";
     const editingId = document.getElementById('editMatchId').value;
 
+    // STAGE C: Duplicate Match Guard
+    const dateFormatted = dVal;
+    const existingDuplicate = allMatches.find(m => {
+        if (isEdit && m.id === editingId) return false;
+        const mDate = m.date.toDate().toISOString().split('T')[0];
+        return mDate === dateFormatted && m.location === locVal;
+    });
+
+    if (existingDuplicate) {
+        if (!confirm(`Warning: A match on ${dateFormatted} at "${locVal}" already exists in records. Do you still want to save this match?`)) {
+            return;
+        }
+    }
+
+    const load = document.getElementById('loadingOverlay'); 
+    if(load) load.classList.remove('d-none');
+
     try {
         const type = isTourn ? 'Tournament' : 'Standard';
-        const dVal = document.getElementById('matchDate').value;
         const common = { 
             date: new Date(dVal), 
-            location: document.getElementById('matchLocation').value, 
+            location: locVal, 
             youtubeLink: document.getElementById('matchYoutube').value || null, 
             type: type, 
             updatedBy: currentUser.email, 
@@ -1121,13 +1579,12 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             const ptsC = parseInt(document.getElementById('ptsTournC').value) || 0;
             
             let tArr = [
-                {teamName: document.getElementById('nameTournA').value || 'Yellow', players: pA, points: ptsA, originalKey: 'A'},
-                {teamName: document.getElementById('nameTournB').value || 'Blue', players: pB, points: ptsB, originalKey: 'B'},
-                {teamName: document.getElementById('nameTournC').value || 'Red', players: pC, points: ptsC, originalKey: 'C'}
+                {teamName: document.getElementById('nameTournA').value || 'Yellow', players: pA, points: ptsA, originalKey: 'A', rank: parseInt(document.getElementById('rankTournA')?.value || '1')},
+                {teamName: document.getElementById('nameTournB').value || 'Blue', players: pB, points: ptsB, originalKey: 'B', rank: parseInt(document.getElementById('rankTournB')?.value || '2')},
+                {teamName: document.getElementById('nameTournC').value || 'Red', players: pC, points: ptsC, originalKey: 'C', rank: parseInt(document.getElementById('rankTournC')?.value || '3')}
             ];
             
-            tArr.sort((a,b) => b.points - a.points);
-            tArr.forEach((t, i) => t.rank = i + 1);
+            tArr.sort((a,b) => (a.rank || 1) - (b.rank || 1));
             matchData.teams = tArr;
         }
         
@@ -1210,24 +1667,84 @@ window.editMatch = (id, e) => {
             const tR = m.teams.find(t=>t.originalKey==='C') || m.teams[2];
             
             document.getElementById('nameTournA').value=tY.teamName; 
-            document.getElementById('ptsTournA').value=tY.points || 0;
+            setTournRank('TournA', tY.rank || 1);
             selectedPlayers.TournA = (tY.players||[]).map(toResolvedChip);
             
             document.getElementById('nameTournB').value=tB.teamName; 
-            document.getElementById('ptsTournB').value=tB.points || 0;
+            setTournRank('TournB', tB.rank || 2);
             selectedPlayers.TournB = (tB.players||[]).map(toResolvedChip);
             
             document.getElementById('nameTournC').value=tR.teamName; 
-            document.getElementById('ptsTournC').value=tR.points || 0;
+            setTournRank('TournC', tR.rank || 3);
             selectedPlayers.TournC = (tR.players||[]).map(toResolvedChip);
         }
         renderList('TournA'); renderList('TournB'); renderList('TournC');
     }
+    renderRosterGrid();
 };
+
+/* ==========================================================================
+   STAGE C: DETAILED DELETE CONFIRMATION MODAL
+   ========================================================================== */
 
 window.deleteMatch = (id, e) => { 
     e.stopPropagation(); 
-    if(confirm("Delete this match record?")) db.collection(DB_CONFIG.collections.matches).doc(id).delete(); 
+    const m = allMatches.find(x => x.id === id);
+    if (!m) return;
+
+    const summaryEl = document.getElementById('deleteMatchSummary');
+    const targetInput = document.getElementById('deleteMatchTargetId');
+    if (targetInput) targetInput.value = id;
+
+    if (summaryEl) {
+        const dateStr = formatDate(m.date.toDate());
+        let teamsInfo = '';
+        if (m.type === 'Standard') {
+            const tA = m.teams[0];
+            const tB = m.teams[1];
+            teamsInfo = `
+                <div class="d-flex justify-content-between mb-1"><b>${esc(tA.teamName || 'Team A')}</b> <span>${tA.score} goals (${(tA.players||[]).length} players)</span></div>
+                <div class="d-flex justify-content-between"><b>${esc(tB.teamName || 'Team B')}</b> <span>${tB.score} goals (${(tB.players||[]).length} players)</span></div>
+            `;
+        } else {
+            teamsInfo = (m.teams || []).map((t, idx) => `
+                <div class="d-flex justify-content-between mb-1"><b>${idx+1}. ${esc(t.teamName)}</b> <span>${t.points || 0} pts (${(t.players||[]).length} players)</span></div>
+            `).join('');
+        }
+
+        summaryEl.innerHTML = `
+            <div class="mb-2"><b>Date:</b> ${dateStr}</div>
+            <div class="mb-2"><b>Location:</b> ${esc(m.location)}</div>
+            <div class="mb-2"><b>Type:</b> ${esc(m.type)}</div>
+            <div class="border-top border-secondary pt-2 mt-2">${teamsInfo}</div>
+        `;
+    }
+
+    const modalEl = document.getElementById('deleteMatchModal');
+    if (modalEl) new bootstrap.Modal(modalEl).show();
+};
+
+window.executeDeleteMatch = async () => {
+    const targetInput = document.getElementById('deleteMatchTargetId');
+    const id = targetInput ? targetInput.value : '';
+    if (!id) return;
+
+    const modalEl = document.getElementById('deleteMatchModal');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
+
+    const load = document.getElementById('loadingOverlay');
+    if (load) load.classList.remove('d-none');
+
+    try {
+        await db.collection(DB_CONFIG.collections.matches).doc(id).delete();
+    } catch (err) {
+        alert("Delete failed: " + err.message);
+    } finally {
+        if (load) load.classList.add('d-none');
+    }
 };
 
 window.cancelEditMode = () => { 
@@ -1237,6 +1754,7 @@ window.cancelEditMode = () => {
     document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset(); 
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k)); 
     document.querySelectorAll('.border input[type="number"]').forEach(i=>i.value="");
+    renderRosterGrid();
 };
 
 window.openMatchModal = (id) => { openMatchModalLogic(id); }; 
@@ -1283,6 +1801,7 @@ function fetchPlayerNames() {
             if(listEl) listEl.appendChild(new Option(displayName, displayName));
         });
         renderData();
+        renderRosterGrid();
     }).catch(err => {
         console.warn("Fetch players error:", err);
     }); 
@@ -1339,6 +1858,7 @@ function addPlayer(k) {
     } else if(result.status === 'new') {
         openCreatePlayerModal(v, k, null, result.top3);
     }
+    renderRosterGrid();
     i.focus(); 
 }
 
@@ -1349,6 +1869,7 @@ function removePlayer(k, idx) {
         selectedPlayers[k] = selectedPlayers[k].filter(x => x.id !== idx && x.displayName !== idx && x.rawInput !== idx);
     }
     renderList(k); 
+    renderRosterGrid();
 }
 
 function renderList(k) { 
@@ -1396,7 +1917,7 @@ window.exportToCSV = () => {
             tA = escCsv(teamA.teamName); pA = escCsv((teamA.players || []).map(p => getPlayerDisplayName(p)).join(", "));
             tB = escCsv(teamB.teamName); pB = escCsv((teamB.players || []).map(p => getPlayerDisplayName(p)).join(", "));
         } else {
-            const sorted = [...m.teams].sort((a,b) => a.rank - b.rank);
+            const sorted = [...m.teams].sort((a,b) => (a.rank || 1) - (b.rank || 1));
             score = escCsv("Tournament"); 
             if(sorted[0]) { tA = escCsv(`1. ${sorted[0].teamName} (${sorted[0].points}pts)`); pA = escCsv((sorted[0].players || []).map(p => getPlayerDisplayName(p)).join(", ")); }
             if(sorted[1]) { tB = escCsv(`2. ${sorted[1].teamName} (${sorted[1].points}pts)`); pB = escCsv((sorted[1].players || []).map(p => getPlayerDisplayName(p)).join(", ")); }
@@ -1419,5 +1940,8 @@ window.toggleMatchType = () => {
     const isTourn = document.getElementById('typeTournament').checked; 
     document.getElementById('standardSection').classList.toggle('d-none', isTourn); 
     document.getElementById('tournamentSection').classList.toggle('d-none', !isTourn); 
+    activeTeamTarget = isTourn ? 'TournA' : 'A';
+    renderActiveTeamPills();
+    renderRosterGrid();
     updateSaveButtonState();
 };

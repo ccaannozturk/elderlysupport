@@ -77,6 +77,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    /* ========== CONFIG (Gemini) ========== */
+    match /config/gemini {
+      allow read, write: if false;
+    }
+
+    match /config/gemini_meta {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     /* ========== DEFAULT DENY ========== */
     match /{document=**} {
       allow read, write: if false;

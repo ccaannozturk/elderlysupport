@@ -133,7 +133,7 @@ Fuzzy matching alone cannot handle this — the registry must be authoritative.
 
 Branch: `stage-c-entry`
 
-- [ ] **7. Mobile-first entry (Android)**
+- [x] **7. Mobile-first entry (Android)**
   - **Replace the `<input list="playerList">` datalist.** Android Chrome handles
     datalists poorly — inconsistent dropdown, multiple taps, unreliable filtering.
     This is a likely root cause of the maintainer typing full names by hand and
@@ -145,7 +145,7 @@ Branch: `stage-c-entry`
   - Sticky save button.
   - Duplicate-match guard: warn if a match already exists on that date + venue.
 
-- [ ] **9. Tournament rank buttons**
+- [x] **9. Tournament rank buttons**
   - Replace free-number points entry with three buttons: 1st / 2nd / 3rd.
     Points auto-assigned 3/1/0. Less typing than now, and structurally prevents
     invalid values.
@@ -153,19 +153,19 @@ Branch: `stage-c-entry`
     a draw, so a stray value of `2` currently registers as played but as neither
     W, D, nor L — silently breaking `P = W + D + L`.
 
-- [ ] **10. Goals: exclude tournaments explicitly**
+- [x] **10. Goals: exclude tournaments explicitly**
   - Tournament matches record no goals and currently pass `gf: 0, ga: 0` into the
     aggregate, diluting everyone's totals.
   - Exclude them from all goal-based statistics and label the stat
     "Goals (standard matches only)" so the number is honest.
 
-- [ ] **14. Better delete confirmation**
+- [x] **14. Better delete confirmation**
   - Plain hard delete retained (no archive collection, no soft-delete flag — the
     maintainer wants Firestore kept clean).
   - Replace `confirm("Delete?")` with a dialog showing date, both team names, and
     the score. Deletion happens on a phone; mis-taps are the real risk.
 
-- [ ] **6. AI Magic Paste** *(do last in this stage)*
+- [x] **6. AI Magic Paste** *(do last in this stage)*
   - Paste the raw WhatsApp lineup message unmodified — no strict format required.
   - Cloud Function proxy → Gemini (Google AI Studio free-tier key). The key lives
     in Firebase Functions config and **must never appear in client JS**.
