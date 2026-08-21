@@ -432,6 +432,12 @@ ${rawText}
   };
 });
 
+const STARTING_ELO = 1200;
+const K_STANDARD_REG = 32;
+const K_STANDARD_NEW = 48;
+const K_TOURN_REG = 16;
+const K_TOURN_NEW = 24;
+const MIN_GAMES_RANKED_ELO = 5;
 const RECAP_SILENCE_THRESHOLD = 65;
 
 function getMatchTime(m) {
