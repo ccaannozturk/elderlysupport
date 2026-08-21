@@ -570,6 +570,8 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
     playersRegistry.set(d.id, { id: d.id, displayName: p.displayName || d.id, aliases: p.aliases || [] });
   });
 
+  const getName = (id) => nameMap.get(id) || id;
+
   // 1. Sort matches chronologically for Elo and Streaks
   const allMatchesList = [];
   matchesSnap.forEach(doc => {
@@ -829,7 +831,10 @@ ${JSON.stringify(statsContext, null, 2)}
 STRICT RULES:
 1. Answer ONLY using facts and figures explicitly present in the data above.
 2. Quote exact numbers, win rates, and records verbatim.
-3. Do NOT invent, assume, extrapolate, or calculate unprovided metrics.
+3. If the user presents two hypothetical lineups or asks who would win a matchup between specific teams/players:
+   - Identify each player in the data (resolving nicknames/aliases like Dani G -> Daniel Gomez, Dani M -> Daniel Müller, Patrick (Ref) -> Patrick).
+   - Compare the two teams using their players' official Elo ratings, win rates, and points per game from the data.
+   - Give an analytical prediction explaining which team has the statistical advantage based on those numbers.
 4. If the data does not contain the answer (e.g. height, age, player positions, weather), state clearly that the official league data does not track that information.
 5. Keep your response concise (2-4 sentences max), friendly, and direct.
 6. Output strict JSON with key "answer":
