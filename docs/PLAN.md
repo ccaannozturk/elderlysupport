@@ -276,6 +276,23 @@ grouped here.
 
 ---
 
+## Phase 7 — Proposed, NOT started
+
+Full diagnosis and step-by-step plan: `docs/HANDOVER-PHASE-7.md`. Written as a
+standalone handover doc since it's meant to be picked up by an agent with no
+memory of the session that diagnosed it.
+
+Three items: (17) `queryStats`'s AI answers use a third, untested Elo/streak
+implementation that silently drops tournament matches — while the site,
+`generateMatchRecap`, and every other stat already handle tournaments
+correctly; (18) remove the award-citation feature end to end (maintainer
+doesn't want it); (19) `public-data/league.json` currently refreshes on a
+6-hour cron — decide with the maintainer whether "always current" means an
+event-driven Firestore trigger or a shorter cron interval before building
+either.
+
+---
+
 ## Out of scope — do not propose
 
 Considered and explicitly declined:
