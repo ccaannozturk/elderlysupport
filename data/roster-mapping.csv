@@ -2,9 +2,9 @@ raw_name,player_id,display_name,notes
 Adri,adri,Adri,
 Ahmed,ahmed,Ahmed,
 Alex,alex,Alex,
-Alex Chavista,alex_chavista,Alex Chavista,"aliases: alex venezuela, alex chaves"
-Anderson,anderson,Anderson,
-Anderson Brazil,anderson_brazil,Anderson Brazil,
+Alex Chavista,alex_chavista,Alex Chavista,"aliases: alex venezuela, alex chaves, alex c"
+Anderson,anderson,Anderson,"aliases: anderson muller, anderson müller"
+Anderson Brazil,anderson_brazil,Anderson Brazil,"aliases: anderson b, andersonbr"
 Andres,andres,Andres,
 Anthony,anthony,Anthony,
 Antraniek,antraniek,Antraniek,
@@ -17,8 +17,8 @@ Can,can,Can,
 Chris D.,chris_d,Chris D.,
 Chrys,chrys,Chrys,
 Damoun,damoun,Damoun,
-Daniel Gomez,daniel_gomez,Daniel Gomez,
-Daniel Müller,daniel_muller,Daniel Müller,
+Daniel Gomez,daniel_gomez,Daniel Gomez,"aliases: dani gomez, dani g, daniel g"
+Daniel Müller,daniel_muller,Daniel Müller,"aliases: dani muller, dani müller, dani m, daniel m"
 Desi,desi,Desi,
 Enes,enes,Enes,
 Fabiel,fabiel,Fabiel,
@@ -31,8 +31,8 @@ Gustavo,gustavo,Gustavo,
 Hector,hector,Hector,
 Ivan,ivan,Ivan,
 Jack,jack,Jack,
-Javi Bernardo,javi_bernardo,Javi Bernardo,
-Javi Farres,javi_farres,Javi Farres,
+Javi Bernardo,javi_bernardo,Javi Bernardo,"aliases: javi b, javier bernardo"
+Javi Farres,javi_farres,Javi Farres,"aliases: javi f, javier farres, javi farrés"
 Jeremy,jeremy,Jeremy,
 Jonne,jonne,Jonne,
 Jorge,jorge,Jorge,

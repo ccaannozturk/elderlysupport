@@ -175,19 +175,30 @@ Parse the following raw match announcement / WhatsApp lineup message into strict
 AUTHORITATIVE PLAYER REGISTRY:
 ${JSON.stringify(rosterContext)}
 
-PARSING RULES:
+PARSING INSTRUCTIONS & EXAMPLES:
 1. "matchType": "Standard" (2 teams, goals scored) or "Tournament" (3 teams, ranked 1st/2nd/3rd with 3/1/0 points).
 2. "date": Extract match date in YYYY-MM-DD format if mentioned, otherwise null.
 3. "venue": Extract match location if mentioned (one of: "Sporthal ROC Europaboulevard", "Sporthal Calvijn", "Sportgebouw Bibian Mentel", "Sporthallen Zuid", "Zeeburgereiland - Outdoor"), otherwise null.
-4. "teams": Array of team objects:
-   - "name": Team name string or null
-   - "score": integer goals scored for Standard match, otherwise null
-   - "rank": 1, 2, or 3 for Tournament match, otherwise null
-   - "players": Array of player items:
-     - "rawName": original string as typed in the message
+4. "teams": Array of team objects with:
+   - "name": Clean team name (remove color mentions like "in 🔴:", "in blue:", trailing colons). E.g. "The Fifantinos 🤑 in 🔴:" -> "The Fifantinos 🤑".
+   - "color": "red" | "blue" | "yellow" | null (detect from emojis 🔴, 🟥, 🔵, 🟦, 🟡, 🟨 or words like "in red", "blue team").
+   - "score": integer goals scored for Standard match, otherwise null.
+   - "rank": 1, 2, or 3 for Tournament match, otherwise null.
+   - "players": Array of player objects:
+     - "rawName": cleaned player name (strip role tags like "(Ref)", "(GK)", "(c)"). E.g. "Patrick (Ref)" -> "Patrick".
      - "playerId": exact matching "id" from the Authoritative Player Registry if confident, otherwise null. NEVER invent player IDs.
-     - "confidence": number from 0.0 to 1.0 (1.0 = exact hit in registry/aliases, 0.7-0.9 = close spelling, 0.0 = completely new/unknown).
-5. "unparsed": Array of raw lines from the input that could not be parsed as team headers, scores, or players.
+     - "confidence": number from 0.0 to 1.0 (1.0 = exact hit in registry/aliases, 0.95 = clear initial/nickname match, 0.0 = unknown).
+5. PLAYER NICKNAME & INITIAL RULES:
+   - "Dani G" or "Daniel G" -> daniel_gomez
+   - "Dani M" or "Daniel M" -> daniel_muller
+   - "Javi F" -> javi_farres
+   - "Javi B" -> javi_bernardo
+   - "Anderson B" -> anderson_brazil
+   - "Alex Chavista" / "Alex Venezuela" -> alex_chavista
+   - Suffixes like "(Ref)", "(Referee)", "(GK)", "(Keeper)", "(c)", "(Captain)" are roles and MUST be removed from rawName.
+6. SCORE & OUTCOME RULES:
+   - Natural language outcomes like "red team won 3-2" or "Fifantinos won 3-2" mean the red/winning team scored 3 goals, and the other team scored 2 goals. Assign scores to respective teams accordingly.
+7. "unparsed": Array of raw lines from the input that could not be parsed as team headers, scores, or players.
 
 RAW INPUT:
 """
@@ -244,7 +255,7 @@ ${rawText}
   for (const t of (parsed.teams || [])) {
     const validatedPlayers = [];
     for (const p of (t.players || [])) {
-      const rawName = p.rawName || '';
+      let rawName = (p.rawName || '').replace(/\s*\((?:ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
       let pId = p.playerId;
       let conf = typeof p.confidence === 'number' ? p.confidence : 0.5;
 
@@ -254,14 +265,18 @@ ${rawText}
       }
 
       validatedPlayers.push({
-        rawName,
+        rawName: rawName || p.rawName,
         playerId: pId,
         confidence: conf
       });
     }
 
+    let teamColor = t.color ? String(t.color).toLowerCase() : null;
+    if (teamColor && !['red', 'blue', 'yellow'].includes(teamColor)) teamColor = null;
+
     validatedTeams.push({
       name: t.name || null,
+      color: teamColor,
       score: typeof t.score === 'number' ? t.score : null,
       rank: typeof t.rank === 'number' ? t.rank : null,
       players: validatedPlayers

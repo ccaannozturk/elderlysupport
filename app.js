@@ -281,7 +281,10 @@ function getPlacedTeamForPlayer(playerId) {
 }
 
 function resolvePlayerInput(rawInput, teamKey) {
-    const clean = rawInput.trim();
+    if (!rawInput) return null;
+    // Strip role annotations: (Ref), (Referee), (GK), (c), etc.
+    let clean = rawInput.replace(/\s*\((?:ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
+    if (!clean) clean = rawInput.trim();
     if (!clean) return null;
     const lower = clean.toLowerCase();
 
@@ -309,7 +312,39 @@ function resolvePlayerInput(rawInput, teamKey) {
         };
     }
 
-    // 2. Fuzzy match against available players
+    // 2. Initial / Nickname matching (e.g. "Dani G" -> Daniel Gomez, "Dani M" -> Daniel Müller)
+    const nameTokens = lower.split(/\s+/).filter(Boolean);
+    if (nameTokens.length === 2 && nameTokens[1].length <= 2) {
+        const firstPrefix = nameTokens[0];
+        const lastInitial = nameTokens[1].charAt(0);
+
+        const initialMatches = availablePlayers.filter(p => {
+            const pParts = p.displayName.toLowerCase().split(/\s+/).filter(Boolean);
+            if (pParts.length < 2) return false;
+            const pFirst = pParts[0];
+            const pLast = pParts[pParts.length - 1];
+            return (pFirst.startsWith(firstPrefix) || firstPrefix.startsWith(pFirst)) && pLast.startsWith(lastInitial);
+        });
+
+        if (initialMatches.length === 1) {
+            return {
+                status: 'resolved',
+                id: initialMatches[0].id,
+                displayName: initialMatches[0].displayName,
+                rawInput: clean
+            };
+        } else if (initialMatches.length > 1) {
+            return {
+                status: 'amber',
+                rawInput: clean,
+                candidate: { id: initialMatches[0].id, displayName: initialMatches[0].displayName },
+                candidates: initialMatches.map(p => ({ id: p.id, displayName: p.displayName })),
+                top3: initialMatches.slice(0, 3).map(p => ({ id: p.id, displayName: p.displayName }))
+            };
+        }
+    }
+
+    // 3. Fuzzy match against available players
     const candidateDistances = [];
     for (const p of availablePlayers) {
         let minDist = Infinity;
@@ -740,6 +775,11 @@ window.parseMagicPaste = async () => {
 
             document.getElementById('nameTeamA').value = tA.name || 'Team A';
             document.getElementById('scoreA').value = tA.score !== null && tA.score !== undefined ? tA.score : 0;
+            if (tA.color) {
+                const rb = document.querySelector(`input[name="colorA"][value="${tA.color}"]`);
+                if (rb) rb.checked = true;
+            }
+
             selectedPlayers.A = [];
             (tA.players || []).forEach(p => {
                 if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
@@ -764,6 +804,11 @@ window.parseMagicPaste = async () => {
 
             document.getElementById('nameTeamB').value = tB.name || 'Team B';
             document.getElementById('scoreB').value = tB.score !== null && tB.score !== undefined ? tB.score : 0;
+            if (tB.color) {
+                const rb = document.querySelector(`input[name="colorB"][value="${tB.color}"]`);
+                if (rb) rb.checked = true;
+            }
+
             selectedPlayers.B = [];
             (tB.players || []).forEach(p => {
                 if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
@@ -805,42 +850,107 @@ window.parseMagicPaste = async () => {
 };
 
 function fallbackLocalParser(text) {
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    const headerRegex = /^(?:(\d+)[\s:-]+)?(.*?)(?:[\s:-]+(yellow|blue|red))?$/i;
+    const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
 
-    if (lines.length >= 6) {
+    const extractColor = (str) => {
+        if (/🔴|🟥|\bred\b/i.test(str)) return 'red';
+        if (/🔵|🟦|\bblue\b/i.test(str)) return 'blue';
+        if (/🟡|🟨|\byellow\b/i.test(str)) return 'yellow';
+        return null;
+    };
+
+    const cleanTeamName = (str) => {
+        return str
+            .replace(/\s*(?:in\s*)?(?:🔴|🟥|🔵|🟦|🟡|🟨|red|blue|yellow)\s*:?/gi, '')
+            .replace(/:+$/, '')
+            .trim();
+    };
+
+    const cleanPlayerToken = (p) => {
+        return p.replace(/\s*\((?:ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
+    };
+
+    let outcomeScores = null;
+    const remainingLines = [];
+
+    for (const line of rawLines) {
+        const outcomeMatch = line.match(/(.*?)(?:team\s*)?(?:won|beat|defeats?)\s*(\d+)\s*[-:]\s*(\d+)/i)
+            || line.match(/^(\d+)\s*[-:]\s*(\d+)$/);
+        if (outcomeMatch) {
+            if (outcomeMatch[3]) {
+                const winnerMention = (outcomeMatch[1] || '').toLowerCase();
+                const scoreWin = parseInt(outcomeMatch[2]);
+                const scoreLose = parseInt(outcomeMatch[3]);
+                const winnerColor = extractColor(winnerMention) || (winnerMention.includes('red') ? 'red' : (winnerMention.includes('blue') ? 'blue' : null));
+                outcomeScores = { winnerColor, scoreWin, scoreLose, rawLine: line };
+            } else {
+                outcomeScores = { scoreA: parseInt(outcomeMatch[1]), scoreB: parseInt(outcomeMatch[2]), rawLine: line };
+            }
+        } else {
+            remainingLines.push(line);
+        }
+    }
+
+    if (remainingLines.length >= 6) {
         let teams = [];
         for (let i = 0; i < 6; i += 2) {
-            const h = lines[i];
-            const p = lines[i+1] || '';
-            const m = h.match(headerRegex);
+            const h = remainingLines[i];
+            const p = remainingLines[i+1] || '';
+            const color = extractColor(h) || (i === 0 ? 'yellow' : (i === 1 ? 'blue' : 'red'));
             teams.push({
-                name: m ? m[2].trim() : h,
+                name: cleanTeamName(h) || `Team ${i/2+1}`,
+                color: color,
                 score: null,
                 rank: i / 2 + 1,
-                players: p.split(',').map(x => x.trim()).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
+                players: p.split(',').map(cleanPlayerToken).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
             });
         }
-        return { matchType: 'Tournament', teams, unparsed: lines.slice(6) };
-    } else {
-        const mA = lines[0]?.match(headerRegex);
-        const mB = lines[2]?.match(headerRegex);
+        return { matchType: 'Tournament', teams, unparsed: remainingLines.slice(6) };
+    } else if (remainingLines.length >= 4) {
+        const lineA = remainingLines[0];
+        const playersA = (remainingLines[1] || '').split(',').map(cleanPlayerToken).filter(Boolean);
+        const lineB = remainingLines[2];
+        const playersB = (remainingLines[3] || '').split(',').map(cleanPlayerToken).filter(Boolean);
+
+        const colorA = extractColor(lineA) || 'blue';
+        const colorB = extractColor(lineB) || (colorA === 'blue' ? 'red' : 'blue');
+
+        let scoreA = 0, scoreB = 0;
+        if (outcomeScores) {
+            if (outcomeScores.winnerColor) {
+                if (colorA === outcomeScores.winnerColor) {
+                    scoreA = outcomeScores.scoreWin;
+                    scoreB = outcomeScores.scoreLose;
+                } else {
+                    scoreA = outcomeScores.scoreLose;
+                    scoreB = outcomeScores.scoreWin;
+                }
+            } else if (outcomeScores.scoreA !== undefined) {
+                scoreA = outcomeScores.scoreA;
+                scoreB = outcomeScores.scoreB;
+            }
+        }
+
         return {
             matchType: 'Standard',
             teams: [
                 {
-                    name: mA ? mA[2].trim() : 'Team A',
-                    score: mA && mA[1] ? parseInt(mA[1]) : 0,
-                    players: (lines[1] || '').split(',').map(x => x.trim()).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
+                    name: cleanTeamName(lineA) || 'Team A',
+                    color: colorA,
+                    score: scoreA,
+                    players: playersA.map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
                 },
                 {
-                    name: mB ? mB[2].trim() : 'Team B',
-                    score: mB && mB[1] ? parseInt(mB[1]) : 0,
-                    players: (lines[3] || '').split(',').map(x => x.trim()).filter(Boolean).map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
+                    name: cleanTeamName(lineB) || 'Team B',
+                    color: colorB,
+                    score: scoreB,
+                    players: playersB.map(n => ({ rawName: n, playerId: null, confidence: 0.5 }))
                 }
             ],
-            unparsed: lines.slice(4)
+            unparsed: remainingLines.slice(4)
         };
+    } else {
+        return { matchType: 'Standard', teams: [], unparsed: rawLines };
     }
 }
 
