@@ -189,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupRosterSearch();
     setupGeminiKeyForm();
     setupRoastVariantHandlers();
+    setupChemistryHandlers();
 
     const lb = document.getElementById('leaderboard-body');
     if(lb) lb.addEventListener('click', (e) => {
@@ -1911,6 +1912,19 @@ function computeChemistryMatrix(matches) {
 
             const cleanPlayers = (t.players || []).map(p => ({ id: p, name: getPlayerDisplayName(p) })).sort((a, b) => a.id.localeCompare(b.id));
 
+            // Item 12: the pair detail sheet lists the matches a duo shared, so
+            // record a reference per appearance. Aggregates alone can't do it.
+            const res = isWin ? 'W' : (pts === 1 ? 'D' : 'L');
+            const md = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : null;
+            const ref = {
+                id: m.id,
+                ms: md && !isNaN(md.getTime()) ? md.getTime() : 0,
+                res,
+                teamName: t.teamName || '',
+                location: m.location || '',
+                type: m.type || 'Standard'
+            };
+
             for (let i = 0; i < cleanPlayers.length; i++) {
                 for (let j = i + 1; j < cleanPlayers.length; j++) {
                     const p1 = cleanPlayers[i];
@@ -1925,7 +1939,8 @@ function computeChemistryMatrix(matches) {
                             won: 0,
                             drawn: 0,
                             lost: 0,
-                            pts: 0
+                            pts: 0,
+                            refs: []
                         };
                     }
                     duos[key].played++;
@@ -1933,6 +1948,7 @@ function computeChemistryMatrix(matches) {
                     if (isWin) duos[key].won++;
                     else if (pts === 1) duos[key].drawn++;
                     else duos[key].lost++;
+                    duos[key].refs.push(ref);
                 }
             }
         });
@@ -2422,45 +2438,15 @@ function generateInsights(matches) {
         }).join('');
     };
 
-    // D. Regulars Synergy Heatmap (~26 regular players)
+    // D. Regulars Chemistry Matrix (Items 10-12).
+    // Only a mount point here: the section re-renders itself from chemContext
+    // whenever a control changes, so changing a filter does not rebuild — and
+    // re-scroll — the whole Stats tab.
     const regularIds = Object.values(eloData.sortedList).filter(p => p.matches >= 10).map(p => p.id).slice(0, 26);
-    let heatmapRows = '';
-    if (regularIds.length >= 4) {
-        heatmapRows = `
-        <div class="col-12 mb-4">
-            <div class="stat-card-custom">
-                <h6 class="small fw-bold text-muted mb-2"><i class="fas fa-th text-info me-2"></i>REGULARS CHEMISTRY MATRIX (MIN 10 APPEARANCES)</h6>
-                <small class="text-muted d-block mb-3">Win rates when playing on the same team. Min ${MIN_GAMES_PAIR} games required to show percentage.</small>
-                <div class="heatmap-container">
-                    <table class="heatmap-table">
-                        <thead>
-                            <tr>
-                                <th class="text-start ps-2">Player</th>
-                                ${regularIds.map(id => `<th title="${esc(getPlayerDisplayName(id))}">${esc(getPlayerDisplayName(id))}</th>`).join('')}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${regularIds.map(p1 => {
-                                const cells = regularIds.map(p2 => {
-                                    if (p1 === p2) return `<td class="heatmap-cell-empty bg-secondary bg-opacity-10">-</td>`;
-                                    const key1 = `${p1}__${p2}`;
-                                    const key2 = `${p2}__${p1}`;
-                                    const d = chemData.allDuos[key1] || chemData.allDuos[key2];
-                                    if (!d || d.played < MIN_GAMES_PAIR) {
-                                        return `<td class="heatmap-cell-empty" title="Fewer than ${MIN_GAMES_PAIR} games together">-</td>`;
-                                    }
-                                    const wr = Math.round((d.won / d.played) * 100);
-                                    const cellClass = wr >= 65 ? 'heatmap-cell-good' : (wr <= 35 ? 'heatmap-cell-bad' : 'heatmap-cell-avg');
-                                    return `<td class="${cellClass}" title="${esc(getPlayerDisplayName(p1))} & ${esc(getPlayerDisplayName(p2))}: ${wr}% (${d.won}W/${d.played}P)">${wr}%</td>`;
-                                }).join('');
-                                return `<tr><td class="text-start ps-2 fw-bold text-white bg-dark">${esc(getPlayerDisplayName(p1))}</td>${cells}</tr>`;
-                            }).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>`;
-    }
+    chemContext = { chemData, regularIds, eloOrder: eloData.sortedList.map(p => p.id) };
+    const heatmapRows = regularIds.length >= 4
+        ? `<div class="col-12 mb-4"><div class="stat-card-custom" id="chemistryMatrixMount"></div></div>`
+        : '';
 
     // E. Curse & Scoring Impact Cards
     const curseCardHtml = lineupData.cursed ? `
@@ -2673,6 +2659,9 @@ function generateInsights(matches) {
         <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-map-marker-alt text-danger me-2"></i>VENUE GOAL AVERAGES (STANDARD MATCHES ONLY)</h6>
         <div class="row mb-4">${venueCards || '<div class="small text-muted">No venue goal stats.</div>'}</div>
     `;
+
+    // Fill the chemistry mount now that it exists in the DOM.
+    renderChemistryMatrix();
 }
 
 window.openPlayerStats = (targetIdOrName) => {
@@ -4289,6 +4278,363 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         ghost
     };
 }
+
+
+/* ======================================================================
+   ITEMS 10-12: CHEMISTRY MATRIX — FILTERING, SORTING, FOCUS, DETAIL
+   ----------------------------------------------------------------------
+   A 26x26 grid is 676 cells. On a 360px phone about four columns are
+   legible at once, so sorting and filtering alone cannot make the grid
+   usable there — the grid is simply the wrong shape for the screen.
+   Below 576px the section therefore opens in focus mode (pick a player,
+   read their partners as a ranked list) with the full grid one tap away.
+   Desktop keeps the grid as the default. Everything derives from
+   chemData.allDuos, which renderStatsInsights has already computed.
+   ====================================================================== */
+
+let chemContext = null; // { chemData, regularIds, eloOrder } — set by renderStatsInsights
+const CHEM_METRICS = {
+    wr:    { label: 'Win %',    short: 'WIN %' },
+    ppg:   { label: 'PPG',      short: 'PPG' },
+    games: { label: 'Together', short: 'GAMES' }
+};
+const CHEM_MIN_OPTIONS = [1, 3, 5, 10];
+
+let chemState = {
+    minGames: MIN_GAMES_PAIR,
+    metric: 'wr',
+    sort: 'elo',
+    focusPlayer: null,
+    forceGrid: false   // set when a phone user explicitly asks for the grid
+};
+
+function chemIsNarrow() {
+    return window.innerWidth < 576;
+}
+
+function chemPairKey(a, b) {
+    return chemContext.chemData.allDuos[`${a}__${b}`] || chemContext.chemData.allDuos[`${b}__${a}`] || null;
+}
+
+// The value a cell shows for a pair, plus how it should be coloured.
+function chemCellValue(duo, maxGames) {
+    if (!duo) return null;
+    if (chemState.metric === 'wr') {
+        const wr = Math.round((duo.won / duo.played) * 100);
+        return { text: `${wr}%`, klass: wr >= 65 ? 'good' : (wr <= 35 ? 'bad' : 'avg'), raw: wr };
+    }
+    if (chemState.metric === 'ppg') {
+        const ppg = duo.pts / duo.played;
+        return { text: ppg.toFixed(2), klass: ppg >= 2 ? 'good' : (ppg <= 1 ? 'bad' : 'avg'), raw: ppg };
+    }
+    // 'games' has no natural good/bad, so shade by volume relative to the busiest pair.
+    const share = maxGames > 0 ? duo.played / maxGames : 0;
+    return { text: String(duo.played), klass: share >= 0.66 ? 'good' : (share <= 0.33 ? 'bad' : 'avg'), raw: duo.played };
+}
+
+// Per-player summary across partners that clear the current threshold.
+function chemPlayerSummary(playerId) {
+    const { regularIds } = chemContext;
+    let games = 0, won = 0, pts = 0, partners = 0;
+    regularIds.forEach(other => {
+        if (other === playerId) return;
+        const d = chemPairKey(playerId, other);
+        if (!d || d.played < chemState.minGames) return;
+        partners++;
+        games += d.played;
+        won += d.won;
+        pts += d.pts;
+    });
+    return {
+        partners,
+        games,
+        avgWr: games > 0 ? Math.round((won / games) * 100) : null,
+        avgPpg: games > 0 ? pts / games : null
+    };
+}
+
+function chemSortedIds() {
+    const { regularIds, eloOrder } = chemContext;
+    const ids = [...regularIds];
+    if (chemState.sort === 'name') {
+        return ids.sort((a, b) => getPlayerDisplayName(a).localeCompare(getPlayerDisplayName(b)));
+    }
+    if (chemState.sort === 'chem') {
+        return ids.sort((a, b) => {
+            const sa = chemPlayerSummary(a), sb = chemPlayerSummary(b);
+            return (sb.avgWr === null ? -1 : sb.avgWr) - (sa.avgWr === null ? -1 : sa.avgWr);
+        });
+    }
+    if (chemState.sort === 'games') {
+        return ids.sort((a, b) => chemPlayerSummary(b).games - chemPlayerSummary(a).games);
+    }
+    // 'elo' — the Elo ordering the matrix has always used
+    return ids.sort((a, b) => eloOrder.indexOf(a) - eloOrder.indexOf(b));
+}
+
+function chemControlsHtml() {
+    const minBtns = CHEM_MIN_OPTIONS.map(n => `
+        <button type="button" class="chem-chip${chemState.minGames === n ? ' active' : ''}" data-chem-min="${n}">${n}+</button>
+    `).join('');
+    const metricBtns = Object.keys(CHEM_METRICS).map(k => `
+        <button type="button" class="chem-chip${chemState.metric === k ? ' active' : ''}" data-chem-metric="${k}">${CHEM_METRICS[k].label}</button>
+    `).join('');
+    const sortOpts = [['elo', 'Elo rank'], ['name', 'Name'], ['chem', 'Best chemistry'], ['games', 'Most games']]
+        .map(([v, l]) => `<option value="${v}"${chemState.sort === v ? ' selected' : ''}>${l}</option>`).join('');
+
+    return `
+    <div class="chem-controls">
+        <div class="chem-control-group">
+            <span class="chem-control-label">Min games together</span>
+            <div class="chem-chip-row">${minBtns}</div>
+        </div>
+        <div class="chem-control-group">
+            <span class="chem-control-label">Metric</span>
+            <div class="chem-chip-row">${metricBtns}</div>
+        </div>
+        <div class="chem-control-group">
+            <span class="chem-control-label">Sort players by</span>
+            <select class="form-select form-select-sm bg-dark text-white border-secondary" id="chemSortSelect" style="font-size:0.8rem">${sortOpts}</select>
+        </div>
+    </div>`;
+}
+
+function chemFocusHtml() {
+    const focusId = chemState.focusPlayer;
+    const name = getPlayerDisplayName(focusId);
+    const summary = chemPlayerSummary(focusId);
+
+    const rows = chemContext.regularIds
+        .filter(id => id !== focusId)
+        .map(id => ({ id, duo: chemPairKey(focusId, id) }))
+        .filter(r => r.duo && r.duo.played >= chemState.minGames)
+        .map(r => {
+            const maxG = Math.max(...chemContext.regularIds.map(o => {
+                const d = chemPairKey(focusId, o);
+                return d ? d.played : 0;
+            }), 0);
+            return { ...r, cell: chemCellValue(r.duo, maxG) };
+        })
+        .sort((a, b) => b.cell.raw - a.cell.raw);
+
+    const list = rows.length === 0
+        ? `<div class="text-muted small py-4 text-center">
+               ${esc(name)} has no partner with ${chemState.minGames}+ games together. Lower the threshold to see more.
+           </div>`
+        : rows.map((r, i) => `
+            <button type="button" class="chem-focus-row" data-chem-pair="${esc(focusId)}|${esc(r.id)}">
+                <span class="chem-focus-rank">${i + 1}</span>
+                <span class="chem-focus-name">${esc(getPlayerDisplayName(r.id))}</span>
+                <span class="chem-focus-sub">${r.duo.won}W ${r.duo.drawn}D ${r.duo.lost}L · ${r.duo.played} together</span>
+                <span class="chem-val chem-${r.cell.klass}">${r.cell.text}</span>
+            </button>
+        `).join('');
+
+    const summaryLine = summary.games > 0
+        ? `${summary.partners} partner${summary.partners === 1 ? '' : 's'} · ${summary.avgWr}% average win rate together`
+        : 'No qualifying partnerships at this threshold';
+
+    return `
+        <div class="chem-focus-head">
+            <div style="min-width:0">
+                <div class="fw-bold text-white">${esc(name)}</div>
+                <small class="text-muted">${esc(summaryLine)}</small>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-chem-action="exit-focus">
+                <i class="fas fa-arrow-left me-1"></i>All players
+            </button>
+        </div>
+        <div class="chem-focus-list">${list}</div>
+        <small class="text-muted d-block mt-2" style="font-size:0.7rem">Ranked by ${esc(CHEM_METRICS[chemState.metric].label)}. Tap a partner for the shared matches.</small>
+    `;
+}
+
+function chemPlayerListHtml() {
+    const ids = chemSortedIds();
+    const rows = ids.map(id => {
+        const s = chemPlayerSummary(id);
+        const val = s.avgWr === null ? '—' : `${s.avgWr}%`;
+        const klass = s.avgWr === null ? 'avg' : (s.avgWr >= 65 ? 'good' : (s.avgWr <= 35 ? 'bad' : 'avg'));
+        return `
+        <button type="button" class="chem-focus-row" data-chem-focus="${esc(id)}">
+            <span class="chem-focus-name">${esc(getPlayerDisplayName(id))}</span>
+            <span class="chem-focus-sub">${s.partners} partner${s.partners === 1 ? '' : 's'} · ${s.games} games</span>
+            <span class="chem-val chem-${klass}">${val}</span>
+        </button>`;
+    }).join('');
+
+    return `
+        <div class="chem-focus-list">${rows}</div>
+        <button type="button" class="btn btn-sm btn-outline-info w-100 mt-2" data-chem-action="show-grid">
+            <i class="fas fa-table-cells me-1"></i>Show full grid
+        </button>
+        <small class="text-muted d-block mt-2" style="font-size:0.7rem">Average win rate with partners above the threshold. Tap a player for their partners.</small>
+    `;
+}
+
+function chemGridHtml() {
+    const ids = chemSortedIds();
+    const maxGames = Math.max(...Object.values(chemContext.chemData.allDuos).map(d => d.played), 0);
+
+    const head = ids.map(id => `<th title="${esc(getPlayerDisplayName(id))}">${esc(getPlayerDisplayName(id))}</th>`).join('');
+    const body = ids.map(p1 => {
+        const cells = ids.map(p2 => {
+            if (p1 === p2) return `<td class="heatmap-cell-empty bg-secondary bg-opacity-10">-</td>`;
+            const d = chemPairKey(p1, p2);
+            if (!d || d.played < chemState.minGames) {
+                return `<td class="heatmap-cell-empty" title="Fewer than ${chemState.minGames} games together">-</td>`;
+            }
+            const cell = chemCellValue(d, maxGames);
+            const tip = `${getPlayerDisplayName(p1)} & ${getPlayerDisplayName(p2)}: ${cell.text} (${d.won}W/${d.played}P)`;
+            return `<td class="heatmap-cell-${cell.klass} chem-cell" data-chem-pair="${esc(p1)}|${esc(p2)}" title="${esc(tip)}">${cell.text}</td>`;
+        }).join('');
+        return `<tr><td class="text-start ps-2 fw-bold text-white bg-dark chem-row-head" data-chem-focus="${esc(p1)}">${esc(getPlayerDisplayName(p1))}</td>${cells}</tr>`;
+    }).join('');
+
+    const backToList = chemIsNarrow()
+        ? `<button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" data-chem-action="show-list"><i class="fas fa-list me-1"></i>Back to player list</button>`
+        : '';
+
+    return `
+        <div class="heatmap-container">
+            <table class="heatmap-table">
+                <thead><tr><th class="text-start ps-2">Player</th>${head}</tr></thead>
+                <tbody>${body}</tbody>
+            </table>
+        </div>
+        ${backToList}
+        <small class="text-muted d-block mt-2" style="font-size:0.7rem">Tap a cell for the pair's shared matches, or a name on the left for that player's partners.</small>
+    `;
+}
+
+function renderChemistryMatrix() {
+    const mount = document.getElementById('chemistryMatrixMount');
+    if (!mount || !chemContext) return;
+
+    // A filter change can drop the focused player out of the regulars list.
+    if (chemState.focusPlayer && !chemContext.regularIds.includes(chemState.focusPlayer)) {
+        chemState.focusPlayer = null;
+    }
+
+    let bodyHtml;
+    if (chemState.focusPlayer) {
+        bodyHtml = chemFocusHtml();
+    } else if (chemIsNarrow() && !chemState.forceGrid) {
+        bodyHtml = chemPlayerListHtml();
+    } else {
+        bodyHtml = chemGridHtml();
+    }
+
+    const metricLabel = CHEM_METRICS[chemState.metric].label;
+    mount.innerHTML = `
+        <h6 class="small fw-bold text-muted mb-2"><i class="fas fa-th text-info me-2"></i>REGULARS CHEMISTRY MATRIX (MIN 10 APPEARANCES)</h6>
+        <small class="text-muted d-block mb-3">${esc(metricLabel)} when playing on the same team, for pairs with ${chemState.minGames}+ games together.</small>
+        ${chemControlsHtml()}
+        ${bodyHtml}
+    `;
+}
+
+// One delegated listener for the whole section — chemistry controls and cells
+// carry player ids, and an inline onclick would break on any id with a quote.
+function setupChemistryHandlers() {
+    const container = document.getElementById('insightsContainer');
+    if (!container) return;
+
+    container.addEventListener('click', (e) => {
+        const minBtn = e.target.closest('[data-chem-min]');
+        if (minBtn) { chemState.minGames = parseInt(minBtn.dataset.chemMin, 10); return renderChemistryMatrix(); }
+
+        const metricBtn = e.target.closest('[data-chem-metric]');
+        if (metricBtn) { chemState.metric = metricBtn.dataset.chemMetric; return renderChemistryMatrix(); }
+
+        const focusBtn = e.target.closest('[data-chem-focus]');
+        if (focusBtn) { chemState.focusPlayer = focusBtn.dataset.chemFocus; return renderChemistryMatrix(); }
+
+        const pairBtn = e.target.closest('[data-chem-pair]');
+        if (pairBtn) {
+            const [a, b] = pairBtn.dataset.chemPair.split('|');
+            return openPairDetail(a, b);
+        }
+
+        const action = e.target.closest('[data-chem-action]');
+        if (!action) return;
+        const what = action.dataset.chemAction;
+        if (what === 'exit-focus') { chemState.focusPlayer = null; }
+        else if (what === 'show-grid') { chemState.forceGrid = true; }
+        else if (what === 'show-list') { chemState.forceGrid = false; }
+        renderChemistryMatrix();
+    });
+
+    container.addEventListener('change', (e) => {
+        if (e.target && e.target.id === 'chemSortSelect') {
+            chemState.sort = e.target.value;
+            renderChemistryMatrix();
+        }
+    });
+
+    // Rotating a phone can cross the 576px boundary, which changes the default
+    // view. Only re-render when the answer actually changed.
+    let wasNarrow = chemIsNarrow();
+    window.addEventListener('resize', () => {
+        const nowNarrow = chemIsNarrow();
+        if (nowNarrow !== wasNarrow) {
+            wasNarrow = nowNarrow;
+            renderChemistryMatrix();
+        }
+    });
+}
+
+/** Item 12: the pair's record and every match they shared. */
+window.openPairDetail = (idA, idB) => {
+    if (!chemContext) return;
+    const duo = chemPairKey(idA, idB);
+    const nameA = getPlayerDisplayName(idA);
+    const nameB = getPlayerDisplayName(idB);
+
+    const titleEl = document.getElementById('pairDetailTitle');
+    const bodyEl = document.getElementById('pairDetailBody');
+    if (!titleEl || !bodyEl) return;
+
+    titleEl.textContent = `${nameA} & ${nameB}`;
+
+    if (!duo) {
+        bodyEl.innerHTML = `<div class="text-muted small py-3 text-center">${esc(nameA)} and ${esc(nameB)} have never played on the same team.</div>`;
+    } else {
+        const wr = Math.round((duo.won / duo.played) * 100);
+        const ppg = (duo.pts / duo.played).toFixed(2);
+        const refs = [...duo.refs].sort((a, b) => b.ms - a.ms);
+        const rows = refs.map(r => {
+            const cls = r.res === 'W' ? 'badge-form-w' : (r.res === 'D' ? 'badge-form-d' : 'badge-form-l');
+            return `
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary border-opacity-25">
+                <div style="min-width:0">
+                    <div class="text-white small fw-bold">${r.ms ? esc(formatDate(new Date(r.ms))) : 'Unknown date'}</div>
+                    <small class="text-muted">${esc(r.teamName || 'Team')}${r.location ? ' · ' + esc(r.location) : ''}</small>
+                </div>
+                <span class="badge ${cls}">${r.res}</span>
+            </div>`;
+        }).join('');
+
+        bodyEl.innerHTML = `
+            <div class="row text-center g-2 mb-3">
+                <div class="col-4"><div class="p-2 rounded bg-dark border border-secondary">
+                    <div class="fs-5 fw-bold text-info">${wr}%</div><small class="text-muted" style="font-size:0.65rem">WIN RATE</small></div></div>
+                <div class="col-4"><div class="p-2 rounded bg-dark border border-secondary">
+                    <div class="fs-5 fw-bold text-warning">${ppg}</div><small class="text-muted" style="font-size:0.65rem">PPG</small></div></div>
+                <div class="col-4"><div class="p-2 rounded bg-dark border border-secondary">
+                    <div class="fs-5 fw-bold text-white">${duo.played}</div><small class="text-muted" style="font-size:0.65rem">TOGETHER</small></div></div>
+            </div>
+            <div class="text-center small text-muted mb-3">${duo.won}W · ${duo.drawn}D · ${duo.lost}L as teammates</div>
+            <h6 class="small fw-bold text-muted mb-1">SHARED MATCHES</h6>
+            <div class="chem-pair-matches">${rows}</div>
+        `;
+    }
+
+    const modalEl = document.getElementById('pairDetailModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+};
 
 /* ======================================================================
    ITEM 42: FIXTURES, ROAST STUDIO & PREDICTION LIFECYCLE

@@ -133,23 +133,45 @@ All six are bugs, not features. Items 1 and 2 together are the entire cause of
 
 ---
 
-## Phase 4 — Chemistry matrix interactivity
+## Phase 4 — Chemistry matrix interactivity  ✅ complete
 
 Today: a static 26×26 all-time table, fixed min-3-games threshold, `title=`
 tooltips that do not exist on touch. Everything below derives from
 `chemData.allDuos`, which is already computed — no new data entry, no new reads.
 
-- [ ] **10. Min-games slider and metric toggle**
+- [x] **10. Min-games slider and metric toggle**
   - Threshold 1 / 3 / 5 / 10 to trade noise against coverage.
   - Metric toggle: Win % · PPG · games together.
 
-- [ ] **11. Row sort and focus-on-player mode**
+- [x] **11. Row sort and focus-on-player mode**
   - Sort rows by name / Elo / average chemistry / most games.
   - Tap a player name to collapse the matrix to that player's row as a sorted
     list — the only form a 360px screen can really display.
 
-- [ ] **12. Tap-a-cell detail sheet**
-  - Bottom sheet with the pair's full record and the list of shared matches.
+- [x] **12. Tap-a-cell detail sheet**
+  - Modal with the pair's win rate, PPG, W/D/L record and every match they shared
+    (date, team name, venue, result), newest first.
+  - `computeChemistryMatrix()` now records a reference per pair appearance; the
+    aggregates alone could not produce the list.
+
+### How the section is built
+
+The matrix renders into its own mount (`#chemistryMatrixMount`) from
+`chemContext`, so a control change re-renders only that card instead of
+rebuilding — and re-scrolling — the whole Stats tab. One delegated listener on
+`#insightsContainer` handles every control, cell and row, since player ids ride
+in `data-` attributes.
+
+**Below 576px the section opens in focus mode**, agreed 2026-08-21: a ranked
+player list, tap a name for that player's partners, with "Show full grid" one tap
+away. A 26x26 grid is 676 cells and only about four columns are legible at 360px,
+so filtering and sorting alone could not make the grid usable there. Desktop keeps
+the grid as its default. Crossing the breakpoint on rotate re-renders.
+
+Verified: mobile list (26 rows) → focus (20 partners, correctly ranked) → pair
+modal (75%, 2.38 PPG, 8 together, 8 matches listed); metric toggle re-sorts;
+thresholds filter 1+ → 546 cells, 3+ → 336, 10+ → 18; sorts reorder as expected;
+desktop grid 26x27 intact; no page overflow; no console errors.
 
 ---
 

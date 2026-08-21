@@ -313,6 +313,105 @@
         .heatmap-cell-avg { background: rgba(210, 153, 34, 0.25); color: #f0883e; font-weight: 700; }
         .heatmap-cell-bad { background: rgba(248, 81, 73, 0.25); color: #ff7b72; font-weight: 700; }
         .heatmap-cell-empty { color: #444; font-size: 0.65rem; }
+
+        /* CHEMISTRY MATRIX CONTROLS, FOCUS MODE & PAIR DETAIL (items 10-12) */
+        .chem-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 10px;
+            margin-bottom: 12px;
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .chem-control-group { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+        .chem-control-label {
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+        .chem-chip-row { display: flex; flex-wrap: wrap; gap: 4px; }
+        .chem-chip {
+            /* 32px min keeps these thumb-sized on a phone */
+            min-height: 32px;
+            padding: 4px 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+        .chem-chip:hover { border-color: #555; color: var(--text-main); }
+        .chem-chip.active {
+            background: rgba(47, 129, 247, 0.2);
+            border-color: var(--accent);
+            color: #79b8ff;
+        }
+
+        .chem-focus-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .chem-focus-list { display: flex; flex-direction: column; }
+        .chem-focus-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            grid-template-areas: "rank name value" "rank sub value";
+            align-items: center;
+            column-gap: 10px;
+            width: 100%;
+            min-height: 48px;          /* comfortable tap target */
+            padding: 8px 6px;
+            text-align: left;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.6);
+            cursor: pointer;
+        }
+        .chem-focus-row:last-child { border-bottom: none; }
+        .chem-focus-row:hover { background: rgba(255, 255, 255, 0.03); }
+        .chem-focus-rank {
+            grid-area: rank;
+            width: 22px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-align: center;
+        }
+        .chem-focus-name {
+            grid-area: name;
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: var(--text-main);
+            overflow-wrap: anywhere;
+        }
+        .chem-focus-sub { grid-area: sub; font-size: 0.7rem; color: var(--text-muted); }
+        .chem-val {
+            grid-area: value;
+            font-weight: 700;
+            font-size: 0.95rem;
+            padding: 2px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        .chem-good { background: rgba(46, 160, 67, 0.2); color: #3fb950; }
+        .chem-avg  { background: rgba(210, 153, 34, 0.2); color: #f0883e; }
+        .chem-bad  { background: rgba(248, 81, 73, 0.2); color: #ff7b72; }
+
+        .chem-cell, .chem-row-head { cursor: pointer; }
+        .chem-cell:hover { outline: 1px solid var(--accent); }
+        .chem-pair-matches { max-height: 45vh; overflow-y: auto; }
     </style>
 </head>
 <body>
@@ -600,6 +699,19 @@
     <div class="modal fade" id="loginModal" tabindex="-1"><div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content bg-dark border-secondary p-4"><h6 class="fw-bold text-center mb-3">ADMIN ACCESS</h6><form id="loginForm"><input type="email" id="loginEmail" class="form-control mb-2" placeholder="Email" required style="font-size:16px;"><input type="password" id="loginPass" class="form-control mb-3" placeholder="Password" required style="font-size:16px;"><button type="submit" class="btn btn-light w-100">Login</button></form><div id="userInfo" class="d-none text-center"><small id="userEmailDisplay" class="d-block mb-3 text-muted"></small><button class="btn btn-outline-danger btn-sm w-100" id="logoutBtn">Logout</button></div></div></div></div>
     <div class="modal fade" id="playerStatsModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-header border-secondary pb-0"><h5 class="modal-title fw-bold" id="psName">Player</h5><div class="d-flex align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-info py-0 px-2" id="sharePlayerBtn" onclick="shareCurrentPlayer()"><i class="fas fa-share-alt me-1"></i>Share</button><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div></div><div class="modal-body pt-3" id="psBody"></div></div></div></div>
     <div class="modal fade" id="matchDetailModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-dark border-secondary"><div class="modal-body" id="modalBody"></div></div></div></div>
+
+    <!-- Pair Chemistry Detail (Item 12) -->
+    <div class="modal fade" id="pairDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title fw-bold" id="pairDetailTitle">Pair</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="pairDetailBody"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Disambiguate Player Modal -->
     <div class="modal fade" id="disambiguateModal" tabindex="-1">
