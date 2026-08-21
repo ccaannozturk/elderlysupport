@@ -282,14 +282,17 @@ Full diagnosis and step-by-step plan: `docs/HANDOVER-PHASE-7.md`. Written as a
 standalone handover doc since it's meant to be picked up by an agent with no
 memory of the session that diagnosed it.
 
-Three items: (17) `queryStats`'s AI answers use a third, untested Elo/streak
+Four items: (17) `queryStats`'s AI answers use a third, untested Elo/streak
 implementation that silently drops tournament matches — while the site,
 `generateMatchRecap`, and every other stat already handle tournaments
 correctly; (18) remove the award-citation feature end to end (maintainer
 doesn't want it); (19) `public-data/league.json` currently refreshes on a
 6-hour cron — decide with the maintainer whether "always current" means an
 event-driven Firestore trigger or a shorter cron interval before building
-either.
+either; (20) Roast Studio's fixture paste uses its own regex parser that
+never calls the AI, so it resolves team names as players, ignores `(R)` role
+markers, and silently drops a third team — route it through `parseLineup`
+and extend fixtures to hold 3 squads (agreed 2026-08-21).
 
 ---
 
