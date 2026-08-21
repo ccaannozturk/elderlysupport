@@ -2482,7 +2482,9 @@ exports.saveRoastSettings = functions.https.onCall(async (data, context) => {
 });
 
 /** 16. Phase 7: Event-driven public league data refresh */
-exports.onMatchWritten = functions.firestore
+exports.onMatchWritten = functions
+  .runWith({ secrets: ['GITHUB_DISPATCH_TOKEN'] })
+  .firestore
   .document('matches_v2/{matchId}')
   .onWrite(async (change, context) => {
     // Fire-and-forget GitHub repository_dispatch event to refresh public-data/league.json
