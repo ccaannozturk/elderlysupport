@@ -89,12 +89,15 @@ service cloud.firestore {
     /* ========== FIXTURES & ROASTS (Item 42) ========== */
     // Rules are not filters. A listener that does not carry a query constraint
     // matching the condition below is rejected outright — it is not silently
-    // narrowed to the readable documents. The client therefore listens with
+    // narrowed to the readable documents. That is what broke the public Roast and
+    // Next Game cards: app.js listened unconstrained. It now listens with
     // .where('status','==','scheduled') / .where('status','==','published') when
-    // signed out, and unconstrained only as admin. Keep the conditions below and
-    // those queries identical: an inequality here (status != 'draft') does NOT
-    // reliably admit an equality query, which is what broke the public Roast and
-    // Next Game cards.
+    // signed out, and unconstrained only as admin.
+    //
+    // Verified in the rules emulator: an inequality condition here
+    // (status != 'draft') DOES admit the equality query, so the previous wording
+    // works too. These conditions mirror the client queries exactly anyway —
+    // that is the intent, not a workaround.
     match /fixtures/{fixtureId} {
       allow read: if isAdmin() || (resource != null && resource.data.status == 'scheduled');
       allow write: if isAdmin();
@@ -103,6 +106,20 @@ service cloud.firestore {
     match /roasts/{roastId} {
       allow read: if isAdmin() || (resource != null && resource.data.status == 'published');
       allow write: if isAdmin();
+    }
+
+    /* ========== CONFIG ========== */
+    // The API key itself (config/gemini) deliberately has NO rule, so it falls to
+    // the default deny below and is unreadable by every client including the
+    // admin. Cloud Functions reach it through the Admin SDK, which bypasses rules.
+    //
+    // config/gemini_meta holds only non-secret metadata (last 4 characters,
+    // updatedAt, selected model). openGeminiSettings() reads it directly, and
+    // without this rule that read was denied and swallowed by a try/catch — the
+    // settings modal showed "Not configured" even with a key installed.
+    match /config/gemini_meta {
+      allow read: if isAdmin();
+      allow write: if false;   // written by Cloud Functions via the Admin SDK
     }
 
     match /config/roast_settings {
