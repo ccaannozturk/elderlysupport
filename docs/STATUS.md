@@ -1,173 +1,146 @@
-# Elderly Support League — System Status & Capabilities Report
+# Elderly Support League — System Status
 
-**Current State:** Stages A, B, and C Complete · Live in Production  
-**Active Branch:** `main` (Latest commit synced with GitHub Pages)  
-**Database:** Cloud Firestore (`matches_v2`, `players_v2`, `locations`, `config/gemini_meta`)  
-**Backend:** Firebase Cloud Functions (Node.js 22, `us-central1`)  
+**State:** live in production, `main` synced to GitHub Pages.
+**Database:** Firestore — `matches_v2`, `players_v2`, `locations`, `awards`,
+`fixtures`, `roasts`, `config/*` are canonical. `matches` / `players` are
+retired (read-only, kept for history).
+**Backend:** Cloud Functions, Node 22, `us-central1`.
+
+For the itemized history of what shipped and when, see
+[`docs/PLAN.md`](PLAN.md). This file is a snapshot of the current system, not
+a changelog.
 
 ---
 
-## 1. System Overview & Architecture
+## 1. Architecture
 
 ```mermaid
 graph TD
-    Client["Mobile & Web Client (GitHub Pages)"]
-    Auth["Firebase Auth (Admin: can.ozturk1907@gmail.com)"]
+    Client["Browser (GitHub Pages)"]
+    Core["stats-core.js — the ONLY statistics engine"]
+    Auth["Firebase Auth"]
     CF["Cloud Functions (us-central1)"]
-    Gemini["Google AI Studio (Gemini 1.5 Flash)"]
+    Gemini["Google AI Studio (Gemini)"]
     FS[("Cloud Firestore")]
+    Export["scripts/export-public.js"]
+    Pages["public-data/league.json"]
 
-    Client -->|Public Reads / Live UI| FS
-    Client -->|Admin Login| Auth
-    Client -->|Callable Functions| CF
-    CF -->|Verify Token & Email| Auth
-    CF -->|Fetch Key & Registry| FS
-    CF -->|Prompt + Strict Schema| Gemini
-    CF -->|Server Validation| FS
+    Client -->|loads| Core
+    Client -->|public reads, live UI| FS
+    Client -->|sign in| Auth
+    Client -->|callable functions| CF
+    CF -->|verify token & email| Auth
+    CF -->|fetch key & registry| FS
+    CF -->|prompt| Gemini
+    Export -->|requires| Core
+    Export -->|public REST reads| FS
+    Export -->|writes, on a schedule| Pages
 ```
 
-### Security & Access Control
-- **Zero Client Key Exposure:** The Google AI Studio Gemini API key is stored securely in Firestore `config/gemini` with `allow read, write: if false;`. It is never transmitted to or readable by any web client.
-- **Admin Authentication:** All administrative actions (saving matches, editing, deleting, updating AI settings, creating players/locations) are enforced by `firestore.rules` and Cloud Functions via Firebase Auth email verification (`can.ozturk1907@gmail.com`).
-- **Data Integrity:** Production data runs exclusively on canonical collections `players_v2` (68 unique identities) and `matches_v2` (65 verified matches).
+`stats-core.js` is the single implementation of Elo, chemistry, streaks,
+nemesis, attendance, and the optimal-lineup finder. It is loaded by
+`index.html` before `app.js`, and `require()`'d by `scripts/export-public.js`.
+The website's Stats tab and the public JSON export run identical code — they
+cannot disagree with each other.
 
----
+`functions/index.js` keeps its own copy of the Elo engine, because Cloud
+Functions only upload the `functions/` directory and cannot `require()` a
+file outside it. `tests/elo-parity.test.js` runs both against the same
+dataset and fails if a single rating diverges.
 
-## 2. Completed Features & Functionality
+## 2. Access model
 
-### 🟢 Stage A — Core Engine & Quality Fixes
-- **Full HTML Escaping & Injection Defense:** All user and player inputs are escaped via `esc()` and URL schemes are validated via `safeUrl()`.
-- **Apostrophe & Special Character Handling:** Player management uses delegated DOM listeners and `data-` attributes, fully supporting names with apostrophes (e.g. `O'Brien`, `D'Angelo`) and accents.
-- **Timestamp & Date Robustness:** Fixed `NaN` sorting bugs by using Firestore `Timestamp.toMillis()`. Defensive date parsing guards against corrupted documents.
-- **Unified Filtering ("All Time" / Year / Month):** Leaderboard, stats summary, and individual player modals respect active filters synchronously.
-- **PPG Minimum-Appearance Qualifier:** Leaderboard enforces a **10-appearance qualifier** to rank on Points-Per-Game. Unqualified players are displayed below a clean separator.
-- **Venue & Match Statistics:** High-scoring games, biggest blowouts, most frequent draws, and per-venue goal/win averages (indoor vs. outdoor).
+Two tiers. There is no role system in Firebase — these are hardcoded email
+allowlists, kept in step across three places: `firestore.rules`
+(`isOwner()` / `isOrganizer()`), `functions/index.js`
+(`OWNER_EMAIL` / `ORGANIZER_EMAILS`), and `app.js` (`SUPER_ADMIN` /
+`ORGANIZERS`, presentation only).
 
----
+| | Organizer | Owner |
+|---|---|---|
+| Match entry, edit | ✅ | ✅ |
+| Add players, venues | ✅ | ✅ |
+| Fixtures, roasts (create, publish) | ✅ | ✅ |
+| Every AI tool | ✅ | ✅ |
+| Delete a match / roast / fixture | — | ✅ |
+| Rename or delete a player | — | ✅ |
+| Gemini API key, model, connection test | — | ✅ |
+| Roast opt-out list, profanity setting | — | ✅ |
 
-### 🟢 Stage B — Canonical Identity Layer & Resolver
-- **Authoritative Player Registry (`players_v2`):**
-  - Stable player IDs (e.g., `daniel_gomez`, `daniel_muller`, `anderson_brazil`, `javi_farres`, `javi_bernardo`).
-  - Case-insensitive alias matching array (`aliases: ["dani g", "dani gomez", "daniel g"]`).
-  - Matches store immutable player IDs instead of raw strings; display name updates propagate across all historical stats instantly.
-- **Zero-Typo Resolver with Hard Gate:**
-  - **Green Chip (Resolved):** Exact alias or high-confidence match.
-  - **Amber Chip (Ambiguous):** Single high-confidence fuzzy candidate requiring 1-tap confirmation.
-  - **Red Chip (Conflict / Multiple Candidates):** Forces explicit maintainer selection.
-  - **New Player Dialog:** Prompts before creating a new canonical player, displaying the 3 closest existing names first to eliminate typos.
-  - **Hard Gate:** The **SAVE** button is strictly disabled whenever any chip is Amber or Red.
-- **Context Constraints:** Automatically prevents the same player from appearing on multiple teams in the same match.
+The split is about blast radius, not trust: an organizer can do the whole
+week-to-week job; only the owner can touch billing, reopen a promise made to
+an opted-out player, or destroy history that has no undo.
 
----
+## 3. Feature areas
 
-### 🟢 Stage C — Mobile-First Entry & AI Magic Paste
-- **AI Magic Paste (Lineup Extraction):**
-  - Paste unmodified WhatsApp lineup messages directly.
-  - Cloud Function `parseLineup` injects the active roster registry into Gemini, extracting match type, date, venue, team names, jersey colors, scores, and player IDs.
-  - **Resilient Parsing:** Strips role markers (e.g. `Patrick (Ref)`), parses nickname initials (`Dani G` → `Daniel Gomez`, `Dani M` → `Daniel Müller`), resolves prefixes (`Antra` → `Antraniek`, `Gus` → `Gustavo`), handles standalone `Vs` delimiters, and extracts natural-language outcome sentences (`"red team won 3-2"`).
-  - Unparsed lines are surfaced in a prominent warning box.
-- **Roster Quick-Pick Grid:**
-  - Fast tap-to-add / tap-to-remove chips for the ~26 regular players.
-  - Target selector (`[+ Team A]`, `[+ Team B]` or `[+ Yellow]`, `[+ Blue]`, `[+ Red]`) enables rapid single-handed lineup assembly.
-  - Live search input instantly filters occasional players.
-- **Tournament Rank Buttons:** Segmented 1st / 2nd / 3rd buttons with auto-assigned 3 / 1 / 0 points and uniqueness validation.
-- **Goal Calculation Fix:** Goal statistics (`GF`, `GA`, `GD`, Goals/Game) are computed exclusively on Standard matches, eliminating tournament dilution.
-- **Location Management:**
-  - Real-time Firestore sync with `locations` collection.
-  - `[+]` Add Location button next to the dropdown allows adding new halls on the fly (e.g., `Sporthal De Pijp`).
-- **Safety Safeguards:** Duplicate-match guard (date + venue collision check) and detailed Bootstrap delete confirmation modal.
-- **Gemini Settings & Free-Tier Fallback Chain (Fixed):**
-  - **Fallback Chain:** Single exported constant `MODEL_FALLBACK_CHAIN = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']`.
-  - **Error Discrimination:** Walks fallback chain on 404 (model not found), 403 on model, or 400 (deprecated/parameter mismatch). Does NOT walk chain on 429 (rate limit) or invalid API keys.
-  - **Paid-Model Guard:** `KNOWN_PAID_MODELS` list protects against Blaze billing by warning in UI on paid model selection. Zero paid models allowed in the fallback chain.
-  - **Filtered Models List:** Strictly filters API models to text generation only (`generateContent`), excluding image, music (Lyria), TTS, robotics, and computer use models.
-  - **Universal Parameter Compatibility:** Removed `temperature` / `top_p` / `top_k` / `thinking_level` from request generationConfig to prevent HTTP 400 failures on newer Flash models.
-  - **UI Persistence & Status:** Preserves selected model across panel re-opens, displays last used model and fallback notices.
+- **Matches** — Standard (2 teams, goals) and Tournament (3 teams, ranked)
+  formats. Mobile-first entry: roster quick-pick grid, AI Magic Paste from a
+  raw WhatsApp message, tournament rank buttons, duplicate-match guard.
+- **Player identity** — canonical `players_v2` registry with a resolver that
+  hard-gates save on any ambiguous or unresolved name.
+- **Statistics** — Elo ratings (provisional under 5 games), streaks and
+  rolling form, nemesis/rivalry, chemistry matrix (min-games threshold,
+  Win%/PPG/games-together toggle, sortable, tap-a-player focus mode on
+  narrow screens, tap-a-cell match detail), optimal 5-player lineup, curse
+  stat, attendance and milestones, venue goal averages.
+- **Community tab** — next fixture (with an "awaiting result" state once a
+  scheduled match's time has passed), roast of the week (demotes to "latest
+  roast" after 7 days, retires after 30), weekly power rankings, milestone
+  watch, monthly awards. Awards use a tiered qualifier — `qualified` →
+  `relaxed` → `best available` — so a thin month shows a labelled
+  approximation instead of rendering blank.
+- **Deep links** — `?player=`, `?match=`, `?roast=`, `?fixture=`, `?tab=`.
+- **PWA** — installable, offline reads via a service worker
+  (`docs/SERVICE_WORKER.md`), Web Share on match/player/roast/fixture cards.
+- **Public data export** — `public-data/league.json`, generated by
+  `scripts/export-public.js` from `stats-core.js` (schema v2: counting
+  stats, Elo, chemistry pairs, streaks, nemesis, attendance — no roasts, no
+  Elo/chemistry reimplementation risk). Refreshed automatically every 6h by
+  `.github/workflows/refresh-public-data.yml`, or on demand from the Actions
+  tab. See `docs/PUBLIC-DATA.md`.
 
-### 🟢 Stage D — Statistics & Analytics Engine
-- **Elo & Power Ranking Engine (Item 16):** Chronological, deterministic (date + doc ID tiebreak) Elo ratings (Starting 1200, K=32/48, Tournament half-K=16/24). Inline provisional rating badge (`? Provisional (X/5)`) for players with < 5 appearances.
-- **Nemesis & Rivalry Engine (Item 17):** Head-to-head tracking against all opponents (including tournament placement comparisons). Displays most-lost-to nemesis (`"Lost 4 of 5 to Hector"`) and duo split metrics (together vs opposed) with $\ge 3$ match threshold.
-- **Streaks & Rolling Form (Item 18):** Current and all-time longest Win, Loss, and Unbeaten runs; rolling 5-match form guide badges (`W W D W L`); embedded SVG rolling 5-game PPG career trajectory chart; and Most Improved Player of the Month calculation.
-- **Chemistry Matrix & Duo Leaderboards (Item 19):** Deadliest Duos (Top 10), Worst Duos (Top 10), and Most Frequent Duos with sample size visibility on every row (`"5 games together"`) and small-sample badges for 3–4 games; compact Regulars Synergy Heatmap for players with $\ge 10$ caps.
-- **Attendance & Indefinite Milestones (Item 20):** Milestone badges dynamically derived for 25, 50, 75, 100, 125... Caps; attendance denominator computed strictly from player's debut date (`"12 of 18 since debut (67%)"`); Iron Men consecutive attendance runs; and One-Cap Wonders list.
-- **Optimal Lineup & Curse Stat (Item 22):** Optimal 5-player lineup from eligible Elo ratings ($\ge 5$ games); The Curse Stat (player whose presence most lowers team scored goals relative to league average GF in Standard matches); The Blessed Stat; and Goal Differential (GD/game) as a distinct metric.
+## 4. Cloud Functions
 
-### 🟢 Stage D+ — AI Extensions
-- **Match Recap Blurbs (Item 33):** Admin-triggered, 2-sentence match recap blurb stored on `matches_v2.recap`. Factual, warm tone, naming only players in the lineup. Fire-and-forget background execution on match save (never blocks save) with manual admin regeneration button.
-- **Natural Language Stats Query (Item 34):** Admin-gated Q&A assistant in the Admin tab. Constructs rich JSON context of computed Stage D statistics and answers questions strictly from numbers without guessing or inventing.
-- **Award and Milestone Copy (Item 35):** Admin callable hook `generateAwardsCopy` for writing one-sentence citations around pre-computed monthly awards and milestone notices.
-- **Alias Suggestion on Player Creation (Item 36):** Interactive "Suggest Aliases" button on create player dialog. Returns plausible variations and server-side strips any collisions with existing player identities. Suggestions rendered as unchecked clickable pills.
-- **Data Health Audit Diagnostic Tool (Item 37):** One-off advisory diagnostic tool in Admin tab. Analyzes database metrics (score outliers, date gaps, unusual lineups) and outputs health insights.
+| Function | Tier | Purpose |
+|---|---|---|
+| `setGeminiKey` | Owner | Set/validate the Gemini API key |
+| `testGeminiConnection` | Owner | Connection test, lists live models |
+| `setGeminiModel` | Owner | Persist the selected model |
+| `parseLineup` | Organizer | AI Magic Paste — raw text → structured match |
+| `generateMatchRecap` | Organizer | Two-sentence factual match recap |
+| `queryStats` | Organizer | Natural-language stats Q&A |
+| `generateAwardsCopy` | Organizer | Award/milestone citation copy |
+| `suggestAliases` | Organizer | Alias suggestions on player creation |
+| `auditDataHealth` | Organizer | Data anomaly diagnostic |
+| `getRoastAngleCandidates` | Organizer | Roast Studio: candidate angles |
+| `generateRoastVariants` | Organizer | Roast Studio: generate variants |
+| `publishRoast` | Organizer | Publish a roast to the Community tab |
+| `generateFixturePreview` | Organizer | Draft a fixture with predicted winner |
+| `saveFixture` | Organizer | Persist a fixture |
+| `resolveFixtureToMatch` | Organizer | Link a played fixture to its match |
+| `archiveFixture` | Organizer | Archive a fixture |
+| `saveRoastSettings` | Owner | Intensity, profanity, opt-out list |
+| `triggerBackup` | Owner | On-demand Firestore backup |
+| `scheduledBackup` | — (Sunday 03:00 cron) | Automated weekly backup |
 
-### 🟢 Stage E — Community Layer & PWA (Complete)
-- **Item 32: PWA, Service Worker & Deep Links:**
-  - `manifest.json` and standalone web app meta tags for iOS & Android home screen installation.
-  - Safe Service Worker (`sw.js`) with cache versioning (`esl-static-v1`), Network-First app shell caching, and strict exclusions for Firestore SDK, Firebase Auth, and Cloud Functions. Documented emergency kill switch in `docs/SERVICE_WORKER.md`.
-  - Offline IndexedDB read persistence (`db.enablePersistence`).
-  - Deep link URL routing for `?player=<id>`, `?match=<docId>`, `?tab=<name>` with case-insensitive fallback resolution against aliases and display names.
-  - Native Share buttons with `navigator.share` / clipboard copy fallback on Match cards and Player cards.
-- **Item 25: Weekly Power Rankings:**
-  - 7-day Elo rank movement table with `▲ +delta`, `▼ delta`, `― 0` badges.
-  - Strictly excludes provisional players (< 5 games) from movement badges, displaying standard `? Provisional (X/5)`.
-  - Comparison window date banner and empty state for inactive weeks.
-- **Item 28: Milestone Watch:**
-  - Detects players within 1–2 games of caps milestones at 25-intervals (`MILESTONE_INTERVAL = 25`).
-- **Item 29: Monthly Awards:**
-  - Month/Year historical selector.
-  - Player of the Month (top PPG, min 3 games), Most Improved (+Δ PPG vs baseline, min 3 games), Iron Men (100% attendance), Worst Duo (min 3 games together), and Ghost of the Month (lowest attendance among regulars with >= 10 career caps).
-  - AI Citation blurb cached to Firestore `awards/{YYYY-MM}` with Admin generation trigger.
-- **Item 38: Retired Legacy Collections:**
-  - Exported and preserved JSON copies in `data/legacy-export/matches.json` and `data/legacy-export/players.json`.
-  - `firestore.rules` updated to read-only for `matches` and `players`.
-  - Codebase audit confirmed 100% of queries target canonical `matches_v2` and `players_v2`.
-- **Item 39: Scheduled Backup Engine:**
-  - Exported callable `triggerBackup` and automated Cloud Function `scheduledBackup` exporting Firestore to secure Cloud Storage buckets.
+Deletion of a roast, and deletion of a match, are direct Firestore writes
+gated by `firestore.rules` (owner-only) — no Cloud Function involved.
 
----
+## 5. Testing
 
-## 3. Cloud Functions Backend
-
-| Function Name | Gen / Runtime | Trigger / Type | Access Gate | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `parseLineup` | 1st Gen / Node 22 | `https.onCall` | Admin Only | AI Magic Paste lineup parser with fallback chain |
-| `generateMatchRecap` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Two-sentence factual match recaps |
-| `queryStats` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Natural language stats Q&A over full Stage D/E metrics |
-| `generateAwardsCopy` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Award & milestone citation copy generation |
-| `suggestAliases` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Alias variation suggester with collision filter |
-| `auditDataHealth` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Database health and anomaly diagnostic tool |
-| `triggerBackup` | 1st Gen / Node 22 | `https.onCall` | Admin Only | On-demand Firestore backup export to Cloud Storage |
-| `scheduledBackup` | 1st Gen / Node 22 | Pub/Sub Schedule | Weekly Sunday | Automated weekly backup export |
-| `setGeminiKey` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Secure API key setter and validator |
-| `setGeminiModel` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Model preference persistence |
-| `testGeminiConnection`| 1st Gen / Node 22 | `https.onCall` | Admin Only | Latency test and live model lister |
-
----
-
-## 4. Verification & Testing
-
-Run all test suites locally:
 ```bash
-node scripts/test_gemini_routing.js
-node scripts/test_stage_d_full.js
-node scripts/test_stage_d_ai_extensions.js
-node scripts/test_stage_e.js
+# Elo parity: stats-core.js vs. the functions/index.js copy
+node tests/elo-parity.test.js
+
+# Firestore rules — needs the emulator running first (see tests/README.md)
+firebase emulators:start --only firestore --project demo-esl
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 node tests/firestore-rules.test.js
 ```
 
----
+Both currently pass (65 rules assertions, full Elo agreement across every
+player).
 
-## 5. Feature Matrix by Stage
-
-```
-Stage A — Core Fixes           [████████████████████] 100% (7/7 Complete)
-Stage B — Identity Layer       [████████████████████] 100% (4/4 Complete)
-Stage C — Entry Experience     [████████████████████] 100% (6/6 Complete)
-Stage D — Statistics Engine    [████████████████████] 100% (6/6 Complete)
----
-
-## 5. Next Planned Milestones (Stage E)
-
-1. **Stage E: Community & Engagement (`stage-e-community`):**
-   - **Item 32:** PWA Support (Installable Web App, `manifest.json`, Service Worker & Deep Linking).
-   - **Item 25:** Weekly Power Rankings (Monday view with movement arrows vs. last week, feeding off Item 16 Elo).
-   - **Item 28:** Milestone Notices ("Sam plays his 40th tonight", feeding off Item 20).
-   - **Item 29:** Monthly Awards (Player of the Month, Most Improved, Iron Man, Worst Duo, Ghost of the Month).
+`scripts/test_*.js` predate the `stats-core.js` extraction — several assert
+against `app.js`'s source text directly and now fail, since the engines they
+check for moved to `stats-core.js`. They have not been updated; treat them as
+historical rather than a live suite. `tests/` is the current one.

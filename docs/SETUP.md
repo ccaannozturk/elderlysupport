@@ -1,6 +1,12 @@
 # Setup — what to do, in order
 
-You only need to do this once. Roughly 30 minutes.
+**Status: this ran once, historically, to get the project from a bare
+Firebase project to what's live today.** Steps 1–6 are kept as a record of
+that and as onboarding for a second machine (or a second organizer who wants
+a local dev environment); they are not things to redo. Section 7 (deploying
+a rules change) is the one part of this file still followed for every
+change — read `docs/STATUS.md` for the project's current state instead of
+inferring it from here.
 
 ---
 
@@ -114,21 +120,26 @@ claude
 It picks up the git repo and `CLAUDE.md` automatically from the working directory —
 no configuration needed. VS Code is optional; Claude Code runs in the terminal.
 
-First message, roughly:
+First message, historically:
 
 > Read CLAUDE.md and docs/PLAN.md. We're starting Stage A. Create the
 > `stage-a-fixes` branch and start with item 3 (escaping and roster writes).
 > Show me your plan before you edit anything.
 
-Work through Stage A one or two items at a time. Review each diff, test against
-the emulator, then merge to `main` when the whole stage is done and verified.
+That workflow — one or two items at a time, review each diff, test against the
+emulator, merge to `main` when verified — carried through every stage since.
+For what's next, open `docs/PLAN.md`: anything unchecked, or a fresh request
+from the maintainer, is fair game.
 
 ---
 
-## 6. Your homework for Stage B
+## 6. Roster mapping (done — kept as a record)
 
-Stage B is blocked until you produce `data/roster-mapping.csv` — the authoritative
-mapping from every name string that has ever appeared to a canonical player.
+Stage B was blocked until the maintainer produced `data/roster-mapping.csv` —
+the authoritative mapping from every name string that had ever appeared to a
+canonical player. That file exists and Stage B shipped; this section is left
+as a reference for what the file had to contain, in case the registry ever
+needs a second pass (a new merge, a new split).
 
 Format:
 

@@ -3,7 +3,7 @@
 One file, regenerated on demand, served as a static asset by GitHub Pages:
 
 ```
-https://<your-pages-domain>/public-data/league.json
+https://ccaannozturk.github.io/elderlysupport/public-data/league.json
 ```
 
 Anyone may fetch it. No API key, no login, no Firebase SDK, no CORS setup —
@@ -22,7 +22,7 @@ changes.
 ### Fetch it, cache it
 
 ```js
-const res  = await fetch('https://<your-pages-domain>/public-data/league.json');
+const res  = await fetch('https://ccaannozturk.github.io/elderlysupport/public-data/league.json');
 const data = await res.json();
 ```
 

@@ -1,41 +1,72 @@
-# Elderly Support League 🏆
+# Elderly Support League
 
-A comprehensive, real-time match tracking and leaderboard management system designed for the "Elderly Support League" (Est. 2020, Amsterdam). This single-page application (SPA) allows players to track their match history, view detailed individual statistics, and monitor the global leaderboard, while providing a secure admin dashboard for seamless data entry.
+A single-page match tracker and leaderboard for a recreational football/futsal
+group in Amsterdam (est. 2020). Live at:
 
-## ✨ Key Features
+**https://ccaannozturk.github.io/elderlysupport/**
 
-* **📊 Dynamic Leaderboard:** Automatically calculates player rankings, points (3 for a win/1st place, 1 for a draw/2nd place), win rates, and goals based on match history.
-* **🗓️ Match History & Filters:** View past matches with support for both **Standard (1v1 / Team vs Team)** and **Tournament (3-way)** formats. Filter results by Year and Month.
-* **📈 Advanced Player Stats:** Interactive modals displaying individual player forms (last 5 matches), total goals scored/conceded, win percentages, and monthly breakdowns.
-* **🔒 Secure Admin Panel:** Firebase Authentication integration. Authorized admins can:
-    * Add, edit, or delete matches.
-    * Use the **"Magic Paste"** feature to auto-fill match data from raw text formats.
-    * Manage team colors and rosters easily with a dynamic datalist.
-* **📥 Export to CSV:** One-click export of all match data to an Excel-compatible CSV file (with UTF-8 BOM support).
-* **📱 Fully Responsive:** Built with Bootstrap 5, ensuring a seamless experience on both desktop and mobile devices.
+## What it does
 
-## 🛠️ Tech Stack
+- Tracks **Standard** (two teams, goals) and **Tournament** (three teams, ranked)
+  matches, mobile-first — entry happens on a phone at the sports hall.
+- Computes a full statistics engine: Elo ratings, streaks and form, chemistry
+  between pairs (filterable, sortable, with a focus mode for small screens),
+  nemesis/rivalry, attendance, milestones, an optimal-lineup finder.
+- A **Community tab**: next fixture, roast of the week, weekly power rankings,
+  monthly awards — honest about small samples rather than blank when data is
+  thin.
+- **AI tools** (Gemini, via Cloud Functions): paste a raw WhatsApp lineup
+  message and it becomes a structured match; auto-generated match recaps;
+  natural-language stats Q&A; alias suggestions when adding a player.
+- Installable as a PWA, works offline for reads, deep-linkable
+  (`?player=`, `?match=`, `?roast=`, `?fixture=`).
+- Publishes a read-only **`public-data/league.json`** — the same statistics
+  the site itself computes, refreshed automatically, so a third party (a
+  chatbot, a script) can build on the data without touching Firestore or
+  needing credentials. See [`docs/PUBLIC-DATA.md`](docs/PUBLIC-DATA.md).
 
-* **Frontend:** HTML5, CSS3, Vanilla JavaScript (ES6+)
-* **UI Framework:** Bootstrap 5 (Custom Dark Theme)
-* **Icons & Fonts:** FontAwesome 6, Google Fonts (Inter)
-* **Backend & Database:** Firebase (Firestore & Firebase Auth)
+## Tech stack
 
-## 🚀 How to Run Locally
+Vanilla HTML/CSS/JS. No build step, no bundler, no framework — open
+`index.html` and it runs. Bootstrap 5 for layout, Firebase (Firestore + Auth,
+**compat** SDK) for data, Cloud Functions (Node 22) for anything that touches
+the Gemini API.
 
-1.  Clone this repository to your local machine:
-    ```bash
-    git clone [https://github.com/ccaannozturk/elderly-support-league.git](https://github.com/ccaannozturk/elderly-support-league.git)
-    ```
-2.  Open the project folder.
-3.  Since the project uses Firebase via CDN and standard web technologies, no Node.js or build tools are required. Simply open `index.html` in any modern web browser.
+`stats-core.js` holds every statistical engine and is loaded by both the
+browser and the Node scripts that build the public export — one
+implementation, so the website's numbers and the exported data can never
+disagree.
 
-## 🔐 Admin Access
+## Access model
 
-Admin features are hidden by default. To access the dashboard:
-1. Click the "Lock" icon in the top right corner.
-2. Log in with authorized super admin credentials.
-3. The "Admin" tab will appear in the main navigation.
+Two tiers, enforced independently in `firestore.rules`, `functions/index.js`,
+and the client UI:
+
+- **Organizer** — day-to-day running of the league: match entry, players,
+  venues, fixtures, roasts, every AI tool.
+- **Owner** — additionally: the Gemini API key/model (billing), roast opt-out
+  settings, and anything irreversible (deleting a match, roast, fixture, or
+  renaming/deleting a player).
+
+## Local development
+
+```bash
+firebase emulators:start --import=./emulator-data
+```
+
+Serves the app at `localhost:5000` against a local Firestore, seeded from a
+backup. See [`docs/SETUP.md`](docs/SETUP.md) for first-time setup.
+
+## Documentation
+
+| File | What it's for |
+|---|---|
+| `CLAUDE.md` | Project constraints and conventions for anyone (human or agent) editing this code |
+| `docs/STATUS.md` | Current state: architecture, features, Cloud Functions, testing |
+| `docs/PLAN.md` | The itemized build log — what shipped, what was declined, and why |
+| `docs/SETUP.md` | First-time environment setup and the rules-deploy procedure |
+| `docs/PUBLIC-DATA.md` | The contract for `public-data/league.json` |
+| `docs/SERVICE_WORKER.md` | PWA caching strategy and the emergency kill switch |
 
 ---
-*Designed and developed by [Can Öztürk](https://github.com/ccaannozturk).*
+*Maintained by [Can Öztürk](https://github.com/ccaannozturk).*

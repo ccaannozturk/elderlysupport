@@ -3,18 +3,22 @@
 ## What this is
 
 A single-page match tracker and leaderboard for a recreational football/futsal group
-in Amsterdam (est. 2020, ~68 players, ~61 matches recorded in 2026 so far).
-Owner and sole maintainer: Can Öztürk.
+in Amsterdam (est. 2020). Owner: Can Öztürk. A second organizer account
+(`elderly.group.futsal@gmail.com`) runs day-to-day operations alongside him —
+see "Access model" below.
 
 Live site is served from GitHub Pages off `main`.
 
 ## Architecture — READ THIS BEFORE PROPOSING CHANGES
 
-Three static files. No build step. No npm at runtime. No bundler. No framework.
+Static files. No build step. No npm at runtime. No bundler. No framework.
 
 ```
 index.html      markup + all CSS in a <style> block
-app.js          all application logic, plain ES6, no modules
+stats-core.js   every statistical engine (Elo, chemistry, streaks, ...).
+                Loaded by index.html AND require()'d by scripts/export-public.js.
+                This is the ONLY implementation — see "Single source of truth" below.
+app.js          application logic, plain ES6, no modules
 README.md
 ```
 
@@ -36,6 +40,12 @@ These are deliberate decisions, not technical debt. Do not "fix" them.
 - **Keep it simple.** If a feature requires the maintainer to reliably do extra data
   entry after every match, it will not get done. Prefer features that work off data
   already captured.
+- **Never reimplement a statistical engine.** Elo, chemistry, streaks, nemesis,
+  attendance, and the optimal lineup live in `stats-core.js` and nowhere else in
+  the client. Any code that needs them calls into it. The one deliberate
+  exception is `functions/index.js`, which keeps its own copy of Elo because
+  Cloud Functions cannot `require()` outside `functions/` — that copy is pinned
+  to `stats-core.js` by `tests/elo-parity.test.js`, which must stay green.
 
 ### Known-fragile areas
 
@@ -52,30 +62,39 @@ These are deliberate decisions, not technical debt. Do not "fix" them.
 
 ## Data model
 
-### Current (pre-migration)
+`matches_v2` and `players_v2` are canonical. The original `matches` /
+`players` collections are retired — read-only in `firestore.rules`, kept only
+for history. Never write to them.
 
-`matches/{autoId}`
+`matches_v2/{autoId}`
 ```
 date         Timestamp
-location     string   (one of five fixed venues)
+location     string   (one of five fixed venues, extensible via `locations`)
 type         'Standard' | 'Tournament'
 youtubeLink  string | null
 updatedBy    string   (email — client-supplied, do not trust)
 timestamp    serverTimestamp
 colors       [string, string]        Standard only, e.g. ['blue','red']
-teams        [ { teamName, score, players[] } ]              Standard: 2 entries
+teams        [ { teamName, score, players[] } ]                     Standard: 2 entries
              [ { teamName, points, rank, originalKey, players[] } ]  Tournament: 3
+recap        string | undefined      AI-generated, written after save
 ```
 
-`players/{playerName}` — document ID is the display name, no fields. Used only to
-populate an autocomplete datalist. **Nothing in the app currently writes to it**,
-which is why it goes stale.
+`players[]` holds player **IDs**, not display names — resolve through the
+`players_v2` registry (`playerId -> { displayName, aliases, active }`) for
+anything user-facing.
 
-### Target (post-migration, Stage B)
+`players_v2/{playerId}`
+```
+displayName  string
+aliases      string[]   lowercased, matched case-insensitively
+active       boolean
+```
 
-Player identity moves from free-text strings to stable IDs. See `docs/PLAN.md`
-items 1 and 2. New collections are written as `matches_v2` / `players_v2` and the
-originals are left untouched until the maintainer verifies and flips over.
+Other collections: `locations` (venue names), `awards` (cached monthly award
+citations), `fixtures` / `roasts` (Community tab, see item 42 in
+`docs/PLAN.md`), `config/gemini` (API key, unreadable by every client — see
+`firestore.rules`), `config/gemini_meta`, `config/roast_settings`.
 
 ## Firebase
 
@@ -105,17 +124,31 @@ firebase emulators:start --import=./emulator-data
 Serves the app at http://localhost:5000 with Firestore at :8080 and Auth at :9099,
 seeded from a backup. See `docs/SETUP.md`.
 
+## Access model
+
+Two tiers, kept in step across three files — if you change one, change all
+three and redeploy both rules and functions:
+
+- `firestore.rules` — `isOwner()` / `isOrganizer()`
+- `functions/index.js` — `OWNER_EMAIL` / `ORGANIZER_EMAILS`, enforced by
+  `assertAdmin()` (owner-only) / `assertOrganizer()`
+- `app.js` — `SUPER_ADMIN` / `ORGANIZERS`, presentation only; the rules and
+  functions are what actually enforce access
+
+Owner-only: the Gemini key/model, roast opt-out settings, and anything
+irreversible (deleting a match/roast/fixture, renaming or deleting a player).
+Organizer: everything else. See `docs/STATUS.md` §2 for the full table.
+
 ## Working style
 
-- Work in stage branches (`stage-a-fixes`, `stage-b-identity`, ...), not per-item
-  branches. See `docs/PLAN.md` for the stage breakdown.
 - Consult `docs/PLAN.md` at the start of every session to see what is done and
   what is next. Update the status markers as you complete items.
 - The plan is agreed and scoped. If you think an item should change, say so and
   wait — do not unilaterally expand scope.
-- Items explicitly rejected: canvas recap cards, prediction league, AI roast
-  generator, YouTube auto-embed, fantasy draft, Team Name Hall of Fame. Do not
-  re-propose these; they were considered and declined.
+- Items explicitly rejected: canvas recap cards, prediction league, YouTube
+  auto-embed, fantasy draft, Team Name Hall of Fame. Do not re-propose these;
+  they were considered and declined. (An AI roast generator was on this list
+  once — it shipped as the Roast Studio and is no longer declined.)
 
 ## Style
 

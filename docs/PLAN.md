@@ -225,6 +225,57 @@ desktop grid 26x27 intact; no page overflow; no console errors.
 
 ---
 
+## Phase 6 — Second organizer, shared source of truth  ✅ complete
+
+Not originally scoped; the maintainer asked for a second organizer account and,
+separately, to open the data to a third-party WhatsApp chatbot. Both raised the
+same underlying question — what is the single source of truth — so they're
+grouped here.
+
+- [x] **17. Two-tier access model**
+  - `elderly.group.futsal@gmail.com` added as an **organizer**: full day-to-day
+    access (matches, players, venues, fixtures, roasts, every AI tool).
+  - The **owner** (Can) keeps what has real blast radius: the Gemini key/model
+    (his billing), roast opt-out settings (a promise to a person, not reversible
+    by whoever's signed in), and every irreversible delete (match, roast,
+    fixture, player rename/delete).
+  - Enforced independently in `firestore.rules`, `functions/index.js`
+    (`assertAdmin` vs `assertOrganizer`), and `app.js` UI gating. Fixed a bug
+    the change surfaced: the UI previously gated admin controls on "is anyone
+    signed in" rather than identity, so any signed-in stranger saw controls
+    that then failed server-side.
+  - `tests/firestore-rules.test.js` grew to 65 assertions covering both tiers.
+
+- [x] **18. `stats-core.js` — one statistics engine**
+  - The project had drifted into **two** Elo implementations — one in `app.js`
+    for the site, a second in `functions/index.js` for the AI's answers.
+    They agreed on every player when checked, but nothing enforced it.
+  - Extracted seven engines (Elo, streaks/form, nemesis/rivalry, attendance,
+    optimal lineup, chemistry, plus the Elo helper) into `stats-core.js`,
+    loaded by `index.html` and `require()`-able from Node. Verified
+    byte-identical output before/after across all players and pairs.
+  - `functions/index.js` keeps its own Elo copy (Cloud Functions can't
+    `require()` outside `functions/`), now pinned by
+    `tests/elo-parity.test.js`, which fails if the two ever diverge.
+
+- [x] **19. Public read-only data export**
+  - A friend wanted to build a WhatsApp chatbot over the league's stats. The
+    options were Firestore access (shares the read quota, couples an outside
+    consumer to the internal schema, invites a request for a service-account
+    key) or a static file. Chose the static file.
+  - `scripts/export-public.js` builds `public-data/league.json` from the
+    public REST API — no credentials — requiring `stats-core.js` so the
+    export can never disagree with the site. Schema v2 carries counting
+    stats, Elo, chemistry pairs, streaks, nemesis, attendance.
+  - Deliberately excludes roasts (the opt-out promise doesn't travel to a
+    third party) and never reimplements a model — `docs/PUBLIC-DATA.md` says
+    so explicitly to whoever builds against it.
+  - `.github/workflows/refresh-public-data.yml` regenerates it every 6h and
+    on demand, no secrets required, and skips the commit when nothing but the
+    timestamp changed.
+
+---
+
 ## Out of scope — do not propose
 
 Considered and explicitly declined:

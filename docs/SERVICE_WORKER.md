@@ -4,8 +4,12 @@
 The Elderly Support League PWA uses a dedicated Service Worker (`sw.js`) to provide fast loading, offline viewing, and Android/iOS home screen installation.
 
 ### Cache Versioning
-- Current Cache: `esl-static-v1`
-- When changes to static assets (`app.js`, `index.html`, styling) are deployed, bump the cache name in `sw.js` (e.g. `esl-static-v2`).
+- Current Cache: `esl-static-v2`
+- When changes to static assets (`stats-core.js`, `app.js`, `index.html`, styling) are deployed, bump the cache name in `sw.js` (e.g. `esl-static-v3`).
+- **`stats-core.js` and `app.js` must be bumped together.** `app.js` depends on
+  `stats-core.js` at load time; a visitor holding a cached `app.js` from before
+  the split, alongside a cache with no `stats-core.js`, gets a blank Stats tab.
+  This is exactly what happened going from v1 to v2 — hence the bump.
 - The `activate` event automatically deletes all stale caches from prior versions.
 
 ### Protected Endpoints (Never Cached)
