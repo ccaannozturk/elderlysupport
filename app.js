@@ -1969,11 +1969,18 @@ function renderData() {
                 let adminBtns = "";
                 if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
                     adminBtns = `<div class="admin-actions">
+                        <button class="btn btn-sm btn-outline-warning py-0 me-2" onclick="regenerateRecap('${m.id}', event)" title="Regenerate AI Match Recap"><i class="fas fa-redo-alt me-1"></i>Recap</button>
                         <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch('${m.id}', event)">Edit</button> 
                         <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
                     </div>`;
                 }
                 const ytLink = m.youtubeLink ? `<a href="${esc(safeUrl(m.youtubeLink))}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
+
+                const recapHtml = m.recap ? `
+                <div class="p-2 border-top border-secondary border-opacity-25 bg-black bg-opacity-25 small text-light opacity-90" style="font-size:0.75rem; font-style:italic;">
+                    <i class="fas fa-quote-left text-warning me-1 opacity-75" style="font-size:0.65rem;"></i>
+                    ${esc(m.recap)}
+                </div>` : '';
 
                 let html = "";
                 if(m.type === 'Standard') {
@@ -1998,6 +2005,7 @@ function renderData() {
                                 <div class="team-players text-end text-muted small" style="font-size:0.75rem">${pB}</div>
                             </div>
                         </div>
+                        ${recapHtml}
                         ${adminBtns}
                     </div>`;
                 } else {
@@ -2024,6 +2032,7 @@ function renderData() {
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${esc(r2.teamName)} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${esc((r2.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${esc(r3.teamName)} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${esc((r3.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
                         </div>
+                        ${recapHtml}
                         ${adminBtns}
                     </div>`;
                 }
@@ -2936,6 +2945,16 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         const docRef = isEdit ? db.collection(DB_CONFIG.collections.matches).doc(editingId) : db.collection(DB_CONFIG.collections.matches).doc();
         await docRef.set(matchData);
 
+        // Stage D+ Item 33: Trigger AI match recap in background (fire-and-forget, never blocks save)
+        try {
+            const genRecapFn = functions.httpsCallable('generateMatchRecap');
+            genRecapFn({ matchId: docRef.id }).catch(recapErr => {
+                console.warn("Background recap generation skipped/failed:", recapErr.message);
+            });
+        } catch (e) {
+            console.warn("Could not invoke generateMatchRecap:", e);
+        }
+
         // Save newly created players to players registry
         const allSelected = activeTeams.flatMap(k => selectedPlayers[k] || []);
         const newPlayersToSave = allSelected.filter(p => p.isNew && p.id);
@@ -3290,3 +3309,185 @@ window.toggleMatchType = () => {
     renderRosterGrid();
     updateSaveButtonState();
 };
+
+/* ==========================================================================
+   STAGE D+: AI EXTENSIONS CLIENT HANDLERS
+   ========================================================================== */
+
+/** Item 33: Manual Recap Regeneration */
+window.regenerateRecap = async (matchId, event) => {
+    if (event) event.stopPropagation();
+    if (!currentUser) return alert("Admin login required.");
+
+    const btn = event ? event.currentTarget : null;
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+    }
+
+    try {
+        const genRecapFn = functions.httpsCallable('generateMatchRecap');
+        const res = await genRecapFn({ matchId });
+        if (res.data && res.data.ok) {
+            const m = allMatches.find(x => x.id === matchId);
+            if (m) {
+                m.recap = res.data.recap;
+                m.recapModel = res.data.modelUsed;
+            }
+            renderData();
+        }
+    } catch (err) {
+        alert(`Failed to regenerate recap: ${err.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+        }
+    }
+};
+
+/** Item 34: AI Stats Assistant Query */
+window.setQueryPrompt = (text) => {
+    const input = document.getElementById('statsQueryInput');
+    if (input) {
+        input.value = text;
+        window.executeStatsQuery();
+    }
+};
+
+window.executeStatsQuery = async () => {
+    if (!currentUser) return alert("Admin login required.");
+
+    const input = document.getElementById('statsQueryInput');
+    const qText = input ? input.value.trim() : '';
+    if (!qText) return alert("Please enter a question.");
+
+    const spinner = document.getElementById('statsQuerySpinner');
+    const btn = document.getElementById('statsQueryBtn');
+    const resBox = document.getElementById('statsQueryResponse');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (btn) btn.disabled = true;
+
+    try {
+        const queryFn = functions.httpsCallable('queryStats');
+        const res = await queryFn({ question: qText });
+        const data = res.data;
+
+        if (data && data.ok) {
+            if (resBox) {
+                resBox.classList.remove('d-none');
+                resBox.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-info fw-bold"><i class="fas fa-robot me-1"></i>Answer:</span>
+                        <span class="badge bg-secondary font-monospace" style="font-size:0.7rem">${esc(data.modelUsed)}</span>
+                    </div>
+                    <div class="text-light" style="line-height:1.5;">${esc(data.answer)}</div>
+                `;
+            }
+        }
+    } catch (err) {
+        if (resBox) {
+            resBox.classList.remove('d-none');
+            resBox.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>${esc(err.message)}</span>`;
+        }
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+        if (btn) btn.disabled = false;
+    }
+};
+
+/** Item 36: Alias Suggestion on Player Creation */
+window.suggestPlayerAliases = async () => {
+    if (!currentUser) return alert("Admin login required.");
+
+    const nameInput = document.getElementById('newPlayerDisplayName');
+    const displayName = nameInput ? nameInput.value.trim() : '';
+    if (!displayName) return alert("Please enter a player Display Name first.");
+
+    const spinner = document.getElementById('suggestAliasSpinner');
+    const box = document.getElementById('suggestedAliasesBox');
+    const list = document.getElementById('suggestedAliasesList');
+
+    if (spinner) spinner.classList.remove('d-none');
+
+    try {
+        const suggestFn = functions.httpsCallable('suggestAliases');
+        const res = await suggestFn({ displayName });
+        const data = res.data;
+
+        if (data && data.ok && data.suggestions && data.suggestions.length > 0) {
+            if (list) {
+                list.innerHTML = data.suggestions.map(alias => `
+                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:0.75rem;" onclick="appendSuggestedAlias('${esc(alias)}', this)">
+                        + ${esc(alias)}
+                    </button>
+                `).join('');
+            }
+            if (box) box.classList.remove('d-none');
+        } else {
+            alert("No new alias suggestions found.");
+        }
+    } catch (err) {
+        alert(`Error suggesting aliases: ${err.message}`);
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+    }
+};
+
+window.appendSuggestedAlias = (alias, btn) => {
+    const input = document.getElementById('newPlayerAliases');
+    if (!input) return;
+    const current = input.value.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+    if (!current.includes(alias.toLowerCase())) {
+        current.push(alias.toLowerCase());
+        input.value = current.join(', ');
+    }
+    if (btn) {
+        btn.classList.remove('btn-outline-info');
+        btn.classList.add('btn-success');
+        btn.disabled = true;
+    }
+};
+
+/** Item 37: Data Health Audit */
+window.openDataHealthAudit = async () => {
+    if (!currentUser) return alert("Admin login required.");
+
+    const modalEl = document.getElementById('dataHealthModal');
+    if (!modalEl) return;
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+
+    const spinner = document.getElementById('dataHealthSpinner');
+    const content = document.getElementById('dataHealthContent');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (content) content.innerHTML = '';
+
+    try {
+        const auditFn = functions.httpsCallable('auditDataHealth');
+        const res = await auditFn();
+        const data = res.data;
+
+        if (data && data.ok) {
+            if (content) {
+                content.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary">
+                        <span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i>Audit Completed</span>
+                        <span class="badge bg-secondary font-monospace" style="font-size:0.75rem">Model: ${esc(data.modelUsed)}</span>
+                    </div>
+                    <div class="bg-body p-3 rounded border border-secondary" style="font-family: monospace; font-size: 0.85rem; white-space: pre-wrap;">${esc(data.report)}</div>
+                `;
+            }
+        }
+    } catch (err) {
+        if (content) {
+            content.innerHTML = `<div class="alert alert-danger py-2 px-3 small"><i class="fas fa-exclamation-triangle me-1"></i>Audit failed: ${esc(err.message)}</div>`;
+        }
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+    }
+};
+

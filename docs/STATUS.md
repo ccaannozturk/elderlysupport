@@ -92,6 +92,13 @@ graph TD
 - **Attendance & Indefinite Milestones (Item 20):** Milestone badges dynamically derived for 25, 50, 75, 100, 125... Caps; attendance denominator computed strictly from player's debut date (`"12 of 18 since debut (67%)"`); Iron Men consecutive attendance runs; and One-Cap Wonders list.
 - **Optimal Lineup & Curse Stat (Item 22):** Optimal 5-player lineup from eligible Elo ratings ($\ge 5$ games); The Curse Stat (player whose presence most lowers team scored goals relative to league average GF in Standard matches); The Blessed Stat; and Goal Differential (GD/game) as a distinct metric.
 
+### 🟢 Stage D+ — AI Extensions
+- **Match Recap Blurbs (Item 33):** Admin-triggered, 2-sentence match recap blurb stored on `matches_v2.recap`. Factual, warm tone, naming only players in the lineup. Fire-and-forget background execution on match save (never blocks save) with manual admin regeneration button.
+- **Natural Language Stats Query (Item 34):** Admin-gated Q&A assistant in the Admin tab. Constructs rich JSON context of computed Stage D statistics and answers questions strictly from numbers without guessing or inventing.
+- **Award and Milestone Copy (Item 35):** Admin callable hook `generateAwardsCopy` for writing one-sentence citations around pre-computed monthly awards and milestone notices.
+- **Alias Suggestion on Player Creation (Item 36):** Interactive "Suggest Aliases" button on create player dialog. Returns plausible variations and server-side strips any collisions with existing player identities. Suggestions rendered as unchecked clickable pills.
+- **Data Health Audit Diagnostic Tool (Item 37):** One-off advisory diagnostic tool in Admin tab. Analyzes database metrics (score outliers, date gaps, unusual lineups) and outputs health insights.
+
 ---
 
 ## 3. Current Data Health & Metrics
@@ -103,7 +110,7 @@ graph TD
 | **Active Regulars** | ~26 players (≥10 appearances) | ✅ Included in Roster Grid & Heatmap |
 | **Venues Registered** | 5 active halls / fields + dynamic add | ✅ Synced in `locations` |
 | **Security Rules** | Enforced on all collections | ✅ Deployed to Cloud Firestore |
-| **Cloud Functions** | 4 callable endpoints (`setGeminiKey`, `testGeminiConnection`, `setGeminiModel`, `parseLineup`) | ✅ Live in `us-central1` |
+| **Cloud Functions** | 9 callable endpoints (`setGeminiKey`, `testGeminiConnection`, `setGeminiModel`, `parseLineup`, `generateMatchRecap`, `queryStats`, `generateAwardsCopy`, `suggestAliases`, `auditDataHealth`) | ✅ Configured with fallback chain & admin guards |
 
 ---
 
@@ -114,6 +121,7 @@ Stage A — Core Fixes           [███████████████�
 Stage B — Identity Layer       [████████████████████] 100% (4/4 Complete)
 Stage C — Entry Experience     [████████████████████] 100% (6/6 Complete)
 Stage D — Statistics Engine    [████████████████████] 100% (6/6 Complete)
+Stage D+ — AI Extensions       [████████████████████] 100% (5/5 Complete)
 Stage E — Community Layer      [░░░░░░░░░░░░░░░░░░░░]   0% (Next up)
 ```
 

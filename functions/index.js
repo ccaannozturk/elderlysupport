@@ -431,3 +431,424 @@ ${rawText}
     fellBackFrom: geminiRes.fellBackFrom || null
   };
 });
+
+/** 5. Item 33: Match Recap Blurbs */
+exports.generateMatchRecap = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const matchId = data && data.matchId ? String(data.matchId).trim() : '';
+  if (!matchId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Match ID is required.');
+  }
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const matchDoc = await db.collection('matches_v2').doc(matchId).get();
+  if (!matchDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Match document not found.');
+  }
+  const matchData = matchDoc.data();
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  // Fetch players for display names
+  const playersSnap = await db.collection('players_v2').get();
+  const nameMap = new Map();
+  playersSnap.forEach(d => {
+    nameMap.set(d.id, d.data().displayName || d.id);
+  });
+  const getName = (id) => nameMap.get(id) || id;
+
+  // Build factual summary for prompt
+  const isStd = matchData.type === 'Standard';
+  let outcomeText = '';
+  let lineupsText = '';
+
+  if (isStd) {
+    const tA = matchData.teams[0] || { score: 0, players: [] };
+    const tB = matchData.teams[1] || { score: 0, players: [] };
+    const pA = (tA.players || []).map(getName).join(', ');
+    const pB = (tB.players || []).map(getName).join(', ');
+    const sA = tA.score || 0;
+    const sB = tB.score || 0;
+
+    outcomeText = `Final Score: ${tA.teamName || 'Team A'} ${sA} - ${sB} ${tB.teamName || 'Team B'}.`;
+    lineupsText = `- ${tA.teamName || 'Team A'} (${tA.color || 'blue'}): ${pA}\n- ${tB.teamName || 'Team B'} (${tB.color || 'red'}): ${pB}`;
+  } else {
+    const ranks = (matchData.teams || []).map(t => {
+      const pList = (t.players || []).map(getName).join(', ');
+      return `Rank ${t.rank || 1}: ${t.teamName || 'Team'} (${t.points || 0} pts) - Players: ${pList}`;
+    }).join('\n');
+    outcomeText = 'Tournament Results:\n' + ranks;
+    lineupsText = ranks;
+  }
+
+  const dObj = matchData.date ? (matchData.date.toDate ? matchData.date.toDate() : new Date(matchData.date)) : new Date();
+  const dateStr = `${dObj.getDate()}/${dObj.getMonth() + 1}/${dObj.getFullYear()}`;
+  const venueStr = matchData.location || 'Amsterdam';
+
+  const prompt = `You are the official match reporter for the Elderly Support recreational football league in Amsterdam.
+Write a warm, concise, factual TWO-SENTENCE match recap based strictly on the verified match data below.
+
+VERIFIED MATCH DATA:
+- Date: ${dateStr}
+- Venue: ${venueStr}
+- Format: ${matchData.type || 'Standard'}
+- Outcome: ${outcomeText}
+- Lineups:
+${lineupsText}
+
+STRICT FACTUAL RULES:
+1. Exactly TWO sentences maximum.
+2. Use ONLY the supplied facts above. Do NOT invent goals, player actions, storylines, or outside context.
+3. Do NOT name any player who was not listed in the lineups above.
+4. Tone: warm, friendly, factual, engaging. No cheesy hype-man voice, no corporate jargon, no roasting.
+5. Return JSON with key "recap":
+{"recap": "Sentence one. Sentence two."}
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  let recapText = '';
+  try {
+    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    recapText = parsed.recap || cleaned;
+  } catch (e) {
+    recapText = geminiRes.text.replace(/[{}"]/g, '').trim();
+  }
+
+  // Store cached recap on the match document
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await db.collection('matches_v2').doc(matchId).set({
+    recap: recapText,
+    recapGeneratedAt: now,
+    recapModel: geminiRes.modelUsed
+  }, { merge: true });
+
+  return {
+    ok: true,
+    recap: recapText,
+    modelUsed: geminiRes.modelUsed,
+    fellBackFrom: geminiRes.fellBackFrom || null
+  };
+});
+
+/** 6. Item 34: Natural Language Stats Query */
+exports.queryStats = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const question = data && data.question ? String(data.question).trim() : '';
+  if (!question) {
+    throw new functions.https.HttpsError('invalid-argument', 'Question cannot be empty.');
+  }
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  // Fetch match and player database to compute authoritative stats
+  const [matchesSnap, playersSnap] = await Promise.all([
+    db.collection('matches_v2').get(),
+    db.collection('players_v2').get()
+  ]);
+
+  const nameMap = new Map();
+  const playersRegistry = new Map();
+  playersSnap.forEach(d => {
+    const p = d.data();
+    nameMap.set(d.id, p.displayName || d.id);
+    playersRegistry.set(d.id, { id: d.id, displayName: p.displayName || d.id, aliases: p.aliases || [] });
+  });
+
+  const getName = (id) => nameMap.get(id) || id;
+
+  // Compute all-time stats
+  const playerStats = {};
+  const duos = {};
+  const stdMatches = [];
+  let totalStdGoals = 0;
+
+  matchesSnap.forEach(doc => {
+    const m = doc.data();
+    if (!m.teams || m.teams.length < 2) return;
+
+    if (m.type === 'Standard') {
+      stdMatches.push(m);
+      const tA = m.teams[0], tB = m.teams[1];
+      const sA = tA.score || 0, sB = tB.score || 0;
+      totalStdGoals += sA + sB;
+
+      [tA, tB].forEach((t, idx) => {
+        const opp = idx === 0 ? tB : tA;
+        const myS = t.score || 0, opS = opp.score || 0;
+        const pts = myS > opS ? 3 : (myS === opS ? 1 : 0);
+
+        (t.players || []).forEach(p => {
+          if (!playerStats[p]) playerStats[p] = { id: p, name: getName(p), played: 0, won: 0, drawn: 0, lost: 0, pts: 0, gf: 0, ga: 0, stdPlayed: 0 };
+          playerStats[p].played++;
+          playerStats[p].stdPlayed++;
+          playerStats[p].pts += pts;
+          playerStats[p].gf += myS;
+          playerStats[p].ga += opS;
+          if (pts === 3) playerStats[p].won++;
+          else if (pts === 1) playerStats[p].drawn++;
+          else playerStats[p].lost++;
+        });
+
+        const pList = (t.players || []).sort();
+        for (let i = 0; i < pList.length; i++) {
+          for (let j = i + 1; j < pList.length; j++) {
+            const key = `${pList[i]}__${pList[j]}`;
+            if (!duos[key]) duos[key] = { p1: getName(pList[i]), p2: getName(pList[j]), played: 0, won: 0 };
+            duos[key].played++;
+            if (pts === 3) duos[key].won++;
+          }
+        }
+      });
+    } else {
+      (m.teams || []).forEach(t => {
+        const pts = t.points !== undefined ? t.points : (t.rank === 1 ? 3 : (t.rank === 2 ? 1 : 0));
+        (t.players || []).forEach(p => {
+          if (!playerStats[p]) playerStats[p] = { id: p, name: getName(p), played: 0, won: 0, drawn: 0, lost: 0, pts: 0, gf: 0, ga: 0, stdPlayed: 0 };
+          playerStats[p].played++;
+          playerStats[p].pts += pts;
+          if (pts >= 3) playerStats[p].won++;
+          else if (pts === 1) playerStats[p].drawn++;
+          else playerStats[p].lost++;
+        });
+      });
+    }
+  });
+
+  const leagueAvgGF = (stdMatches.length > 0) ? (totalStdGoals / (stdMatches.length * 2)) : 0;
+
+  const playerList = Object.values(playerStats).map(p => {
+    const ppg = p.played > 0 ? (p.pts / p.played).toFixed(2) : '0.00';
+    const wr = p.played > 0 ? Math.round((p.won / p.played) * 100) : 0;
+    const avgGF = p.stdPlayed > 0 ? (p.gf / p.stdPlayed).toFixed(2) : '0.00';
+    const deltaGF = (Number(avgGF) - leagueAvgGF).toFixed(2);
+    return {
+      name: p.name,
+      played: p.played,
+      won: p.won,
+      drawn: p.drawn,
+      lost: p.lost,
+      points: p.pts,
+      ppg,
+      winRate: `${wr}%`,
+      stdPlayed: p.stdPlayed,
+      goalsForPerGame: avgGF,
+      curseImpactDeltaGF: deltaGF
+    };
+  }).sort((a, b) => b.points - a.points);
+
+  const duoList = Object.values(duos)
+    .filter(d => d.played >= 3)
+    .map(d => ({
+      pair: `${d.p1} & ${d.p2}`,
+      played: d.played,
+      won: d.won,
+      winRate: `${Math.round((d.won / d.played) * 100)}%`
+    })).sort((a, b) => b.played - a.played);
+
+  const statsContext = {
+    totalMatchesRecorded: matchesSnap.size,
+    standardMatches: stdMatches.length,
+    leagueAverageGoalsPerTeamMatch: leagueAvgGF.toFixed(2),
+    playersSummary: playerList.slice(0, 30),
+    topDuosByGamesTogether: duoList.slice(0, 15),
+    bestDuosByWinRate: [...duoList].sort((a, b) => parseInt(b.winRate) - parseInt(a.winRate)).slice(0, 10),
+    worstDuosByWinRate: [...duoList].sort((a, b) => parseInt(a.winRate) - parseInt(b.winRate)).slice(0, 10)
+  };
+
+  const prompt = `You are the stats assistant for the Elderly Support recreational football league in Amsterdam.
+Answer the question accurately using ONLY the official computed figures below.
+
+OFFICIAL COMPUTED LEAGUE DATA:
+${JSON.stringify(statsContext, null, 2)}
+
+STRICT RULES:
+1. Answer ONLY using facts and figures explicitly present in the data above.
+2. Quote exact numbers, win rates, and records verbatim.
+3. Do NOT invent, assume, extrapolate, or calculate unprovided metrics.
+4. If the data does not contain the answer (e.g. height, age, player positions, weather, unrecorded matches), state clearly that the official league data does not track that information.
+5. Keep your response concise (2-4 sentences max), friendly, and direct.
+
+USER QUESTION:
+"""${question}"""
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+
+  return {
+    ok: true,
+    answer: geminiRes.text.trim(),
+    modelUsed: geminiRes.modelUsed,
+    fellBackFrom: geminiRes.fellBackFrom || null
+  };
+});
+
+/** 7. Item 35: Award & Milestone Citation Copy */
+exports.generateAwardsCopy = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const awardType = data && data.awardType ? String(data.awardType).trim() : 'Player of the Month';
+  const recipient = data && data.recipientName ? String(data.recipientName).trim() : 'Player';
+  const metric = data && data.metricValue ? String(data.metricValue).trim() : '';
+  const period = data && data.period ? String(data.period).trim() : '';
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  const prompt = `Write a warm, engaging, ONE-SENTENCE award citation for a recreational football league player.
+
+AWARD DETAILS:
+- Award: ${awardType}
+- Recipient: ${recipient}
+- Metric: ${metric}
+- Period: ${period}
+
+RULES:
+1. Exactly ONE sentence.
+2. Factual, appreciative, warm tone.
+3. Quote the metric accurately.
+4. Return JSON: {"citation": "Sentence here."}
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  let citation = '';
+  try {
+    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    citation = parsed.citation || cleaned;
+  } catch (e) {
+    citation = geminiRes.text.replace(/[{}"]/g, '').trim();
+  }
+
+  return {
+    ok: true,
+    citation,
+    modelUsed: geminiRes.modelUsed
+  };
+});
+
+/** 8. Item 36: Alias Suggestion on Player Creation */
+exports.suggestAliases = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const displayName = data && data.displayName ? String(data.displayName).trim() : '';
+  if (!displayName || displayName.length < 2) {
+    throw new functions.https.HttpsError('invalid-argument', 'Valid display name is required.');
+  }
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  // Fetch all existing aliases to prevent collisions
+  const playersSnap = await db.collection('players_v2').get();
+  const existingAliases = new Set();
+  playersSnap.forEach(d => {
+    const p = d.data();
+    if (p.displayName) existingAliases.add(p.displayName.toLowerCase());
+    (p.aliases || []).forEach(a => existingAliases.add(String(a).toLowerCase()));
+  });
+
+  const prompt = `Given the football player display name "${displayName}", suggest up to 8 common alias variations (shortened first names, initial forms like "Dani G", common spelling variations, accent-free versions).
+
+EXISTING USED ALIASES IN THE LEAGUE (DO NOT SUGGEST ANY OF THESE):
+${JSON.stringify(Array.from(existingAliases).slice(0, 150))}
+
+RULES:
+1. Return strict JSON with key "suggestions" containing an array of lowercase strings.
+2. Do not include any name from the existing aliases list.
+3. Example format: {"suggestions": ["dani", "dani g", "daniel g"]}
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  let suggestions = [];
+  try {
+    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions : [];
+  } catch (e) {
+    suggestions = [];
+  }
+
+  // Server-side validation: ensure lowercase, no collisions with existing aliases
+  const validated = suggestions
+    .map(s => String(s).toLowerCase().trim())
+    .filter(s => s.length >= 2 && s.length <= 30 && !existingAliases.has(s));
+
+  return {
+    ok: true,
+    suggestions: validated,
+    modelUsed: geminiRes.modelUsed
+  };
+});
+
+/** 9. Item 37: Data Health Audit */
+exports.auditDataHealth = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  const matchesSnap = await db.collection('matches_v2').get();
+  const rawMatches = [];
+  matchesSnap.forEach(d => rawMatches.push({ id: d.id, ...d.data() }));
+
+  const summary = {
+    totalMatches: rawMatches.length,
+    standardMatches: rawMatches.filter(m => m.type === 'Standard').length,
+    tournamentMatches: rawMatches.filter(m => m.type === 'Tournament').length,
+    missingDates: rawMatches.filter(m => !m.date).map(m => m.id),
+    missingVenues: rawMatches.filter(m => !m.location).map(m => m.id),
+    unusualLineupSizes: rawMatches.filter(m => (m.teams || []).some(t => !t.players || t.players.length < 3 || t.players.length > 8)).map(m => ({ id: m.id, date: m.date })),
+    highScores: rawMatches.filter(m => m.type === 'Standard' && (m.teams || []).some(t => t.score >= 15)).map(m => ({ id: m.id, scores: m.teams.map(t => t.score) }))
+  };
+
+  const prompt = `You are a database integrity auditor for the Elderly Support recreational football league.
+Review the following aggregated summary of the match database and provide 3-5 concise, advisory diagnostic bullet points on data health, potential anomalies, and consistency observations.
+
+DATABASE SUMMARY:
+${JSON.stringify(summary, null, 2)}
+
+Output plain text advisory bullet points for the league administrator.
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+
+  return {
+    ok: true,
+    report: geminiRes.text.trim(),
+    modelUsed: geminiRes.modelUsed
+  };
+});

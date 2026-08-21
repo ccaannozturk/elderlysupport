@@ -276,13 +276,40 @@
             </div>
 
             <div class="tab-pane fade" id="admin">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <button class="btn btn-sm btn-outline-warning fw-bold" data-bs-toggle="modal" data-bs-target="#geminiSettingsModal" onclick="openGeminiSettings()">
-                        <i class="fas fa-cog me-1"></i> AI Settings
-                    </button>
+                <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-warning fw-bold" data-bs-toggle="modal" data-bs-target="#geminiSettingsModal" onclick="openGeminiSettings()">
+                            <i class="fas fa-cog me-1"></i> AI Settings
+                        </button>
+                        <button class="btn btn-sm btn-outline-info fw-bold" onclick="openDataHealthAudit()">
+                            <i class="fas fa-stethoscope me-1"></i> Health Audit
+                        </button>
+                    </div>
                     <button class="btn btn-sm btn-outline-light" onclick="exportToCSV()">
                         <i class="fas fa-file-export me-1"></i> Export CSV
                     </button>
+                </div>
+
+                <!-- AI STATS ASSISTANT (ITEM 34) -->
+                <div class="card bg-dark border-secondary p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-white small m-0"><i class="fas fa-robot text-info me-2"></i>AI STATS QUERY (NATURAL LANGUAGE)</h6>
+                        <span class="badge bg-secondary">Admin Q&A</span>
+                    </div>
+                    <div class="input-group input-group-sm mb-2">
+                        <input type="text" id="statsQueryInput" class="form-control" placeholder="Ask anything, e.g. Who has Hector lost to most often?..." style="font-size:16px;" onkeydown="if(event.key==='Enter') executeStatsQuery()">
+                        <button class="btn btn-outline-info fw-bold" type="button" id="statsQueryBtn" onclick="executeStatsQuery()">
+                            <span id="statsQuerySpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+                            Ask AI
+                        </button>
+                    </div>
+                    <div class="d-flex flex-wrap gap-1 mb-2">
+                        <span class="badge bg-dark border border-secondary text-muted" style="cursor:pointer" onclick="setQueryPrompt('Who has Hector lost to most often?')">Hector's Nemesis</span>
+                        <span class="badge bg-dark border border-secondary text-muted" style="cursor:pointer" onclick="setQueryPrompt('What is our deadliest duo?')">Deadliest Duo</span>
+                        <span class="badge bg-dark border border-secondary text-muted" style="cursor:pointer" onclick="setQueryPrompt('Who is the most cursed player?')">The Curse Stat</span>
+                        <span class="badge bg-dark border border-secondary text-muted" style="cursor:pointer" onclick="setQueryPrompt('Who has the highest Elo rating?')">Top Elo</span>
+                    </div>
+                    <div id="statsQueryResponse" class="p-2 rounded bg-body border border-secondary small d-none"></div>
                 </div>
                 
                 <!-- MAGIC PASTE (AI + REGEX FALLBACK) -->
@@ -499,8 +526,18 @@
                             <input type="text" class="form-control form-control-sm" id="newPlayerDisplayName" placeholder="e.g. John Doe" style="font-size:16px;">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label small text-muted mb-1">Aliases (comma-separated, optional)</label>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label small text-muted mb-0">Aliases (comma-separated, optional)</label>
+                                <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:0.7rem;" onclick="suggestPlayerAliases()">
+                                    <span id="suggestAliasSpinner" class="spinner-border spinner-border-sm d-none me-1"></span>
+                                    <i class="fas fa-magic me-1"></i> Suggest Aliases
+                                </button>
+                            </div>
                             <input type="text" class="form-control form-control-sm" id="newPlayerAliases" placeholder="e.g. johnny, jdoe" style="font-size:16px;">
+                            <div id="suggestedAliasesBox" class="d-none p-2 mt-2 rounded bg-body border border-secondary small">
+                                <small class="text-muted d-block mb-1">Tap suggestions to add:</small>
+                                <div id="suggestedAliasesList" class="d-flex flex-wrap gap-2"></div>
+                            </div>
                         </div>
                         <button type="button" class="btn btn-success w-100 btn-sm fw-bold py-2" id="confirmCreatePlayerBtn">Confirm & Add to Roster</button>
                     </div>
@@ -618,6 +655,25 @@
                         <button type="button" class="btn btn-outline-secondary w-50 btn-sm" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-danger w-50 btn-sm fw-bold" id="confirmDeleteMatchBtn" onclick="executeDeleteMatch()">Delete Match</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Health Audit Modal -->
+    <div class="modal fade" id="dataHealthModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content bg-dark border-info p-3">
+                <div class="modal-header border-secondary pb-2">
+                    <h6 class="modal-title fw-bold text-info"><i class="fas fa-stethoscope me-2"></i>Database Health & Integrity Audit</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <div id="dataHealthSpinner" class="text-center py-4 d-none">
+                        <div class="spinner-border text-info mb-2"></div>
+                        <div class="small text-muted">Auditing match records and roster integrity with AI...</div>
+                    </div>
+                    <div id="dataHealthContent" class="small text-light" style="white-space: pre-wrap; line-height: 1.6;"></div>
                 </div>
             </div>
         </div>
