@@ -76,7 +76,13 @@ graph TD
   - Real-time Firestore sync with `locations` collection.
   - `[+]` Add Location button next to the dropdown allows adding new halls on the fly (e.g., `Sporthal De Pijp`).
 - **Safety Safeguards:** Duplicate-match guard (date + venue collision check) and detailed Bootstrap delete confirmation modal.
-- **Gemini Settings Panel:** Secure key entry, live latency test, and dynamic model selector (`gemini-1.5-flash`).
+- **Gemini Settings & Free-Tier Fallback Chain (Fixed):**
+  - **Fallback Chain:** Single exported constant `MODEL_FALLBACK_CHAIN = ['gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']`.
+  - **Error Discrimination:** Walks fallback chain on 404 (model not found), 403 on model, or 400 (deprecated/parameter mismatch). Does NOT walk chain on 429 (rate limit) or invalid API keys.
+  - **Paid-Model Guard:** `KNOWN_PAID_MODELS` list protects against Blaze billing by warning in UI on paid model selection. Zero paid models allowed in the fallback chain.
+  - **Filtered Models List:** Strictly filters API models to text generation only (`generateContent`), excluding image, music (Lyria), TTS, robotics, and computer use models.
+  - **Universal Parameter Compatibility:** Removed `temperature` / `top_p` / `top_k` / `thinking_level` from request generationConfig to prevent HTTP 400 failures on newer Flash models.
+  - **UI Persistence & Status:** Preserves selected model across panel re-opens, displays last used model and fallback notices.
 
 ### 🟢 Stage D — Statistics & Analytics Engine
 - **Elo & Power Ranking Engine (Item 16):** Chronological, deterministic (date + doc ID tiebreak) Elo ratings (Starting 1200, K=32/48, Tournament half-K=16/24). Inline provisional rating badge (`? Provisional (X/5)`) for players with < 5 appearances.

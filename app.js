@@ -660,6 +660,44 @@ window.setTournRank = (teamKey, rank) => {
    STAGE C: GEMINI SETTINGS & CLOUD FUNCTIONS INTEGRATION
    ========================================================================== */
 
+const MODEL_FALLBACK_CHAIN = [
+  'gemini-3.5-flash',       // primary: free tier as of mid-2026
+  'gemini-3.1-flash-lite',  // free tier, higher RPM, lower capability
+  'gemini-2.5-flash',       // long-standing free tier workhorse
+  'gemini-2.5-flash-lite',  // last resort
+];
+
+const KNOWN_PAID_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+  'gemini-1.5-pro',
+  'gemini-2.0-pro',
+  'gemini-2.5-pro',
+  'gemini-3.0-pro',
+  'gemini-3.5-pro',
+  'gemini-3.7-pro'
+];
+
+function isPaidModel(modelId) {
+  if (!modelId) return false;
+  const id = String(modelId).toLowerCase().trim();
+  if (KNOWN_PAID_MODELS.some(p => id === p || id.endsWith('/' + p))) return true;
+  if (id.includes('-pro') || id.includes('pro-') || id.includes('ultra') || id.includes('advanced')) return true;
+  if (id === 'gemini-3.6-flash' || id === 'gemini-3.7-flash') return true;
+  return false;
+}
+
+function updatePaidWarning(modelId) {
+    const warnEl = document.getElementById('paidModelWarning');
+    if (warnEl) {
+        if (isPaidModel(modelId)) {
+            warnEl.classList.remove('d-none');
+        } else {
+            warnEl.classList.add('d-none');
+        }
+    }
+}
+
 function setupGeminiKeyForm() {
     const form = document.getElementById('saveGeminiKeyForm');
     if (!form) return;
@@ -701,6 +739,7 @@ window.openGeminiSettings = async () => {
         const maskedEl = document.getElementById('geminiKeyMasked');
         const lastUpEl = document.getElementById('geminiKeyLastUpdated');
         const modelSelect = document.getElementById('selectGeminiModel');
+        const lastStatusEl = document.getElementById('geminiLastUsedStatus');
 
         if (docSnap.exists) {
             const data = docSnap.data();
@@ -709,12 +748,36 @@ window.openGeminiSettings = async () => {
                 const d = data.updatedAt ? data.updatedAt.toDate() : null;
                 lastUpEl.innerText = d ? `Updated: ${formatDate(d)}` : '';
             }
-            if (modelSelect && data.selectedModel) {
-                modelSelect.value = data.selectedModel;
+
+            const targetModel = data.selectedModel || MODEL_FALLBACK_CHAIN[0];
+            if (modelSelect) {
+                let exists = Array.from(modelSelect.options).some(opt => opt.value === targetModel);
+                if (!exists) {
+                    const opt = document.createElement('option');
+                    opt.value = targetModel;
+                    opt.text = targetModel + (isPaidModel(targetModel) ? ' [Paid]' : '');
+                    modelSelect.appendChild(opt);
+                }
+                modelSelect.value = targetModel;
+                updatePaidWarning(targetModel);
+            }
+
+            if (lastStatusEl) {
+                if (data.lastUsedModel) {
+                    lastStatusEl.classList.remove('d-none');
+                    if (data.lastFallbackFrom) {
+                        lastStatusEl.innerHTML = `<i class="fas fa-info-circle text-warning me-1"></i> Last call used <b>${esc(data.lastUsedModel)}</b> <span class="text-warning">(fell back from ${esc(data.lastFallbackFrom)})</span>`;
+                    } else {
+                        lastStatusEl.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i> Last call used <b>${esc(data.lastUsedModel)}</b>`;
+                    }
+                } else {
+                    lastStatusEl.classList.add('d-none');
+                }
             }
         } else {
             if (maskedEl) maskedEl.innerText = 'Not configured';
             if (lastUpEl) lastUpEl.innerText = '';
+            if (lastStatusEl) lastStatusEl.classList.add('d-none');
         }
     } catch (err) {
         console.warn("Error reading gemini_meta:", err);
@@ -740,21 +803,26 @@ window.testGeminiConnectionHandler = async () => {
         const data = res.data;
 
         if (data && data.ok) {
+            const fallbackNote = data.fellBackFrom ? `<br><span class="text-warning">Fell back from ${esc(data.fellBackFrom)} to ${esc(data.testedModel)}</span>` : '';
             if (resultDiv) {
                 resultDiv.className = 'mb-3 p-2 rounded border border-success bg-success bg-opacity-10 small text-success';
-                resultDiv.innerHTML = `<b>✓ Connection Successful</b> (${data.latencyMs} ms latency)<br>Retrieved ${data.models.length} generative models from Google AI Studio.`;
+                resultDiv.innerHTML = `<b>✓ Connection & Model Test Successful</b> (${data.latencyMs} ms latency)<br>Tested model: <b>${esc(data.testedModel)}</b>${fallbackNote}<br>Retrieved ${data.models.length} text generation models from Google AI Studio.`;
                 resultDiv.classList.remove('d-none');
             }
 
             const modelSelect = document.getElementById('selectGeminiModel');
             if (modelSelect && data.models && data.models.length > 0) {
-                const currentVal = modelSelect.value;
+                const currentVal = modelSelect.value || data.testedModel;
                 modelSelect.innerHTML = data.models.map(m => `
-                    <option value="${esc(m.id)}">${esc(m.displayName || m.id)}</option>
+                    <option value="${esc(m.id)}">${esc(m.displayName || m.id)}${m.isPaid ? ' [Paid]' : ''}</option>
                 `).join('');
+                
                 if (data.models.some(m => m.id === currentVal)) {
                     modelSelect.value = currentVal;
+                } else if (data.testedModel) {
+                    modelSelect.value = data.testedModel;
                 }
+                updatePaidWarning(modelSelect.value);
             }
         }
     } catch (err) {
@@ -772,6 +840,7 @@ window.testGeminiConnectionHandler = async () => {
 
 window.onSelectModel = async (modelId) => {
     if (!currentUser || !modelId) return;
+    updatePaidWarning(modelId);
     try {
         const setModelFn = functions.httpsCallable('setGeminiModel');
         await setModelFn({ modelId });
@@ -815,6 +884,25 @@ window.parseMagicPaste = async () => {
 
         if (!parsed || !parsed.teams || parsed.teams.length < 2) {
             throw new Error("Could not parse match teams from the provided text.");
+        }
+
+        const badgeEl = document.getElementById('magicPasteBadge');
+        if (badgeEl) {
+            if (parsed.modelUsed) {
+                if (parsed.fellBackFrom) {
+                    badgeEl.innerText = `${parsed.modelUsed} (fallback)`;
+                    badgeEl.className = 'badge bg-warning text-dark';
+                    badgeEl.title = `Fell back from ${parsed.fellBackFrom}`;
+                } else {
+                    badgeEl.innerText = parsed.modelUsed;
+                    badgeEl.className = 'badge bg-success';
+                    badgeEl.title = 'AI parsed successfully';
+                }
+            } else {
+                badgeEl.innerText = 'Regex Fallback';
+                badgeEl.className = 'badge bg-secondary';
+                badgeEl.title = 'Local parser used';
+            }
         }
 
         // 2. Set Date & Venue if found

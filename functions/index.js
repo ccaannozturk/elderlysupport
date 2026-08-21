@@ -6,6 +6,39 @@ const db = admin.firestore();
 
 const ADMIN_EMAIL = 'can.ozturk1907@gmail.com';
 
+// Ordered by preference. Free-tier eligibility changes without notice —
+// each entry is tried in order until one succeeds.
+const MODEL_FALLBACK_CHAIN = [
+  'gemini-3.5-flash',       // primary: free tier as of mid-2026
+  'gemini-3.1-flash-lite',  // free tier, higher RPM, lower capability
+  'gemini-2.5-flash',       // long-standing free tier workhorse
+  'gemini-2.5-flash-lite',  // last resort
+];
+exports.MODEL_FALLBACK_CHAIN = MODEL_FALLBACK_CHAIN;
+
+// Explicit paid models list — must never be in MODEL_FALLBACK_CHAIN
+const KNOWN_PAID_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+  'gemini-1.5-pro',
+  'gemini-2.0-pro',
+  'gemini-2.5-pro',
+  'gemini-3.0-pro',
+  'gemini-3.5-pro',
+  'gemini-3.7-pro'
+];
+exports.KNOWN_PAID_MODELS = KNOWN_PAID_MODELS;
+
+function isPaidModel(modelId) {
+  if (!modelId) return false;
+  const id = String(modelId).toLowerCase().trim();
+  if (KNOWN_PAID_MODELS.some(p => id === p || id.endsWith('/' + p))) return true;
+  if (id.includes('-pro') || id.includes('pro-') || id.includes('ultra') || id.includes('advanced')) return true;
+  if (id === 'gemini-3.6-flash' || id === 'gemini-3.7-flash') return true;
+  return false;
+}
+exports.isPaidModel = isPaidModel;
+
 /** Security Guard: Enforces single super-admin identity */
 function assertAdmin(context) {
   if (!context.auth || !context.auth.token || context.auth.token.email !== ADMIN_EMAIL) {
@@ -13,7 +46,121 @@ function assertAdmin(context) {
   }
 }
 
-/** 1. Set Gemini API Key (Validates against Google AI Studio, stores in config/gemini) */
+/**
+ * Core model execution engine with strict error-discriminated fallback chain.
+ *
+ * Fallback triggers: 404 (model not found), 403 on model, 400 (unsupported parameters / deprecated).
+ * DO NOT fallback on: 429 (rate limit), missing/invalid API key, network timeout, safety blocks.
+ */
+async function callGeminiWithFallback(apiKey, prompt, preferredModel) {
+  const candidates = [];
+  if (preferredModel && typeof preferredModel === 'string' && preferredModel.trim()) {
+    candidates.push(preferredModel.trim());
+  }
+  for (const m of MODEL_FALLBACK_CHAIN) {
+    if (!candidates.includes(m)) {
+      candidates.push(m);
+    }
+  }
+
+  const attempts = [];
+  let lastUsedModel = null;
+  let fellBackFrom = null;
+
+  for (let i = 0; i < candidates.length; i++) {
+    const candidateModel = candidates[i];
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+    let res;
+    try {
+      res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseMimeType: 'application/json'
+            // Universal compatibility: NO temperature, top_p, top_k, or thinking parameters
+          }
+        })
+      });
+    } catch (netErr) {
+      throw new functions.https.HttpsError('unavailable', `Network error contacting Gemini API: ${netErr.message}`);
+    }
+
+    if (res.ok) {
+      const data = await res.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      if (!text) {
+        const blockReason = data?.candidates?.[0]?.finishReason || 'empty response';
+        throw new functions.https.HttpsError('internal', `Gemini returned empty response (${blockReason}).`);
+      }
+
+      lastUsedModel = candidateModel;
+      if (preferredModel && candidateModel !== preferredModel) {
+        fellBackFrom = preferredModel;
+      }
+
+      try {
+        db.collection('config').doc('gemini_meta').set({
+          lastUsedModel: candidateModel,
+          lastFallbackFrom: fellBackFrom || null,
+          lastCallTimestamp: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }).catch(metaErr => {
+          console.warn('Failed to update gemini_meta lastUsedModel:', metaErr.message);
+        });
+      } catch (metaErr) {
+        console.warn('Failed to update gemini_meta lastUsedModel:', metaErr.message);
+      }
+
+      return {
+        text,
+        modelUsed: candidateModel,
+        fellBackFrom,
+        attempts
+      };
+    }
+
+    const status = res.status;
+    const errBody = await res.text();
+
+    // 1. Rate Limit (429): DO NOT WALK CHAIN
+    if (status === 429) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        `Gemini rate limit reached on model "${candidateModel}" (HTTP 429). Please wait a moment and try again.`
+      );
+    }
+
+    // 2. Invalid API Key: DO NOT WALK CHAIN
+    if (status === 401 || (status === 400 && errBody.toLowerCase().includes('api_key_invalid'))) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Gemini API key is invalid or rejected by Google AI Studio. Please re-enter your API key in Settings.'
+      );
+    }
+
+    // 3. Model-level failures: 404 (not found), 403 (model-specific permissions), 400 (deprecated / parameter reject)
+    const isModelError = status === 404 || status === 403 || status === 400 || (status >= 500 && status < 600);
+    if (isModelError) {
+      attempts.push({ model: candidateModel, status, reason: errBody.slice(0, 300) });
+      console.warn(`Gemini model "${candidateModel}" failed with HTTP ${status} (falling back): ${errBody.slice(0, 200)}`);
+      continue;
+    }
+
+    attempts.push({ model: candidateModel, status, reason: errBody.slice(0, 300) });
+    throw new functions.https.HttpsError('internal', `Gemini API error (${status}) on model "${candidateModel}": ${errBody}`);
+  }
+
+  const failureSummary = attempts.map(a => `[${a.model}: HTTP ${a.status}]`).join(', ');
+  throw new functions.https.HttpsError(
+    'failed-precondition',
+    `All Gemini models in fallback chain failed (${failureSummary}). Please check Google AI Studio service status or update settings.`
+  );
+}
+exports.callGeminiWithFallback = callGeminiWithFallback;
+
+/** 1. Set Gemini API Key */
 exports.setGeminiKey = functions.https.onCall(async (data, context) => {
   assertAdmin(context);
 
@@ -22,7 +169,6 @@ exports.setGeminiKey = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Valid Gemini API key is required.');
   }
 
-  // Validate key by querying Google AI Studio models endpoint once
   const testUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`;
   let testRes;
   try {
@@ -44,28 +190,25 @@ exports.setGeminiKey = functions.https.onCall(async (data, context) => {
   const last4 = apiKey.slice(-4);
   const now = admin.firestore.FieldValue.serverTimestamp();
 
-  // 1. Write secret key to config/gemini (read/write: false in firestore.rules)
   await db.collection('config').doc('gemini').set({
     apiKey: apiKey,
     updatedAt: now,
     updatedBy: ADMIN_EMAIL
   });
 
-  // 2. Read existing meta to preserve model selection
   const metaDoc = await db.collection('config').doc('gemini_meta').get();
   const existingModel = metaDoc.exists ? metaDoc.data().selectedModel : null;
 
-  // 3. Write non-secret metadata to config/gemini_meta (admin-read only)
   await db.collection('config').doc('gemini_meta').set({
     last4: last4,
     updatedAt: now,
-    selectedModel: existingModel || 'gemini-1.5-flash'
+    selectedModel: existingModel || MODEL_FALLBACK_CHAIN[0]
   }, { merge: true });
 
   return { ok: true, last4: last4 };
 });
 
-/** 2. Test Gemini Connection & Fetch Available Models */
+/** 2. Test Gemini Connection & Fetch Filtered Available Models */
 exports.testGeminiConnection = functions.https.onCall(async (data, context) => {
   assertAdmin(context);
 
@@ -85,8 +228,6 @@ exports.testGeminiConnection = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('unavailable', `Connection failed: ${err.message}`);
   }
 
-  const latencyMs = Date.now() - startTime;
-
   if (!res.ok) {
     let msg = `Gemini API error (${res.status}): ${res.statusText}`;
     if (res.status === 400 || res.status === 401 || res.status === 403) {
@@ -99,15 +240,45 @@ exports.testGeminiConnection = functions.https.onCall(async (data, context) => {
 
   const json = await res.json();
   const rawModels = json.models || [];
+  
+  const excludedKeywords = ['embedding', 'aqa', 'imagen', 'banana', 'lyria', 'tts', 'audio', 'robotics', 'computer'];
   const models = rawModels
-    .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
-    .map(m => ({
-      id: m.name.replace(/^models\//, ''),
-      displayName: m.displayName || m.name.replace(/^models\//, ''),
-      inputTokenLimit: m.inputTokenLimit || 0
-    }));
+    .filter(m => {
+      const methods = m.supportedGenerationMethods || [];
+      const id = (m.name || '').toLowerCase();
+      if (!methods.includes('generateContent')) return false;
+      if (excludedKeywords.some(kw => id.includes(kw))) return false;
+      return true;
+    })
+    .map(m => {
+      const id = m.name.replace(/^models\//, '');
+      return {
+        id,
+        displayName: m.displayName || id,
+        inputTokenLimit: m.inputTokenLimit || 0,
+        isPaid: isPaidModel(id)
+      };
+    });
 
-  return { ok: true, latencyMs, models };
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const preferredModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  let probeResult;
+  try {
+    probeResult = await callGeminiWithFallback(apiKey, 'Return JSON: {"status":"ok"}', preferredModel);
+  } catch (probeErr) {
+    throw new functions.https.HttpsError('unavailable', `Model test failed: ${probeErr.message}`);
+  }
+
+  const latencyMs = Date.now() - startTime;
+
+  return {
+    ok: true,
+    latencyMs,
+    models,
+    testedModel: probeResult.modelUsed,
+    fellBackFrom: probeResult.fellBackFrom || null
+  };
 });
 
 /** 3. Set Selected Gemini Model */
@@ -136,23 +307,19 @@ exports.parseLineup = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'Lineup message text is empty.');
   }
 
-  // Cost guard: cap message length
   if (rawText.length > 5000) {
     throw new functions.https.HttpsError('invalid-argument', 'Message exceeds 5,000 characters limit.');
   }
 
-  // 1. Fetch Gemini API Key
   const keyDoc = await db.collection('config').doc('gemini').get();
   if (!keyDoc.exists || !keyDoc.data().apiKey) {
     throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured. Please add an API key in Admin Settings.');
   }
   const apiKey = keyDoc.data().apiKey;
 
-  // 2. Fetch Selected Model
   const metaDoc = await db.collection('config').doc('gemini_meta').get();
-  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : 'gemini-1.5-flash';
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
 
-  // 3. Fetch Active Player Registry for Roster Context
   const playersSnap = await db.collection('players_v2').get();
   const knownPlayersMap = new Map();
   const rosterContext = [];
@@ -168,7 +335,6 @@ exports.parseLineup = functions.https.onCall(async (data, context) => {
     }
   });
 
-  // 4. Construct Prompt
   const prompt = `You are an expert football match lineup parser for the Elderly Support League in Amsterdam.
 Parse the following raw match announcement / WhatsApp lineup message into strict JSON.
 
@@ -212,42 +378,9 @@ ${rawText}
 """
 `;
 
-  // 5. Call Gemini API
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  const rawOutputText = geminiRes.text;
 
-  let geminiRes;
-  try {
-    geminiRes = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.1
-        }
-      })
-    });
-  } catch (err) {
-    throw new functions.https.HttpsError('unavailable', `Failed to contact Gemini API: ${err.message}`);
-  }
-
-  if (!geminiRes.ok) {
-    if (geminiRes.status === 429) {
-      throw new functions.https.HttpsError('resource-exhausted', 'Gemini free-tier rate limit reached. Please wait a moment and try again.');
-    }
-    const errBody = await geminiRes.text();
-    throw new functions.https.HttpsError('internal', `Gemini API error (${geminiRes.status}): ${errBody}`);
-  }
-
-  const geminiData = await geminiRes.json();
-  const rawOutputText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  if (!rawOutputText) {
-    throw new functions.https.HttpsError('internal', 'No response received from Gemini.');
-  }
-
-  // 6. Defensively Parse JSON Output
   let parsed;
   try {
     const cleanedText = rawOutputText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
@@ -256,7 +389,6 @@ ${rawText}
     throw new functions.https.HttpsError('internal', `Failed to parse AI output as JSON: ${parseErr.message}`);
   }
 
-  // 7. Server-Side Validation: Ensure IDs exist in players_v2
   const validatedTeams = [];
   for (const t of (parsed.teams || [])) {
     const validatedPlayers = [];
@@ -294,6 +426,8 @@ ${rawText}
     date: parsed.date || null,
     venue: parsed.venue || null,
     teams: validatedTeams,
-    unparsed: Array.isArray(parsed.unparsed) ? parsed.unparsed : []
+    unparsed: Array.isArray(parsed.unparsed) ? parsed.unparsed : [],
+    modelUsed: geminiRes.modelUsed,
+    fellBackFrom: geminiRes.fellBackFrom || null
   };
 });
