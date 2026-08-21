@@ -67,7 +67,15 @@ let communityFeedErrors = { fixtures: null, roasts: null };
 let playersRegistry = new Map(); // playerId -> { id, displayName, aliases, active }
 let currentModalContext = null; // { teamKey, index, rawInput, candidates, top3 }
 let activeTeamTarget = 'A'; // 'A' | 'B' | 'TournA' | 'TournB' | 'TournC'
-const SUPER_ADMIN = "can.ozturk1907@gmail.com";
+// TWO TIERS — must stay in step with firestore.rules and functions/index.js.
+// This is presentation only; the rules and the Cloud Functions are what
+// actually enforce it. Keeping it in step just means an organizer never sees a
+// button that is going to fail on them.
+const SUPER_ADMIN = "can.ozturk1907@gmail.com";        // owner
+const ORGANIZERS = [
+    SUPER_ADMIN,
+    "elderly.group.futsal@gmail.com"
+];
 
 // SORTING STATE
 let currentSortCol = 'points';
@@ -125,7 +133,7 @@ function renderLocationsSelect(selectedVal) {
 }
 
 window.openAddLocationModal = () => {
-    if (!currentUser) return alert("Please log in as admin first.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
     const input = document.getElementById('newLocationName');
     if (input) input.value = '';
     const modalEl = document.getElementById('addLocationModal');
@@ -137,7 +145,7 @@ window.openAddLocationModal = () => {
 };
 
 window.saveNewLocation = async () => {
-    if (!currentUser) return alert("Please log in as admin first.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
     const input = document.getElementById('newLocationName');
     const name = (input ? input.value : '').trim();
     if (!name) return alert("Please enter a location / hall name.");
@@ -273,19 +281,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Anything marked data-owner-only is hidden from organizers. Presentation only:
+// firestore.rules and the Cloud Functions are what actually refuse the write.
+function applyOwnerOnlyVisibility(isOwner) {
+    document.querySelectorAll('[data-owner-only]').forEach(el => {
+        el.classList.toggle('d-none', !isOwner);
+    });
+}
+
 function updateAuthUI() {
     const navEntry = document.getElementById('navNewEntry');
     const authBtn = document.querySelector('.auth-icon');
     
     if (currentUser) {
-        if(navEntry) navEntry.classList.remove('d-none');
+        // Organizers get the entry tab; a signed-in stranger does not, since
+        // every write they attempted would be rejected server-side anyway.
+        if(navEntry) navEntry.classList.toggle('d-none', !isOrganizer(currentUser));
         if(authBtn) authBtn.classList.add('active');
+        applyOwnerOnlyVisibility(isSuperAdmin(currentUser));
         document.getElementById('loginForm').classList.add('d-none');
         document.getElementById('userInfo').classList.remove('d-none');
         safeText('userEmailDisplay', currentUser.email);
     } else {
         if(navEntry) navEntry.classList.add('d-none');
         if(authBtn) authBtn.classList.remove('active');
+        applyOwnerOnlyVisibility(false);
         document.getElementById('loginForm').classList.remove('d-none');
         document.getElementById('userInfo').classList.add('d-none');
     }
@@ -751,7 +771,7 @@ function setupGeminiKeyForm() {
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        if (!currentUser) return alert("Please log in as admin first.");
+        if (!isOrganizer(currentUser)) return alert("Organizer access required.");
 
         const apiKeyInput = document.getElementById('inputGeminiApiKey');
         const apiKey = (apiKeyInput ? apiKeyInput.value : '').trim();
@@ -780,7 +800,7 @@ function setupGeminiKeyForm() {
 }
 
 window.openGeminiSettings = async () => {
-    if (!currentUser) return;
+    if (!isSuperAdmin(currentUser)) return alert("The AI key and model are owner-only.");
     try {
         const docSnap = await db.collection('config').doc('gemini_meta').get();
         const maskedEl = document.getElementById('geminiKeyMasked');
@@ -832,7 +852,7 @@ window.openGeminiSettings = async () => {
 };
 
 window.testGeminiConnectionHandler = async () => {
-    if (!currentUser) return alert("Please log in as admin first.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
 
     const spinner = document.getElementById('testConnSpinner');
     const icon = document.getElementById('testConnIcon');
@@ -2058,11 +2078,11 @@ function renderMatchesList(filtered) {
             filtered.forEach(m => {
                 const dateStr = formatDate(m.date.toDate());
                 let adminBtns = "";
-                if (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase()) {
+                if (isOrganizer(currentUser)) {
                     adminBtns = `<div class="admin-actions">
                         <button class="btn btn-sm btn-outline-warning py-0 me-2" onclick="regenerateRecap('${m.id}', event)" title="Regenerate AI Match Recap"><i class="fas fa-redo-alt me-1"></i>Recap</button>
                         <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch('${m.id}', event)">Edit</button> 
-                        <button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>
+                        ${isSuperAdmin(currentUser) ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>` : ''}
                     </div>`;
                 }
                 const ytLink = m.youtubeLink ? `<a href="${esc(safeUrl(m.youtubeLink))}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
@@ -3041,7 +3061,7 @@ window.selectClosestCandidate = (playerId) => {
 
 document.getElementById('addMatchForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    if(!currentUser) return alert("Login needed");
+    if(!isOrganizer(currentUser)) return alert("Organizer access required.");
 
     const isTourn = document.getElementById('typeTournament').checked;
     const activeTeams = isTourn ? ['TournA', 'TournB', 'TournC'] : ['A', 'B'];
@@ -3534,7 +3554,7 @@ window.toggleMatchType = () => {
 /** Item 33: Manual Recap Regeneration */
 window.regenerateRecap = async (matchId, event) => {
     if (event) event.stopPropagation();
-    if (!currentUser) return alert("Admin login required.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
 
     const btn = event ? event.currentTarget : null;
     const origHtml = btn ? btn.innerHTML : '';
@@ -3605,7 +3625,7 @@ window.setQueryPrompt = (text) => {
 };
 
 window.executeStatsQuery = async () => {
-    if (!currentUser) return alert("Admin login required.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
 
     const input = document.getElementById('statsQueryInput');
     const qText = input ? input.value.trim() : '';
@@ -3662,7 +3682,7 @@ window.executeStatsQuery = async () => {
 
 /** Item 36: Alias Suggestion on Player Creation */
 window.suggestPlayerAliases = async () => {
-    if (!currentUser) return alert("Admin login required.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
 
     const nameInput = document.getElementById('newPlayerDisplayName');
     const displayName = nameInput ? nameInput.value.trim() : '';
@@ -3715,7 +3735,7 @@ window.appendSuggestedAlias = (alias, btn) => {
 
 /** Item 37: Data Health Audit */
 window.openDataHealthAudit = async () => {
-    if (!currentUser) return alert("Admin login required.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
 
     const modalEl = document.getElementById('dataHealthModal');
     if (!modalEl) return;
@@ -4990,6 +5010,12 @@ function isSuperAdmin(user) {
     return !!(user && user.email && user.email.toLowerCase() === SUPER_ADMIN.toLowerCase());
 }
 
+function isOrganizer(user) {
+    if (!user || !user.email) return false;
+    const email = user.email.toLowerCase();
+    return ORGANIZERS.some(e => e.toLowerCase() === email);
+}
+
 function noteCommunityFeedError(feed, err) {
     const denied = err && (err.code === 'permission-denied' || err.code === 'missing-or-insufficient-permissions');
     communityFeedErrors[feed] = denied
@@ -5053,7 +5079,7 @@ function fetchRoasts(mode = 'public') {
 }
 
 window.openRoastStudio = async () => {
-    if (!currentUser) return alert("Admin login required.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
     updateCommissionerStatsUI();
     loadRoastCandidates();
     populateFixtureVenueSelect();
@@ -5668,6 +5694,8 @@ window.updateIntensityLabel = (val) => {
 };
 
 window.saveRoastSettingsHandler = async () => {
+    // The opt-out list is a promise to a person; only the owner may change it.
+    if (!isSuperAdmin(currentUser)) return alert("Roast safety settings are owner-only.");
     const intensity = document.getElementById('roastIntensityRange')?.value || 3;
     const allowProfanity = document.getElementById('roastProfanityCheck')?.checked || false;
     const optContainer = document.getElementById('roastOptOutContainer');
@@ -6189,7 +6217,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
 }
 
 window.generateAwardCitation = async (year, month, recipientName, metricValue) => {
-    if (!currentUser) return alert("Admin login required.");
+    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
     try {
         const genFn = functions.httpsCallable('generateAwardsCopy');
         const res = await genFn({

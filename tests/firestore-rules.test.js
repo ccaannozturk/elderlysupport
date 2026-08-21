@@ -1,6 +1,7 @@
 const fs = require('fs');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const ADMIN = 'can.ozturk1907@gmail.com';
+const OWNER = 'can.ozturk1907@gmail.com';
+const ORGANIZER = 'elderly.group.futsal@gmail.com';
 
 (async () => {
   const env = await initializeTestEnvironment({
@@ -27,7 +28,8 @@ const ADMIN = 'can.ozturk1907@gmail.com';
   });
 
   const anon  = env.unauthenticatedContext().firestore();
-  const admin = env.authenticatedContext('a', { email: ADMIN, email_verified: true }).firestore();
+  const admin = env.authenticatedContext('a', { email: OWNER, email_verified: true }).firestore();
+  const org   = env.authenticatedContext('c', { email: ORGANIZER, email_verified: true }).firestore();
   const rando = env.authenticatedContext('b', { email: 'someone@else.com', email_verified: true }).firestore();
 
   const rows = [];
@@ -90,6 +92,29 @@ const ADMIN = 'can.ozturk1907@gmail.com';
 
   await t('default',    'unknown collection read',  anon.collection('whatever').get(), 'deny');
   await t('default',    'unknown collection admin write', admin.collection('whatever').doc('x').set({ a: 1 }), 'deny');
+
+  // ---- TWO-TIER CHECKS ----
+  await t('tier:matches',  'ORGANIZER create match',      org.collection('matches_v2').doc('o1').set(goodMatch), 'allow');
+  await t('tier:matches',  'ORGANIZER update match',      org.collection('matches_v2').doc('o1').set(goodMatch), 'allow');
+  await t('tier:matches',  'ORGANIZER cannot delete',     org.collection('matches_v2').doc('o1').delete(), 'deny');
+  await t('tier:matches',  'ORGANIZER bad match rejected',org.collection('matches_v2').doc('o9').set(badMatch), 'deny');
+  await t('tier:players',  'ORGANIZER add new player',    org.collection('players_v2').doc('newguy').set({ displayName: 'New' }), 'allow');
+  await t('tier:players',  'ORGANIZER cannot rename',     org.collection('players_v2').doc('can').set({ displayName: 'Renamed' }), 'deny');
+  await t('tier:players',  'ORGANIZER cannot delete',     org.collection('players_v2').doc('can').delete(), 'deny');
+  await t('tier:locations','ORGANIZER add venue',         org.collection('locations').doc('lo1').set({ name: 'New Hall' }), 'allow');
+  await t('tier:awards',   'ORGANIZER write citation',    org.collection('awards').doc('2026-9').set({ citation: 'z' }), 'allow');
+  await t('tier:fixtures', 'ORGANIZER create fixture',    org.collection('fixtures').doc('of1').set({ status: 'scheduled' }), 'allow');
+  await t('tier:fixtures', 'ORGANIZER sees drafts',       org.collection('fixtures').get(), 'allow');
+  await t('tier:fixtures', 'ORGANIZER cannot delete',     org.collection('fixtures').doc('of1').delete(), 'deny');
+  await t('tier:roasts',   'ORGANIZER publish roast',     org.collection('roasts').doc('or1').set({ status: 'published', roastText: 'q' }), 'allow');
+  await t('tier:roasts',   'ORGANIZER sees drafts',       org.collection('roasts').get(), 'allow');
+  await t('tier:roasts',   'ORGANIZER cannot delete',     org.collection('roasts').doc('or1').delete(), 'deny');
+  await t('tier:config',   'ORGANIZER cannot read key meta', org.collection('config').doc('gemini_meta').get(), 'deny');
+  await t('tier:config',   'ORGANIZER cannot read API key',  org.collection('config').doc('gemini').get(), 'deny');
+  await t('tier:config',   'ORGANIZER cannot change roast settings', org.collection('config').doc('roast_settings').set({ allowProfanity: true }), 'deny');
+  await t('tier:config',   'ORGANIZER cannot read roast settings',   org.collection('config').doc('roast_settings').get(), 'deny');
+  await t('tier:stranger', 'STRANGER still cannot create match', rando.collection('matches_v2').doc('s1').set(goodMatch), 'deny');
+  await t('tier:stranger', 'STRANGER still cannot add player',   rando.collection('players_v2').doc('s2').set({ displayName: 'X' }), 'deny');
 
   let group = '', fails = 0;
   rows.forEach(r => {

@@ -24,16 +24,39 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
+    // TWO TIERS.
+    //
+    // isOwner()     — Can. Holds the Gemini key (his Blaze billing), the roast
+    //                 safety settings, and every irreversible edit.
+    // isOrganizer() — owner + trusted organizers. Everything needed to run the
+    //                 league week to week: enter and edit matches, add players
+    //                 and venues, schedule fixtures, record results, publish
+    //                 roasts.
+    //
+    // The split is about blast radius, not trust. An organizer can do all the
+    // day-to-day work; only the owner can rotate the API key, reopen a roast
+    // opt-out, or destroy history that has no undo.
+    function isOwner() {
       return isSignedIn()
         && request.auth.token.email == 'can.ozturk1907@gmail.com';
     }
 
-    // Add trusted editors here. Keep it explicit.
+    // Add trusted organizers here. Keep it explicit — there is no role system,
+    // this list IS the permission model.
+    function isOrganizer() {
+      return isSignedIn() && request.auth.token.email in [
+        'can.ozturk1907@gmail.com',
+        'elderly.group.futsal@gmail.com'
+      ];
+    }
+
+    // Kept so older rule bodies stay readable. isAdmin == owner.
+    function isAdmin() {
+      return isOwner();
+    }
+
     function isEditor() {
-      return isAdmin();
-      // Example of adding a second editor:
-      // return isAdmin() || request.auth.token.email == 'someone@example.com';
+      return isOrganizer();
     }
 
     function validMatch() {
@@ -55,9 +78,9 @@ service cloud.firestore {
     /* ========== MATCHES V2 (canonical, Stage B+) ========== */
     match /matches_v2/{matchId} {
       allow read: if true;
-      allow create: if isEditor() && validMatch();
-      allow update: if isAdmin() && validMatch();
-      allow delete: if isAdmin();
+      allow create: if isOrganizer() && validMatch();
+      allow update: if isOrganizer() && validMatch();
+      allow delete: if isOwner();   // hard delete, no archive — owner only
     }
 
     /* ========== PLAYERS (legacy autocomplete, retired) ========== */
@@ -71,19 +94,20 @@ service cloud.firestore {
     // of truth for player identity — corrupting it corrupts all history.
     match /players_v2/{playerId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isOrganizer();          // a new joiner mid-entry
+      allow update, delete: if isOwner();      // a rename rewrites every stat
     }
 
     /* ========== AWARDS (Stage E) ========== */
     match /awards/{awardId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isOrganizer();
     }
 
     /* ========== LOCATIONS ========== */
     match /locations/{locId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isOrganizer();
     }
 
     /* ========== FIXTURES & ROASTS (Item 42) ========== */
@@ -99,13 +123,15 @@ service cloud.firestore {
     // works too. These conditions mirror the client queries exactly anyway —
     // that is the intent, not a workaround.
     match /fixtures/{fixtureId} {
-      allow read: if isAdmin() || (resource != null && resource.data.status == 'scheduled');
-      allow write: if isAdmin();
+      allow read: if isOrganizer() || (resource != null && resource.data.status == 'scheduled');
+      allow create, update: if isOrganizer();
+      allow delete: if isOwner();
     }
 
     match /roasts/{roastId} {
-      allow read: if isAdmin() || (resource != null && resource.data.status == 'published');
-      allow write: if isAdmin();
+      allow read: if isOrganizer() || (resource != null && resource.data.status == 'published');
+      allow create, update: if isOrganizer();
+      allow delete: if isOwner();   // no undo — owner only
     }
 
     /* ========== CONFIG ========== */
@@ -118,12 +144,14 @@ service cloud.firestore {
     // without this rule that read was denied and swallowed by a try/catch — the
     // settings modal showed "Not configured" even with a key installed.
     match /config/gemini_meta {
-      allow read: if isAdmin();
+      allow read: if isOwner();   // tied to the owner's billing
       allow write: if false;   // written by Cloud Functions via the Admin SDK
     }
 
+    // The opt-out list is a promise to a person that they will not be roasted.
+    // It should not be reversible by whoever happens to be signed in.
     match /config/roast_settings {
-      allow read, write: if isAdmin();
+      allow read, write: if isOwner();
     }
 
     /* ========== DEFAULT DENY ========== */

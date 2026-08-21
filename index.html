@@ -491,7 +491,7 @@
                         <button class="btn btn-sm btn-outline-danger fw-bold" data-bs-toggle="modal" data-bs-target="#roastStudioModal" onclick="openRoastStudio()">
                             <i class="fas fa-fire me-1"></i> Roast Studio
                         </button>
-                        <button class="btn btn-sm btn-outline-warning fw-bold" data-bs-toggle="modal" data-bs-target="#geminiSettingsModal" onclick="openGeminiSettings()">
+                        <button class="btn btn-sm btn-outline-warning fw-bold d-none" data-owner-only data-bs-toggle="modal" data-bs-target="#geminiSettingsModal" onclick="openGeminiSettings()">
                             <i class="fas fa-cog me-1"></i> AI Settings
                         </button>
                         <button class="btn btn-sm btn-outline-info fw-bold" onclick="openDataHealthAudit()">
@@ -860,7 +860,7 @@
                     <ul class="nav nav-pills nav-fill mb-3" id="roastStudioTabs" role="tablist">
                         <li class="nav-item"><button class="nav-link active btn-sm fw-bold" data-bs-toggle="tab" data-bs-target="#tabRoastAngle"><i class="fas fa-bullseye me-1"></i>Tab A: Roast an Angle</button></li>
                         <li class="nav-item"><button class="nav-link btn-sm fw-bold" data-bs-toggle="tab" data-bs-target="#tabNextFixture"><i class="fas fa-calendar-plus me-1"></i>Tab B: Next Fixture</button></li>
-                        <li class="nav-item"><button class="nav-link btn-sm fw-bold" data-bs-toggle="tab" data-bs-target="#tabRoastSettings"><i class="fas fa-sliders-h me-1"></i>Tab C: Settings</button></li>
+                        <li class="nav-item d-none" data-owner-only><button class="nav-link btn-sm fw-bold" data-bs-toggle="tab" data-bs-target="#tabRoastSettings"><i class="fas fa-sliders-h me-1"></i>Tab C: Settings</button></li>
                     </ul>
 
                     <div class="tab-content">

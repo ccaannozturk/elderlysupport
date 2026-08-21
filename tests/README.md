@@ -1,7 +1,8 @@
 # Firestore rules tests
 
-44 assertions covering every collection the app touches, run against the
-official rules emulator. No production access, no credentials.
+65 assertions covering every collection the app touches and both permission
+tiers, run against the official rules emulator. No production access, no
+credentials.
 
 ```bash
 npm i --no-save firebase-tools @firebase/rules-unit-testing firebase
@@ -11,6 +12,12 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 node tests/firestore-rules.test.js
 
 The test reads `current.rules`; copy `firestore.rules` to that name, or edit the
 path at the top of the file. Exit code is non-zero if any assertion mismatches.
+
+It asserts the two-tier model explicitly: an organizer can create and update
+matches, add players, venues, fixtures and roasts, and see drafts — but cannot
+delete anything, cannot rename or delete a player, and cannot read the API key
+metadata or touch the roast safety settings. A signed-in stranger can still do
+nothing at all.
 
 What it pins down, beyond the obvious allow/deny pairs:
 

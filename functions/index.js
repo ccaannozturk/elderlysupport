@@ -4,7 +4,16 @@ const admin = require('firebase-admin');
 admin.initializeApp();
 const db = admin.firestore();
 
-const ADMIN_EMAIL = 'can.ozturk1907@gmail.com';
+// TWO TIERS — mirrors firestore.rules. This list IS the permission model;
+// there is no role system.
+const OWNER_EMAIL = 'can.ozturk1907@gmail.com';
+const ORGANIZER_EMAILS = [
+  OWNER_EMAIL,
+  'elderly.group.futsal@gmail.com'
+];
+
+// Retained: existing call sites read as "owner only".
+const ADMIN_EMAIL = OWNER_EMAIL;
 
 // Ordered by preference. Free-tier eligibility changes without notice —
 // each entry is tried in order until one succeeds.
@@ -39,10 +48,24 @@ function isPaidModel(modelId) {
 }
 exports.isPaidModel = isPaidModel;
 
-/** Security Guard: Enforces single super-admin identity */
+function callerEmail(context) {
+  return (context && context.auth && context.auth.token && context.auth.token.email)
+    ? String(context.auth.token.email).toLowerCase()
+    : null;
+}
+
+/** Owner only: the Gemini key and model (billing), and roast safety settings. */
 function assertAdmin(context) {
-  if (!context.auth || !context.auth.token || context.auth.token.email !== ADMIN_EMAIL) {
-    throw new functions.https.HttpsError('permission-denied', 'Admin access required.');
+  if (callerEmail(context) !== OWNER_EMAIL.toLowerCase()) {
+    throw new functions.https.HttpsError('permission-denied', 'Owner access required.');
+  }
+}
+
+/** Owner or a trusted organizer: everything needed to run the league. */
+function assertOrganizer(context) {
+  const email = callerEmail(context);
+  if (!email || !ORGANIZER_EMAILS.some(e => e.toLowerCase() === email)) {
+    throw new functions.https.HttpsError('permission-denied', 'Organizer access required.');
   }
 }
 
@@ -300,7 +323,7 @@ exports.setGeminiModel = functions.https.onCall(async (data, context) => {
 
 /** 4. AI Magic Lineup Parser */
 exports.parseLineup = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const rawText = data && data.rawText ? String(data.rawText).trim() : '';
   if (!rawText) {
@@ -952,7 +975,7 @@ function computeMatchAngles(allMatches, targetMatchId, nameResolver = (id) => id
 /** 5. Item 33: Match Recap Blurbs */
 exports.generateMatchRecap = functions.https.onCall(async (data, context) => {
   try {
-    assertAdmin(context);
+    assertOrganizer(context);
 
     const matchId = data && data.matchId ? String(data.matchId).trim() : '';
     if (!matchId) {
@@ -1083,7 +1106,7 @@ STRICT FACTUAL RULES:
 
 /** 6. Item 34: Natural Language Stats Query */
 exports.queryStats = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const question = data && data.question ? String(data.question).trim() : '';
   if (!question) {
@@ -1407,7 +1430,7 @@ USER QUESTION:
 
 /** 7. Item 35: Award & Milestone Citation Copy */
 exports.generateAwardsCopy = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const awardType = data && data.awardType ? String(data.awardType).trim() : 'Player of the Month';
   const recipient = data && data.recipientName ? String(data.recipientName).trim() : 'Player';
@@ -1457,7 +1480,7 @@ RULES:
 
 /** 8. Item 36: Alias Suggestion on Player Creation */
 exports.suggestAliases = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const displayName = data && data.displayName ? String(data.displayName).trim() : '';
   if (!displayName || displayName.length < 2) {
@@ -1517,7 +1540,7 @@ RULES:
 
 /** 9. Item 37: Data Health Audit */
 exports.auditDataHealth = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const keyDoc = await db.collection('config').doc('gemini').get();
   if (!keyDoc.exists || !keyDoc.data().apiKey) {
@@ -1850,7 +1873,7 @@ exports.computeRoastAngles = computeRoastAngles;
 
 /** 8. Item 42: Get Scored Roast Angle Candidates */
 exports.getRoastAngleCandidates = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const matchesSnap = await db.collection('matches_v2').get();
   const allMatches = [];
@@ -1876,7 +1899,7 @@ exports.getRoastAngleCandidates = functions.https.onCall(async (data, context) =
 
 /** 9. Item 42: Generate 3 Roast Variants */
 exports.generateRoastVariants = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const angleType = data && data.angleType ? String(data.angleType).trim() : '';
   const targetPlayerName = data && data.targetPlayerName ? String(data.targetPlayerName).trim() : '';
@@ -1952,7 +1975,7 @@ CONTENT & PROFANITY RULES:
 
 /** 10. Item 42: Publish Roast */
 exports.publishRoast = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const roastText = data && data.roastText ? String(data.roastText).trim() : '';
   const targetPlayerId = data && data.targetPlayerId ? String(data.targetPlayerId).trim() : '';
@@ -1984,7 +2007,7 @@ exports.publishRoast = functions.https.onCall(async (data, context) => {
 
 /** 11. Item 42: Generate Fixture Preview & Immutable Prediction */
 exports.generateFixturePreview = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const squads = data && data.squads ? data.squads : [];
   const venue = data && data.venue ? String(data.venue).trim() : 'Sportgebouw Bibian Mentel';
@@ -2097,7 +2120,7 @@ STRICT COMMISSIONER GUIDELINES:
 
 /** 12. Item 42: Save / Publish Fixture */
 exports.saveFixture = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const fixtureId = (data && data.fixtureId) ? String(data.fixtureId).trim() : db.collection('fixtures').doc().id;
   const status = (data && data.status) ? String(data.status).trim() : 'draft';
@@ -2153,7 +2176,7 @@ exports.saveFixture = functions.https.onCall(async (data, context) => {
 
 /** 13. Item 42: Resolve Fixture to Match (Evaluate Prediction) */
 exports.resolveFixtureToMatch = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const fixtureId = data && data.fixtureId ? String(data.fixtureId).trim() : '';
   const matchId = data && data.matchId ? String(data.matchId).trim() : '';
@@ -2225,7 +2248,7 @@ exports.resolveFixtureToMatch = functions.https.onCall(async (data, context) => 
 
 /** 14. Item 42: Archive Fixture */
 exports.archiveFixture = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  assertOrganizer(context);
 
   const fixtureId = data && data.fixtureId ? String(data.fixtureId).trim() : '';
   if (!fixtureId) {
