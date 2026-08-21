@@ -432,6 +432,504 @@ ${rawText}
   };
 });
 
+const RECAP_SILENCE_THRESHOLD = 65;
+
+function getMatchTime(m) {
+  if (!m || !m.date) return 0;
+  if (m.date.value) return new Date(m.date.value).getTime();
+  if (m.date.toMillis && typeof m.date.toMillis === 'function') return m.date.toMillis();
+  if (m.date.toDate && typeof m.date.toDate === 'function') return m.date.toDate().getTime();
+  return new Date(m.date).getTime();
+}
+
+function getMatchDate(m) {
+  if (!m || !m.date) return new Date(0);
+  if (m.date.value) return new Date(m.date.value);
+  if (m.date.toDate && typeof m.date.toDate === 'function') return m.date.toDate();
+  return new Date(m.date);
+}
+
+function computeExpectedScore(rA, rB) {
+  return 1 / (1 + Math.pow(10, (rB - rA) / 400));
+}
+
+function computeEloRatings(matchList) {
+  const sorted = [...matchList].sort((a, b) => {
+    const tA = getMatchTime(a);
+    const tB = getMatchTime(b);
+    if (tA !== tB) return tA - tB;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+
+  const ratings = {};
+  const matchCounts = {};
+
+  const getRating = (p) => ratings[p] !== undefined ? ratings[p] : STARTING_ELO;
+  const getCount = (p) => matchCounts[p] !== undefined ? matchCounts[p] : 0;
+
+  for (const m of sorted) {
+    if (!m.teams || m.teams.length < 2) continue;
+
+    if (m.type === 'Standard') {
+      const tA = m.teams[0], tB = m.teams[1];
+      const pA = tA.players || [], pB = tB.players || [];
+      const avgA = pA.length ? (pA.reduce((sum, p) => sum + getRating(p), 0) / pA.length) : STARTING_ELO;
+      const avgB = pB.length ? (pB.reduce((sum, p) => sum + getRating(p), 0) / pB.length) : STARTING_ELO;
+      const expA = computeExpectedScore(avgA, avgB);
+      const expB = 1 - expA;
+      let actA = 0.5, actB = 0.5;
+      const sA = tA.score || 0, sB = tB.score || 0;
+      if (sA > sB) { actA = 1; actB = 0; }
+      else if (sB > sA) { actA = 0; actB = 1; }
+
+      for (const p of pA) {
+        const k = getCount(p) < 10 ? K_STANDARD_NEW : K_STANDARD_REG;
+        ratings[p] = getRating(p) + k * (actA - expA);
+        matchCounts[p] = getCount(p) + 1;
+      }
+      for (const p of pB) {
+        const k = getCount(p) < 10 ? K_STANDARD_NEW : K_STANDARD_REG;
+        ratings[p] = getRating(p) + k * (actB - expB);
+        matchCounts[p] = getCount(p) + 1;
+      }
+    } else if (m.type === 'Tournament' && m.teams.length >= 3) {
+      const r1 = m.teams.find(t => t.rank === 1) || m.teams[0];
+      const r2 = m.teams.find(t => t.rank === 2) || m.teams[1];
+      const r3 = m.teams.find(t => t.rank === 3) || m.teams[2];
+
+      const p1 = r1.players || [], p2 = r2.players || [], p3 = r3.players || [];
+      const avg1 = p1.length ? (p1.reduce((sum, p) => sum + getRating(p), 0) / p1.length) : STARTING_ELO;
+      const avg2 = p2.length ? (p2.reduce((sum, p) => sum + getRating(p), 0) / p2.length) : STARTING_ELO;
+      const avg3 = p3.length ? (p3.reduce((sum, p) => sum + getRating(p), 0) / p3.length) : STARTING_ELO;
+
+      const pairs = [
+        { teamA: p1, teamB: p2, avgA: avg1, avgB: avg2, actA: 1, actB: 0 },
+        { teamA: p1, teamB: p3, avgA: avg1, avgB: avg3, actA: 1, actB: 0 },
+        { teamA: p2, teamB: p3, avgA: avg2, avgB: avg3, actA: 1, actB: 0 }
+      ];
+
+      const deltas = {};
+      for (const { teamA, teamB, avgA, avgB, actA, actB } of pairs) {
+        const expA = computeExpectedScore(avgA, avgB);
+        const expB = 1 - expA;
+        for (const p of teamA) {
+          const k = getCount(p) < 10 ? K_TOURN_NEW : K_TOURN_REG;
+          deltas[p] = (deltas[p] || 0) + k * (actA - expA);
+        }
+        for (const p of teamB) {
+          const k = getCount(p) < 10 ? K_TOURN_NEW : K_TOURN_REG;
+          deltas[p] = (deltas[p] || 0) + k * (actB - expB);
+        }
+      }
+
+      for (const p of [...p1, ...p2, ...p3]) {
+        ratings[p] = getRating(p) + (deltas[p] || 0);
+        matchCounts[p] = getCount(p) + 1;
+      }
+    }
+  }
+
+  return { ratings, matchCounts };
+}
+
+function computeMatchAngles(allMatches, targetMatchId, nameResolver = (id) => id) {
+  const sorted = [...allMatches].sort((a, b) => {
+    const tA = getMatchTime(a);
+    const tB = getMatchTime(b);
+    if (tA !== tB) return tA - tB;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+
+  const targetIndex = sorted.findIndex(m => m.id === targetMatchId);
+  if (targetIndex === -1) return { topAngle: null, highestScore: 0, isSilent: true, silenceReason: "Match not found" };
+
+  const targetMatch = sorted[targetIndex];
+  const priorMatches = sorted.slice(0, targetIndex);
+
+  const preEloData = computeEloRatings(priorMatches);
+  const getPreElo = (pId) => (preEloData.ratings && preEloData.ratings[pId]) ? preEloData.ratings[pId] : STARTING_ELO;
+
+  const preCaps = {};
+  const preStreaks = {};
+  const lastPlayedDate = {};
+  const venueStats = {};
+  const duoRecords = {};
+  const h2hHistory = {};
+
+  for (const m of priorMatches) {
+    const mDate = getMatchDate(m);
+    const mVenue = m.location || '';
+    if (!m.teams || m.teams.length < 2) continue;
+
+    if (m.type === 'Standard') {
+      const tA = m.teams[0], tB = m.teams[1];
+      const pA = tA.players || [], pB = tB.players || [];
+      const sA = tA.score || 0, sB = tB.score || 0;
+      const resA = sA > sB ? 'W' : (sA === sB ? 'D' : 'L');
+      const resB = sB > sA ? 'W' : (sB === sA ? 'D' : 'L');
+
+      [...pA, ...pB].forEach(p => {
+        preCaps[p] = (preCaps[p] || 0) + 1;
+        lastPlayedDate[p] = mDate;
+      });
+
+      pA.forEach(p => {
+        if (!venueStats[p]) venueStats[p] = {};
+        if (!venueStats[p][mVenue]) venueStats[p][mVenue] = { played: 0, won: 0 };
+        venueStats[p][mVenue].played++;
+        if (resA === 'W') venueStats[p][mVenue].won++;
+      });
+      pB.forEach(p => {
+        if (!venueStats[p]) venueStats[p] = {};
+        if (!venueStats[p][mVenue]) venueStats[p][mVenue] = { played: 0, won: 0 };
+        venueStats[p][mVenue].played++;
+        if (resB === 'W') venueStats[p][mVenue].won++;
+      });
+
+      pA.forEach(p => {
+        if (!preStreaks[p]) preStreaks[p] = { w: 0, u: 0 };
+        if (resA === 'W') { preStreaks[p].w++; preStreaks[p].u++; }
+        else if (resA === 'D') { preStreaks[p].w = 0; preStreaks[p].u++; }
+        else { preStreaks[p].w = 0; preStreaks[p].u = 0; }
+      });
+      pB.forEach(p => {
+        if (!preStreaks[p]) preStreaks[p] = { w: 0, u: 0 };
+        if (resB === 'W') { preStreaks[p].w++; preStreaks[p].u++; }
+        else if (resB === 'D') { preStreaks[p].w = 0; preStreaks[p].u++; }
+        else { preStreaks[p].w = 0; preStreaks[p].u = 0; }
+      });
+
+      [ { team: pA, res: resA }, { team: pB, res: resB } ].forEach(({ team, res }) => {
+        const sortedP = [...team].sort();
+        for (let i = 0; i < sortedP.length; i++) {
+          for (let j = i + 1; j < sortedP.length; j++) {
+            const key = `${sortedP[i]}__${sortedP[j]}`;
+            if (!duoRecords[key]) duoRecords[key] = { played: 0, won: 0 };
+            duoRecords[key].played++;
+            if (res === 'W') duoRecords[key].won++;
+          }
+        }
+      });
+
+      pA.forEach(p1 => {
+        pB.forEach(p2 => {
+          const key1 = `${p1}__${p2}`;
+          const key2 = `${p2}__${p1}`;
+          if (!h2hHistory[key1]) h2hHistory[key1] = [];
+          if (!h2hHistory[key2]) h2hHistory[key2] = [];
+          h2hHistory[key1].push(resA);
+          h2hHistory[key2].push(resB);
+        });
+      });
+    } else if (m.type === 'Tournament') {
+      const r1 = m.teams.find(t => t.rank === 1) || m.teams[0];
+      m.teams.forEach(t => {
+        const isWin = (t === r1 || t.rank === 1);
+        (t.players || []).forEach(p => {
+          preCaps[p] = (preCaps[p] || 0) + 1;
+          lastPlayedDate[p] = mDate;
+          if (!preStreaks[p]) preStreaks[p] = { w: 0, u: 0 };
+          if (isWin) { preStreaks[p].w++; preStreaks[p].u++; }
+          else { preStreaks[p].w = 0; preStreaks[p].u = 0; }
+        });
+      });
+    }
+  }
+
+  const candidates = [];
+  const targetDate = getMatchDate(targetMatch);
+  const targetVenue = targetMatch.location || '';
+  const isStd = targetMatch.type === 'Standard';
+
+  if (isStd && targetMatch.teams && targetMatch.teams.length >= 2) {
+    const tA = targetMatch.teams[0];
+    const tB = targetMatch.teams[1];
+    const pA = tA.players || [];
+    const pB = tB.players || [];
+    const sA = tA.score || 0;
+    const sB = tB.score || 0;
+    const resA = sA > sB ? 'W' : (sA === sB ? 'D' : 'L');
+    const resB = sB > sA ? 'W' : (sB === sA ? 'D' : 'L');
+    const isDraw = sA === sB;
+
+    const avgEloA = pA.length ? Math.round(pA.reduce((sum, p) => sum + getPreElo(p), 0) / pA.length) : STARTING_ELO;
+    const avgEloB = pB.length ? Math.round(pB.reduce((sum, p) => sum + getPreElo(p), 0) / pB.length) : STARTING_ELO;
+
+    // Angle 1: Upset
+    if (!isDraw) {
+      const winningTeam = resA === 'W' ? tA : tB;
+      const losingTeam = resA === 'W' ? tB : tA;
+      const winElo = resA === 'W' ? avgEloA : avgEloB;
+      const loseElo = resA === 'W' ? avgEloB : avgEloA;
+      const eloGap = loseElo - winElo;
+
+      if (eloGap >= 25) {
+        const score = Math.min(100, Math.round(45 + eloGap * 0.6));
+        candidates.push({
+          type: 'upset',
+          score,
+          winnerTeamName: winningTeam.teamName || 'Underdog',
+          loserTeamName: losingTeam.teamName || 'Favorites',
+          winnerElo: winElo,
+          loserElo: loseElo,
+          eloGap,
+          winnerScore: winningTeam.score,
+          loserScore: losingTeam.score,
+          facts: `${winningTeam.teamName || 'Underdog'} (${winElo} Elo) defeated higher-rated ${losingTeam.teamName || 'Opponents'} (${loseElo} Elo, gap: ${eloGap} points)`
+        });
+      }
+    }
+
+    // Angle 2: Blowout (Margin >= 5)
+    const margin = Math.abs(sA - sB);
+    if (margin >= 5) {
+      const winningTeam = sA > sB ? tA : tB;
+      const losingTeam = sA > sB ? tB : tA;
+      const score = Math.min(95, 45 + (margin - 4) * 15);
+      candidates.push({
+        type: 'blowout',
+        score,
+        winnerTeamName: winningTeam.teamName || 'Winners',
+        loserTeamName: losingTeam.teamName || 'Losers',
+        winnerScore: winningTeam.score,
+        loserScore: losingTeam.score,
+        margin,
+        facts: `${winningTeam.teamName || 'Winners'} won by a commanding ${margin}-goal margin (${winningTeam.score}-${losingTeam.score})`
+      });
+    }
+
+    // Angle 3: High Scoring (Combined Goals >= 12)
+    const totalGoals = sA + sB;
+    if (totalGoals >= 12) {
+      const score = Math.min(95, 50 + (totalGoals - 11) * 12);
+      candidates.push({
+        type: 'high_scoring',
+        score,
+        totalGoals,
+        teamAName: tA.teamName || 'Team A',
+        teamBName: tB.teamName || 'Team B',
+        scoreA: sA,
+        scoreB: sB,
+        facts: `High-scoring encounter featuring ${totalGoals} combined goals (${tA.teamName || 'Team A'} ${sA}-${sB} ${tB.teamName || 'Team B'})`
+      });
+    }
+
+    // Angle 4: Streaks Broken & Extended
+    [ { team: pA, res: resA, oppTeam: pB }, { team: pB, res: resB, oppTeam: pA } ].forEach(({ team, res }) => {
+      team.forEach(p => {
+        const prior = preStreaks[p] || { w: 0, u: 0 };
+        const pName = nameResolver(p);
+
+        if (res !== 'W' && prior.w >= 3) {
+          const score = Math.min(100, 45 + prior.w * 12);
+          candidates.push({
+            type: 'streak_broken',
+            score,
+            playerName: pName,
+            playerId: p,
+            streakLength: prior.w,
+            streakType: 'winning run',
+            facts: `${pName}'s ${prior.w}-game winning streak ended with this result`
+          });
+        } else if (res === 'L' && prior.u >= 4) {
+          const score = Math.min(100, 45 + prior.u * 10);
+          candidates.push({
+            type: 'streak_broken',
+            score,
+            playerName: pName,
+            playerId: p,
+            streakLength: prior.u,
+            streakType: 'unbeaten run',
+            facts: `${pName}'s ${prior.u}-game unbeaten streak was snapped`
+          });
+        }
+
+        if (res === 'W' && (prior.w + 1) >= 4) {
+          const newLen = prior.w + 1;
+          const score = Math.min(95, 40 + newLen * 10);
+          candidates.push({
+            type: 'streak_extended',
+            score,
+            playerName: pName,
+            playerId: p,
+            streakLength: newLen,
+            streakType: 'consecutive wins',
+            facts: `${pName} won their ${newLen}th consecutive match`
+          });
+        }
+      });
+    });
+
+    // Angle 5: Milestones Hit
+    [...pA, ...pB].forEach(p => {
+      const priorC = preCaps[p] || 0;
+      const currentC = priorC + 1;
+      const pName = nameResolver(p);
+      const won = (pA.includes(p) && resA === 'W') || (pB.includes(p) && resB === 'W');
+
+      if (currentC % 25 === 0) {
+        const baseScore = currentC === 100 ? 95 : (currentC === 50 ? 85 : 75);
+        const score = won ? baseScore + 5 : baseScore;
+        candidates.push({
+          type: 'milestone_hit',
+          score,
+          playerName: pName,
+          playerId: p,
+          caps: currentC,
+          won,
+          facts: `${pName} reached ${currentC} career caps (${won ? 'celebrated with a win' : 'marked in this match'})`
+        });
+      }
+    });
+
+    // Angle 6: Nemesis Broken
+    [ { team: pA, oppTeam: pB, res: resA }, { team: pB, oppTeam: pA, res: resB } ].forEach(({ team, oppTeam, res }) => {
+      if (res === 'W') {
+        team.forEach(p1 => {
+          oppTeam.forEach(p2 => {
+            const h2h = h2hHistory[`${p1}__${p2}`] || [];
+            let trailingLosses = 0;
+            for (let i = h2h.length - 1; i >= 0; i--) {
+              if (h2h[i] === 'L') trailingLosses++;
+              else break;
+            }
+            if (trailingLosses >= 3) {
+              const score = Math.min(95, 50 + trailingLosses * 12);
+              candidates.push({
+                type: 'nemesis_broken',
+                score,
+                winnerName: nameResolver(p1),
+                loserName: nameResolver(p2),
+                priorLosses: trailingLosses,
+                facts: `${nameResolver(p1)} earned their first victory over ${nameResolver(p2)} after ${trailingLosses} straight losses against them`
+              });
+            }
+          });
+        });
+      }
+    });
+
+    // Angle 7: Notable Duo
+    [ { team: pA, res: resA }, { team: pB, res: resB } ].forEach(({ team, res }) => {
+      const sortedP = [...team].sort();
+      for (let i = 0; i < sortedP.length; i++) {
+        for (let j = i + 1; j < sortedP.length; j++) {
+          const key = `${sortedP[i]}__${sortedP[j]}`;
+          const prior = duoRecords[key] || { played: 0, won: 0 };
+          const newPlayed = prior.played + 1;
+          const newWon = prior.won + (res === 'W' ? 1 : 0);
+
+          if (newPlayed >= 4) {
+            const winRate = Math.round((newWon / newPlayed) * 100);
+            if (winRate >= 80 && res === 'W') {
+              const score = Math.min(90, 45 + newPlayed * 7);
+              candidates.push({
+                type: 'duo_notable',
+                score,
+                player1Name: nameResolver(sortedP[i]),
+                player2Name: nameResolver(sortedP[j]),
+                played: newPlayed,
+                won: newWon,
+                winRatePct: winRate,
+                status: 'dominant partners',
+                facts: `${nameResolver(sortedP[i])} and ${nameResolver(sortedP[j])} have now won ${newWon} of their ${newPlayed} matches as teammates (${winRate}%)`
+              });
+            }
+          }
+        }
+      }
+    });
+
+    // Angle 8: Return after Long Absence
+    [...pA, ...pB].forEach(p => {
+      const caps = preCaps[p] || 0;
+      const lastDate = lastPlayedDate[p];
+      if (caps >= 5 && lastDate && targetDate) {
+        const diffMs = targetDate.getTime() - lastDate.getTime();
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        if (diffDays >= 60) {
+          const months = Math.round(diffDays / 30);
+          const score = Math.min(90, 40 + Math.round(diffDays / 20) * 6);
+          candidates.push({
+            type: 'return',
+            score,
+            playerName: nameResolver(p),
+            daysAbsent: diffDays,
+            monthsAbsent: months,
+            facts: `${nameResolver(p)} returned to the league after ${diffDays} days (${months} months) since their last match`
+          });
+        }
+      }
+    });
+
+    // Angle 9: First Time Teammates (Both >= 10 caps, 0 prior games together)
+    [ { team: pA }, { team: pB } ].forEach(({ team }) => {
+      const sortedP = [...team].sort();
+      for (let i = 0; i < sortedP.length; i++) {
+        for (let j = i + 1; j < sortedP.length; j++) {
+          const p1 = sortedP[i], p2 = sortedP[j];
+          const c1 = preCaps[p1] || 0, c2 = preCaps[p2] || 0;
+          const key = `${p1}__${p2}`;
+          const prior = duoRecords[key] || { played: 0, won: 0 };
+          if (c1 >= 10 && c2 >= 10 && prior.played === 0) {
+            const score = Math.min(85, 45 + Math.min(c1, c2) * 1.5);
+            candidates.push({
+              type: 'first_together',
+              score: Math.round(score),
+              player1Name: nameResolver(p1),
+              player2Name: nameResolver(p2),
+              p1Caps: c1 + 1,
+              p2Caps: c2 + 1,
+              facts: `Veterans ${nameResolver(p1)} (${c1 + 1} caps) and ${nameResolver(p2)} (${c2 + 1} caps) shared a team for the first time in league history`
+            });
+          }
+        }
+      }
+    });
+
+    // Angle 10: Venue Mastery
+    [ { team: pA, res: resA }, { team: pB, res: resB } ].forEach(({ team, res }) => {
+      if (res === 'W' && targetVenue) {
+        team.forEach(p => {
+          const vData = (venueStats[p] && venueStats[p][targetVenue]) ? venueStats[p][targetVenue] : { played: 0, won: 0 };
+          const newPlayed = vData.played + 1;
+          const newWon = vData.won + 1;
+          if (newPlayed >= 4) {
+            const rate = Math.round((newWon / newPlayed) * 100);
+            if (rate >= 80) {
+              const score = Math.min(85, 40 + newWon * 8);
+              candidates.push({
+                type: 'venue',
+                score,
+                playerName: nameResolver(p),
+                venueName: targetVenue,
+                venueWins: newWon,
+                venuePlayed: newPlayed,
+                venueWinRatePct: rate,
+                facts: `${nameResolver(p)} has won ${newWon} of ${newPlayed} games at ${targetVenue} (${rate}% win rate)`
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  const topAngle = candidates.length > 0 ? candidates[0] : null;
+  const isSilent = !topAngle || topAngle.score < RECAP_SILENCE_THRESHOLD;
+
+  return {
+    matchId: targetMatchId,
+    date: targetDate,
+    topAngle: isSilent ? null : topAngle,
+    highestScore: topAngle ? topAngle.score : 0,
+    isSilent,
+    silenceReason: isSilent ? (topAngle ? `Highest angle score (${topAngle.score} for ${topAngle.type}) below silence threshold (${RECAP_SILENCE_THRESHOLD})` : 'No qualifying angles detected') : null,
+    allCandidates: candidates
+  };
+}
+
 /** 5. Item 33: Match Recap Blurbs */
 exports.generateMatchRecap = functions.https.onCall(async (data, context) => {
   assertAdmin(context);
@@ -447,16 +945,21 @@ exports.generateMatchRecap = functions.https.onCall(async (data, context) => {
   }
   const apiKey = keyDoc.data().apiKey;
 
-  const matchDoc = await db.collection('matches_v2').doc(matchId).get();
-  if (!matchDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Match document not found.');
-  }
-  const matchData = matchDoc.data();
-
   const metaDoc = await db.collection('config').doc('gemini_meta').get();
   const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
 
-  // Fetch players for display names
+  // Fetch all matches and players for deterministic timeline & stats
+  const matchesSnap = await db.collection('matches_v2').get();
+  const allMatches = [];
+  matchesSnap.forEach(d => {
+    allMatches.push({ id: d.id, ...d.data() });
+  });
+
+  const targetMatch = allMatches.find(m => m.id === matchId);
+  if (!targetMatch) {
+    throw new functions.https.HttpsError('not-found', 'Match document not found.');
+  }
+
   const playersSnap = await db.collection('players_v2').get();
   const nameMap = new Map();
   playersSnap.forEach(d => {
@@ -464,52 +967,53 @@ exports.generateMatchRecap = functions.https.onCall(async (data, context) => {
   });
   const getName = (id) => nameMap.get(id) || id;
 
-  // Build factual summary for prompt
-  const isStd = matchData.type === 'Standard';
-  let outcomeText = '';
-  let lineupsText = '';
+  // Compute deterministic angle
+  const angleRes = computeMatchAngles(allMatches, matchId, getName);
 
-  if (isStd) {
-    const tA = matchData.teams[0] || { score: 0, players: [] };
-    const tB = matchData.teams[1] || { score: 0, players: [] };
-    const pA = (tA.players || []).map(getName).join(', ');
-    const pB = (tB.players || []).map(getName).join(', ');
-    const sA = tA.score || 0;
-    const sB = tB.score || 0;
+  // Step 2: Silence Threshold - if no angle cleared threshold, store null recap
+  if (angleRes.isSilent || !angleRes.topAngle) {
+    await db.collection('matches_v2').doc(matchId).set({
+      recap: null,
+      recapAngle: null,
+      recapScore: angleRes.highestScore,
+      recapModel: null,
+      recapGeneratedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
 
-    outcomeText = `Final Score: ${tA.teamName || 'Team A'} ${sA} - ${sB} ${tB.teamName || 'Team B'}.`;
-    lineupsText = `- ${tA.teamName || 'Team A'} (${tA.color || 'blue'}): ${pA}\n- ${tB.teamName || 'Team B'} (${tB.color || 'red'}): ${pB}`;
-  } else {
-    const ranks = (matchData.teams || []).map(t => {
-      const pList = (t.players || []).map(getName).join(', ');
-      return `Rank ${t.rank || 1}: ${t.teamName || 'Team'} (${t.points || 0} pts) - Players: ${pList}`;
-    }).join('\n');
-    outcomeText = 'Tournament Results:\n' + ranks;
-    lineupsText = ranks;
+    return {
+      ok: true,
+      recap: null,
+      angle: null,
+      score: angleRes.highestScore,
+      isSilent: true,
+      reason: angleRes.silenceReason
+    };
   }
 
-  const dObj = matchData.date ? (matchData.date.toDate ? matchData.date.toDate() : new Date(matchData.date)) : new Date();
-  const dateStr = `${dObj.getDate()}/${dObj.getMonth() + 1}/${dObj.getFullYear()}`;
-  const venueStr = matchData.location || 'Amsterdam';
+  const topAngle = angleRes.topAngle;
+  const teamAName = (targetMatch.teams && targetMatch.teams[0] && targetMatch.teams[0].teamName) || 'Team A';
+  const teamBName = (targetMatch.teams && targetMatch.teams[1] && targetMatch.teams[1].teamName) || 'Team B';
 
+  // Step 3: Minimal 1-Sentence Prompt
   const prompt = `You are the official match reporter for the Elderly Support recreational football league in Amsterdam.
-Write a warm, concise, factual TWO-SENTENCE match recap based strictly on the verified match data below.
+Write a single, compelling ONE-SENTENCE match recap highlighting the specific angle and verified facts below.
 
-VERIFIED MATCH DATA:
-- Date: ${dateStr}
-- Venue: ${venueStr}
-- Format: ${matchData.type || 'Standard'}
-- Outcome: ${outcomeText}
-- Lineups:
-${lineupsText}
+TEAM NAMES (playful group in-jokes):
+- ${teamAName} vs ${teamBName}
+
+SELECTED MATCH ANGLE (${topAngle.type}):
+${topAngle.facts}
 
 STRICT FACTUAL RULES:
-1. Exactly TWO sentences maximum.
-2. Use ONLY the supplied facts above. Do NOT invent goals, player actions, storylines, or outside context.
-3. Do NOT name any player who was not listed in the lineups above.
-4. Tone: warm, friendly, factual, engaging. No cheesy hype-man voice, no corporate jargon, no roasting.
-5. Return JSON with key "recap":
-{"recap": "Sentence one. Sentence two."}
+1. Exactly ONE sentence. Never write two sentences.
+2. Focus ONLY on the specified angle and figures above. Do NOT invent goals, player actions, storylines, or outside context.
+3. NEVER mention jersey, team marker, or shirt colors (e.g. do not mention "blue team", "red-clad", "yellow", etc.).
+4. NEVER open with the match date or location/venue.
+5. NEVER list full lineups or players not mentioned in the angle above.
+6. NEVER restate the full scoreline unless the scoreline is the angle itself.
+7. Tone: natural, engaging, witty, concise. Play along with playful team names if fitting.
+8. Return strict JSON:
+{"recap": "Single sentence recap text."}
 `;
 
   const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
@@ -522,17 +1026,29 @@ STRICT FACTUAL RULES:
     recapText = geminiRes.text.replace(/[{}"]/g, '').trim();
   }
 
-  // Store cached recap on the match document
+  // Enforce strict 1-sentence cap
+  if (recapText) {
+    const sentenceMatch = recapText.match(/^.*?[.!?](?:\s|$)/);
+    if (sentenceMatch && sentenceMatch[0] && sentenceMatch[0].trim().length > 10) {
+      recapText = sentenceMatch[0].trim();
+    }
+  }
+
+  // Store cached recap, angle, score, model on match document
   const now = admin.firestore.FieldValue.serverTimestamp();
   await db.collection('matches_v2').doc(matchId).set({
     recap: recapText,
-    recapGeneratedAt: now,
-    recapModel: geminiRes.modelUsed
+    recapAngle: topAngle.type,
+    recapScore: topAngle.score,
+    recapModel: geminiRes.modelUsed,
+    recapGeneratedAt: now
   }, { merge: true });
 
   return {
     ok: true,
     recap: recapText,
+    angle: topAngle.type,
+    score: topAngle.score,
     modelUsed: geminiRes.modelUsed,
     fellBackFrom: geminiRes.fellBackFrom || null
   };

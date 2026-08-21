@@ -3354,10 +3354,17 @@ window.regenerateRecap = async (matchId, event) => {
         if (res.data && res.data.ok) {
             const m = allMatches.find(x => x.id === matchId);
             if (m) {
-                m.recap = res.data.recap;
-                m.recapModel = res.data.modelUsed;
+                m.recap = res.data.recap || null;
+                m.recapAngle = res.data.angle || null;
+                m.recapScore = res.data.score || 0;
+                m.recapModel = res.data.modelUsed || null;
             }
             renderData();
+            if (res.data.recap) {
+                showToast(`Recap generated (${res.data.angle}, score ${res.data.score})`);
+            } else {
+                showToast(`No recap generated (highest angle score ${res.data.score} below threshold)`);
+            }
         }
     } catch (err) {
         alert(`Failed to regenerate recap: ${err.message}`);
