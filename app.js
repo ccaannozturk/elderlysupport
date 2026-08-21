@@ -2389,7 +2389,7 @@ function generateInsights(matches) {
                         <thead>
                             <tr>
                                 <th class="text-start ps-2">Player</th>
-                                ${regularIds.map(id => `<th title="${esc(getPlayerDisplayName(id))}">${esc(getPlayerDisplayName(id).slice(0, 5))}</th>`).join('')}
+                                ${regularIds.map(id => `<th title="${esc(getPlayerDisplayName(id))}">${esc(getPlayerDisplayName(id))}</th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>
@@ -3908,16 +3908,37 @@ function computeMilestoneWatch(matches, interval = MILESTONE_INTERVAL) {
 /** Item 29: Monthly Awards Computation */
 function computeMonthlyAwards(matches, year, month, careerMatches = null) {
     const allM = careerMatches || matches;
-    const monthMatches = matches.filter(m => matchesFilter(m, year, month));
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const monthName = month !== 'all' ? monthNames[parseInt(month)] : 'All-Time';
+    
+    // If month === 'all' or undefined, find the latest active month in matches
+    let targetMonth = month;
+    if (targetMonth === 'all' || targetMonth === undefined || targetMonth === null) {
+        const activeMonths = [];
+        matches.forEach(m => {
+            const d = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : null;
+            if (!d || isNaN(d.getTime())) return;
+            const y = d.getFullYear();
+            if (year === 'all' || y === parseInt(year)) {
+                const mo = d.getMonth();
+                if (!activeMonths.includes(mo)) activeMonths.push(mo);
+            }
+        });
+        activeMonths.sort((a, b) => b - a);
+        targetMonth = activeMonths.length > 0 ? String(activeMonths[0]) : '7';
+    }
+
+    const monthNum = parseInt(targetMonth);
+    const monthName = (!isNaN(monthNum) && monthNames[monthNum]) ? monthNames[monthNum] : 'August';
+    const monthMatches = matches.filter(m => matchesFilter(m, year, targetMonth));
 
     if (monthMatches.length === 0) {
         return {
             hasMatches: false,
+            month: targetMonth,
             monthName,
             year,
             totalMonthMatches: 0,
+            maxPlayedInMonth: 0,
             potm: null,
             mostImproved: null,
             ironMen: [],
@@ -3987,21 +4008,31 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         });
     });
 
-    // 1. POTM (min MIN_GAMES_IMPROVED = 3 matches in month)
-    const eligiblePOTM = Object.values(monthPlayerStats)
-        .filter(p => p.played >= MIN_GAMES_IMPROVED)
+    // 1. POTM: Resilient qualification
+    const minPOTMGames = Math.max(1, Math.min(MIN_GAMES_IMPROVED, Math.ceil(monthMatches.length * 0.35)));
+    let eligiblePOTM = Object.values(monthPlayerStats)
+        .filter(p => p.played >= minPOTMGames)
         .map(p => ({
             ...p,
             ppg: (p.pts / p.played).toFixed(2),
             rawPPG: p.pts / p.played
         }))
-        .sort((a, b) => b.rawPPG - a.rawPPG || b.won - a.won || b.played - a.played);
+        .sort((a, b) => b.rawPPG - a.rawPPG || b.won - a.won || b.played - a.played || b.pts - a.pts);
 
+    if (eligiblePOTM.length === 0) {
+        eligiblePOTM = Object.values(monthPlayerStats)
+            .map(p => ({
+                ...p,
+                ppg: (p.pts / p.played).toFixed(2),
+                rawPPG: p.pts / p.played
+            }))
+            .sort((a, b) => b.rawPPG - a.rawPPG || b.won - a.won || b.played - a.played || b.pts - a.pts);
+    }
     const potm = eligiblePOTM.length > 0 ? eligiblePOTM[0] : null;
 
-    // 2. Most Improved (min MIN_GAMES_IMPROVED = 3 matches in month & career >= 5)
-    const eligibleImproved = Object.values(monthPlayerStats)
-        .filter(p => p.played >= MIN_GAMES_IMPROVED && (careerStats[p.id]?.played || 0) >= 5)
+    // 2. Most Improved: Resilient qualification
+    let eligibleImproved = Object.values(monthPlayerStats)
+        .filter(p => p.played >= minPOTMGames && (careerStats[p.id]?.played || 0) >= 3)
         .map(p => {
             const mPPG = p.pts / p.played;
             const cPPG = (careerStats[p.id].pts / careerStats[p.id].played);
@@ -4017,16 +4048,34 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         .filter(p => p.rawDelta > 0)
         .sort((a, b) => b.rawDelta - a.rawDelta);
 
+    if (eligibleImproved.length === 0) {
+        eligibleImproved = Object.values(monthPlayerStats)
+            .map(p => {
+                const mPPG = p.pts / p.played;
+                const cPPG = careerStats[p.id] ? (careerStats[p.id].pts / careerStats[p.id].played) : mPPG;
+                const delta = mPPG - cPPG;
+                return {
+                    ...p,
+                    monthPPG: mPPG.toFixed(2),
+                    careerPPG: cPPG.toFixed(2),
+                    delta: delta >= 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2),
+                    rawDelta: delta
+                };
+            })
+            .sort((a, b) => b.rawDelta - a.rawDelta || b.pts - a.pts);
+    }
     const mostImproved = eligibleImproved.length > 0 ? eligibleImproved[0] : null;
 
-    // 3. Iron Men (100% attendance if month matches >= MIN_GAMES_IMPROVED = 3)
-    const ironMen = (monthMatches.length >= MIN_GAMES_IMPROVED)
-        ? Object.values(monthPlayerStats).filter(p => p.played === monthMatches.length)
+    // 3. Iron Men (Top Attendance in Month - Guaranteed Winner)
+    const maxPlayed = Math.max(...Object.values(monthPlayerStats).map(p => p.played), 0);
+    const ironMen = maxPlayed > 0
+        ? Object.values(monthPlayerStats).filter(p => p.played === maxPlayed)
         : [];
 
-    // 4. Worst Duo (min MIN_GAMES_PAIR = 3 games together in month)
-    const eligibleDuos = Object.values(monthDuos)
-        .filter(d => d.played >= MIN_GAMES_PAIR)
+    // 4. Worst Duo (min 2 games together in month if available)
+    const minDuoGames = Math.max(2, Math.min(MIN_GAMES_PAIR, Math.ceil(monthMatches.length * 0.35)));
+    let eligibleDuos = Object.values(monthDuos)
+        .filter(d => d.played >= minDuoGames)
         .map(d => ({
             p1: getPlayerDisplayName(d.p1),
             p2: getPlayerDisplayName(d.p2),
@@ -4036,34 +4085,46 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         }))
         .sort((a, b) => a.winRate - b.winRate || b.played - a.played);
 
+    if (eligibleDuos.length === 0) {
+        eligibleDuos = Object.values(monthDuos)
+            .filter(d => d.played >= 2)
+            .map(d => ({
+                p1: getPlayerDisplayName(d.p1),
+                p2: getPlayerDisplayName(d.p2),
+                played: d.played,
+                won: d.won,
+                winRate: Math.round((d.won / d.played) * 100)
+            }))
+            .sort((a, b) => a.winRate - b.winRate || b.played - a.played);
+    }
     const worstDuo = eligibleDuos.length > 0 ? eligibleDuos[0] : null;
 
-    // 5. Ghost of the Month (career caps >= 10, month attendance <= 1 when monthMatches >= 3)
+    // 5. Ghost of the Month (Regular player with >= 5 career caps who missed most matches this month)
     let ghost = null;
-    if (monthMatches.length >= MIN_GAMES_IMPROVED) {
-        const regularGhosts = Object.entries(careerStats)
-            .filter(([pId, c]) => c.played >= MIN_APPEARANCES_PPG)
-            .map(([pId, c]) => {
-                const mPlayed = monthPlayerStats[pId]?.played || 0;
-                return {
-                    id: pId,
-                    name: getPlayerDisplayName(pId),
-                    monthPlayed: mPlayed,
-                    careerPlayed: c.played,
-                    attendanceRate: Math.round((mPlayed / monthMatches.length) * 100)
-                };
-            })
-            .filter(p => p.monthPlayed <= 1)
-            .sort((a, b) => a.monthPlayed - b.monthPlayed || b.careerPlayed - a.careerPlayed);
+    const regularGhosts = Object.entries(careerStats)
+        .filter(([pId, c]) => c.played >= 5)
+        .map(([pId, c]) => {
+            const mPlayed = monthPlayerStats[pId]?.played || 0;
+            return {
+                id: pId,
+                name: getPlayerDisplayName(pId),
+                monthPlayed: mPlayed,
+                careerPlayed: c.played,
+                attendanceRate: Math.round((mPlayed / monthMatches.length) * 100)
+            };
+        })
+        .filter(p => p.monthPlayed < monthMatches.length)
+        .sort((a, b) => a.monthPlayed - b.monthPlayed || b.careerPlayed - a.careerPlayed);
 
-        ghost = regularGhosts.length > 0 ? regularGhosts[0] : null;
-    }
+    ghost = regularGhosts.length > 0 ? regularGhosts[0] : null;
 
     return {
         hasMatches: true,
+        month: targetMonth,
         monthName,
         year,
         totalMonthMatches: monthMatches.length,
+        maxPlayedInMonth: maxPlayed,
         potm,
         mostImproved,
         ironMen,
@@ -4073,7 +4134,13 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
 }
 
 /** Item 29: Community Tab Rendering */
-async function renderCommunityTab(matches) {
+window.selectedCommunityAwardsMonth = null;
+window.renderCommunityTabWithMonth = (monthVal) => {
+    window.selectedCommunityAwardsMonth = monthVal;
+    renderCommunityTab(allMatches, monthVal);
+};
+
+async function renderCommunityTab(matches, forcedMonth = null) {
     const container = document.getElementById('communityContainer');
     if (!container) return;
 
@@ -4134,23 +4201,40 @@ async function renderCommunityTab(matches) {
         `).join('') + `</div>`;
     }
 
-    // 3. Monthly Awards (Item 29)
+    // 3. Monthly Awards with Interactive Dropdown (Item 29)
     const fYear = document.getElementById('filterYear');
-    const fMonth = document.getElementById('filterMonth');
     const curYear = fYear ? (fYear.value === 'all' ? '2026' : fYear.value) : '2026';
-    const curMonth = fMonth ? fMonth.value : 'all';
 
-    const awardsData = computeMonthlyAwards(matches, curYear, curMonth);
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthsWithMatches = [];
+    matches.forEach(m => {
+        const d = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : null;
+        if (!d || isNaN(d.getTime())) return;
+        const y = d.getFullYear();
+        if (curYear === 'all' || y === parseInt(curYear)) {
+            const mo = d.getMonth();
+            if (!monthsWithMatches.includes(mo)) monthsWithMatches.push(mo);
+        }
+    });
+    monthsWithMatches.sort((a, b) => b - a);
 
-    // Fetch cached citation from Firestore if month selected
+    const defaultMonth = monthsWithMatches.length > 0 ? String(monthsWithMatches[0]) : '7';
+    const activeMonth = forcedMonth !== null ? String(forcedMonth) : (window.selectedCommunityAwardsMonth !== null ? String(window.selectedCommunityAwardsMonth) : defaultMonth);
+
+    const awardsData = computeMonthlyAwards(matches, curYear, activeMonth);
+
+    const monthOptionsHtml = monthsWithMatches.map(mo => {
+        const isSel = String(mo) === String(activeMonth) ? 'selected' : '';
+        return `<option value="${mo}" ${isSel}>${monthNames[mo]} ${curYear}</option>`;
+    }).join('');
+
+    // Fetch cached citation from Firestore
     let cachedCitation = '';
-    const awardDocId = `${curYear}-${curMonth}`;
+    const awardDocId = `${curYear}-${activeMonth}`;
     try {
-        if (curMonth !== 'all') {
-            const aDoc = await db.collection('awards').doc(awardDocId).get();
-            if (aDoc.exists && aDoc.data().citation) {
-                cachedCitation = aDoc.data().citation;
-            }
+        const aDoc = await db.collection('awards').doc(awardDocId).get();
+        if (aDoc.exists && aDoc.data().citation) {
+            cachedCitation = aDoc.data().citation;
         }
     } catch (e) {}
 
@@ -4160,8 +4244,8 @@ async function renderCommunityTab(matches) {
             ${awardsData.potm ? `
                 <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.potm.id}')">${esc(awardsData.potm.name)}</h5>
                 <div class="text-info fw-bold mb-1">${awardsData.potm.ppg} PPG <span class="text-muted small fw-normal">(${awardsData.potm.played} matches, ${awardsData.potm.won}W)</span></div>
-                <small class="text-muted">Highest points-per-game in ${awardsData.monthName} (min 3 games)</small>
-            ` : '<div class="text-muted small py-3">No player met the 3-match qualification threshold.</div>'}
+                <small class="text-muted">Highest points-per-game in ${awardsData.monthName} (${awardsData.potm.played} of ${awardsData.totalMonthMatches} games)</small>
+            ` : '<div class="text-muted small py-3">No fixtures played in this month.</div>'}
         </div>
     </div>`;
 
@@ -4170,21 +4254,22 @@ async function renderCommunityTab(matches) {
             <span class="text-success small fw-bold d-block mb-1"><i class="fas fa-chart-line me-2"></i>MOST IMPROVED</span>
             ${awardsData.mostImproved ? `
                 <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.mostImproved.id}')">${esc(awardsData.mostImproved.name)}</h5>
-                <div class="text-success fw-bold mb-1">+${awardsData.mostImproved.delta} PPG <span class="text-muted small fw-normal">(${awardsData.mostImproved.monthPPG} vs ${awardsData.mostImproved.careerPPG} career)</span></div>
-                <small class="text-muted">Biggest positive form surge relative to baseline</small>
-            ` : '<div class="text-muted small py-3">No qualifying improvement surges recorded.</div>'}
+                <div class="text-success fw-bold mb-1">${awardsData.mostImproved.delta} PPG <span class="text-muted small fw-normal">(${awardsData.mostImproved.monthPPG} vs ${awardsData.mostImproved.careerPPG} career)</span></div>
+                <small class="text-muted">Strongest positive form differential relative to baseline</small>
+            ` : '<div class="text-muted small py-3">No fixtures played in this month.</div>'}
         </div>
     </div>`;
 
     let ironMenList = awardsData.ironMen.length > 0 
         ? awardsData.ironMen.map(p => `<span class="badge bg-secondary me-1 mb-1 p-2" style="cursor:pointer" onclick="openPlayerStats('${p.id}')">${esc(p.name)}</span>`).join('')
-        : '<div class="text-muted small py-3">No player attended 100% of matches.</div>';
+        : '<div class="text-muted small py-3">No player attended fixtures this month.</div>';
 
+    const isFullAttendance = awardsData.maxPlayedInMonth === awardsData.totalMonthMatches;
     let ironManCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
         <div class="p-3 rounded bg-dark border border-secondary h-100">
-            <span class="text-info small fw-bold d-block mb-1"><i class="fas fa-shield-alt me-2"></i>IRON MEN (100% ATTENDANCE)</span>
+            <span class="text-info small fw-bold d-block mb-1"><i class="fas fa-shield-alt me-2"></i>IRON MEN (${isFullAttendance ? '100% ATTENDANCE' : 'TOP ATTENDANCE'})</span>
             <div class="d-flex flex-wrap pt-1">${ironMenList}</div>
-            <small class="text-muted d-block mt-2">Attended every match in ${awardsData.monthName} (${awardsData.totalMonthMatches} matches)</small>
+            <small class="text-muted d-block mt-2">${isFullAttendance ? `Attended all ${awardsData.totalMonthMatches} matches` : `Attended ${awardsData.maxPlayedInMonth} of ${awardsData.totalMonthMatches} matches`} in ${awardsData.monthName}</small>
         </div>
     </div>`;
 
@@ -4194,8 +4279,8 @@ async function renderCommunityTab(matches) {
             ${awardsData.worstDuo ? `
                 <h6 class="fw-bold text-white mb-1">${esc(awardsData.worstDuo.p1)} & ${esc(awardsData.worstDuo.p2)}</h6>
                 <div class="text-danger fw-bold mb-1">${awardsData.worstDuo.winRate}% Win Rate <span class="text-muted small fw-normal">(${awardsData.worstDuo.won} wins in ${awardsData.worstDuo.played} games)</span></div>
-                <small class="text-muted">Lowest win percentage as teammates (min 3 games together)</small>
-            ` : '<div class="text-muted small py-3">No duo played 3+ games together this month.</div>'}
+                <small class="text-muted">Lowest win percentage as teammates in ${awardsData.monthName}</small>
+            ` : `<div class="text-muted small py-3">No repeating pairs with 2+ games together in ${awardsData.monthName}.</div>`}
         </div>
     </div>`;
 
@@ -4205,15 +4290,15 @@ async function renderCommunityTab(matches) {
             ${awardsData.ghost ? `
                 <h6 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.ghost.id}')">${esc(awardsData.ghost.name)}</h6>
                 <div class="text-warning fw-bold mb-1">${awardsData.ghost.monthPlayed} of ${awardsData.totalMonthMatches} attended <span class="text-muted small fw-normal">(${awardsData.ghost.attendanceRate}%)</span></div>
-                <small class="text-muted">Regular player (${awardsData.ghost.careerPlayed} career caps) most missed this month</small>
+                <small class="text-muted">Regular player (${awardsData.ghost.careerPlayed} career caps) most missed in ${awardsData.monthName}</small>
             ` : '<div class="text-muted small py-3">All league regulars attended actively this month!</div>'}
         </div>
     </div>`;
 
     // AI Citation banner
     let citationBanner = '';
-    const adminCitationBtn = (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase() && awardsData.potm && curMonth !== 'all')
-        ? `<button class="btn btn-sm btn-outline-info ms-2" onclick="generateAwardCitation('${curYear}', '${curMonth}', '${esc(awardsData.potm.name)}', '${awardsData.potm.ppg} PPG in ${awardsData.monthName}')"><i class="fas fa-wand-magic-sparkles me-1"></i>↺ Generate Citation</button>`
+    const adminCitationBtn = (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase() && awardsData.potm)
+        ? `<button class="btn btn-sm btn-outline-info ms-2" onclick="generateAwardCitation('${curYear}', '${activeMonth}', '${esc(awardsData.potm.name)}', '${awardsData.potm.ppg} PPG in ${awardsData.monthName}')"><i class="fas fa-wand-magic-sparkles me-1"></i>↺ Generate Citation</button>`
         : '';
 
     if (cachedCitation) {
@@ -4264,11 +4349,19 @@ async function renderCommunityTab(matches) {
             </div>
         </div>
 
-        <!-- MONTHLY AWARDS (ITEM 29) -->
+        <!-- MONTHLY AWARDS WITH INLINE MONTH SELECTOR (ITEM 29) -->
         <div class="card bg-dark border-secondary p-3 mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold text-white small m-0"><i class="fas fa-trophy text-info me-2"></i>MONTHLY AWARDS (${awardsData.monthName} ${curYear})</h6>
-                <small class="text-muted">Auto-filtered by header date</small>
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                <div>
+                    <h6 class="fw-bold text-white small m-0"><i class="fas fa-trophy text-info me-2"></i>MONTHLY AWARDS (${awardsData.monthName} ${curYear})</h6>
+                    <small class="text-muted">Honoring standout performances and league stories</small>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="text-muted small fw-bold mb-0">Month:</label>
+                    <select id="communityAwardsMonth" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto; font-size: 0.8rem;" onchange="renderCommunityTabWithMonth(this.value)">
+                        ${monthOptionsHtml}
+                    </select>
+                </div>
             </div>
             ${citationBanner}
             <div class="row">
