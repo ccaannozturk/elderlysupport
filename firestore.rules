@@ -77,6 +77,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    /* ========== LOCATIONS ========== */
+    match /locations/{locId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     /* ========== CONFIG (Gemini) ========== */
     match /config/gemini {
       allow read, write: if false;

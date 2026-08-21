@@ -29,6 +29,15 @@ const DB_CONFIG = {
     }
 };
 
+const DEFAULT_LOCATIONS = [
+    'Sporthal ROC Europaboulevard',
+    'Sporthal Calvijn',
+    'Sportgebouw Bibian Mentel',
+    'Sporthallen Zuid',
+    'Zeeburgereiland - Outdoor'
+];
+let locationsRegistry = new Set(DEFAULT_LOCATIONS);
+
 let currentUser = null;
 let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
@@ -58,6 +67,82 @@ function getPlayerDisplayName(idOrName) {
     return idOrName;
 }
 
+/* ==========================================================================
+   LOCATIONS MANAGEMENT
+   ========================================================================== */
+
+async function fetchLocations() {
+    try {
+        const snap = await db.collection('locations').get();
+        snap.forEach(doc => {
+            const data = doc.data();
+            if (data && data.name) locationsRegistry.add(data.name.trim());
+            else if (doc.id) locationsRegistry.add(doc.id.trim());
+        });
+    } catch (e) {
+        console.warn("Could not fetch locations collection:", e);
+    }
+    if (allMatches) {
+        allMatches.forEach(m => { if (m.location) locationsRegistry.add(m.location.trim()); });
+    }
+    renderLocationsSelect();
+}
+
+function renderLocationsSelect(selectedVal) {
+    const select = document.getElementById('matchLocation');
+    if (!select) return;
+    const current = selectedVal || select.value;
+    const sorted = Array.from(locationsRegistry).sort((a, b) => a.localeCompare(b));
+    let html = '<option value="" disabled ' + (!current ? 'selected' : '') + '>Select Location</option>';
+    sorted.forEach(loc => {
+        const isSel = (loc === current) ? 'selected' : '';
+        html += `<option value="${esc(loc)}" ${isSel}>${esc(loc)}</option>`;
+    });
+    select.innerHTML = html;
+}
+
+window.openAddLocationModal = () => {
+    if (!currentUser) return alert("Please log in as admin first.");
+    const input = document.getElementById('newLocationName');
+    if (input) input.value = '';
+    const modalEl = document.getElementById('addLocationModal');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+        setTimeout(() => input?.focus(), 300);
+    }
+};
+
+window.saveNewLocation = async () => {
+    if (!currentUser) return alert("Please log in as admin first.");
+    const input = document.getElementById('newLocationName');
+    const name = (input ? input.value : '').trim();
+    if (!name) return alert("Please enter a location / hall name.");
+
+    const btn = document.getElementById('saveLocationBtn');
+    if (btn) btn.disabled = true;
+
+    try {
+        await db.collection('locations').add({
+            name: name,
+            active: true,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        locationsRegistry.add(name);
+        renderLocationsSelect(name);
+        
+        const modalEl = document.getElementById('addLocationModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+    } catch (err) {
+        alert(`Failed to save location: ${err.message}`);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(user => {
         currentUser = user;
@@ -69,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     fetchPlayerNames();
     fetchMatches();
+    fetchLocations();
     
     const dDate = document.getElementById('matchDate');
     if(dDate) dDate.valueAsDate = new Date();
@@ -737,11 +823,9 @@ window.parseMagicPaste = async () => {
             if (dateInput) dateInput.value = parsed.date;
         }
         if (parsed.venue) {
-            const locSelect = document.getElementById('matchLocation');
-            if (locSelect) {
-                const opts = Array.from(locSelect.options).map(o => o.value);
-                if (opts.includes(parsed.venue)) locSelect.value = parsed.venue;
-            }
+            const v = parsed.venue.trim();
+            locationsRegistry.add(v);
+            renderLocationsSelect(v);
         }
 
         // 3. Set Match Type

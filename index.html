@@ -218,14 +218,17 @@
                         <div class="row g-2 mb-3">
                             <div class="col-6"><input type="date" class="form-control form-control-sm" id="matchDate" required style="font-size:16px;"></div>
                             <div class="col-6">
-                                <select class="form-select form-select-sm" id="matchLocation" required style="font-size:16px;">
-                                    <option value="" disabled selected>Select Location</option>
-                                    <option value="Sporthal ROC Europaboulevard">Sporthal ROC Europaboulevard</option>
-                                    <option value="Sporthal Calvijn">Sporthal Calvijn</option>
-                                    <option value="Sportgebouw Bibian Mentel">Sportgebouw Bibian Mentel</option>
-                                    <option value="Sporthallen Zuid">Sporthallen Zuid</option>
-                                    <option value="Zeeburgereiland - Outdoor">Zeeburgereiland - Outdoor</option>
-                                </select>
+                                <div class="input-group input-group-sm">
+                                    <select class="form-select form-select-sm" id="matchLocation" required style="font-size:16px;">
+                                        <option value="" disabled selected>Select Location</option>
+                                        <option value="Sporthal ROC Europaboulevard">Sporthal ROC Europaboulevard</option>
+                                        <option value="Sporthal Calvijn">Sporthal Calvijn</option>
+                                        <option value="Sportgebouw Bibian Mentel">Sportgebouw Bibian Mentel</option>
+                                        <option value="Sporthallen Zuid">Sporthallen Zuid</option>
+                                        <option value="Zeeburgereiland - Outdoor">Zeeburgereiland - Outdoor</option>
+                                    </select>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="openAddLocationModal()" title="Add New Location"><i class="fas fa-plus"></i></button>
+                                </div>
                             </div>
                             <div class="col-12"><input type="url" class="form-control form-control-sm" id="matchYoutube" placeholder="YouTube Link" style="font-size:16px;"></div>
                         </div>
@@ -469,6 +472,26 @@
                                 <div class="d-flex justify-content-between"><span>Egress:</span><span class="text-white">Covered by Blaze Plan</span></div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Location Modal -->
+    <div class="modal fade" id="addLocationModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content bg-dark border-secondary p-3">
+                <div class="modal-header border-secondary pb-2">
+                    <h6 class="modal-title fw-bold text-white"><i class="fas fa-map-marker-alt text-primary me-2"></i>Add Location</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body pt-3">
+                    <label class="form-label small text-muted mb-1">Hall / Venue Name</label>
+                    <input type="text" class="form-control form-control-sm mb-3" id="newLocationName" placeholder="e.g. Sporthal De Pijp" style="font-size:16px;">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary w-50 btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary w-50 btn-sm fw-bold" id="saveLocationBtn" onclick="saveNewLocation()"><i class="fas fa-save me-1"></i>Save</button>
                     </div>
                 </div>
             </div>
