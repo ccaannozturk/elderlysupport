@@ -181,31 +181,31 @@ Branch: `stage-c-entry`
 
 Branch: `stage-d-stats`
 
-- [ ] **16. Elo / power ranking** *(do first — 22 and 25 depend on it)*
+- [x] **16. Elo / power ranking** *(do first — 22 and 25 depend on it)*
   - Player rating updates from team-average rating vs. opponent-team-average.
     Fairer than PPG when team allocation is uneven.
   - Handle tournaments as a three-way comparison, not two.
   - Expose the rating so it can feed team-balancing later.
 
-- [ ] **17. Nemesis and rivalry**
+- [x] **17. Nemesis and rivalry**
   - Most-lost-to opponent per player, with record.
   - Duo split analysis: record together vs. record opposed.
 
-- [ ] **18. Streaks and form**
+- [x] **18. Streaks and form**
   - Current and all-time longest win / loss / unbeaten runs.
   - Rolling 5-game PPG line chart per player.
   - Most improved: current month vs. season average.
 
-- [ ] **19. Chemistry matrix**
+- [x] **19. Chemistry matrix**
   - Heatmap of every pair's win rate together. Apply a minimum-games threshold or
     it will be noise.
 
-- [ ] **20. Appearances and attendance**
+- [x] **20. Appearances and attendance**
   - Milestone badges (50 / 100 / 200).
   - Attendance rate, longest consecutive-appearance run, debut tracker,
     one-cap-wonders list (14 players had a single appearance in 2026).
 
-- [ ] **22. Optimal lineup and curse stat**
+- [x] **22. Optimal lineup and curse stat**
   - Highest-rated lineup buildable from the pool (needs item 16).
   - "Curse": the player whose presence most lowers his team's average score,
     independent of result.

@@ -78,15 +78,23 @@ graph TD
 - **Safety Safeguards:** Duplicate-match guard (date + venue collision check) and detailed Bootstrap delete confirmation modal.
 - **Gemini Settings Panel:** Secure key entry, live latency test, and dynamic model selector (`gemini-1.5-flash`).
 
+### 🟢 Stage D — Statistics & Analytics Engine
+- **Elo & Power Ranking Engine (Item 16):** Chronological, deterministic (date + doc ID tiebreak) Elo ratings (Starting 1200, K=32/48, Tournament half-K=16/24). Inline provisional rating badge (`? Provisional (X/5)`) for players with < 5 appearances.
+- **Nemesis & Rivalry Engine (Item 17):** Head-to-head tracking against all opponents (including tournament placement comparisons). Displays most-lost-to nemesis (`"Lost 4 of 5 to Hector"`) and duo split metrics (together vs opposed) with $\ge 3$ match threshold.
+- **Streaks & Rolling Form (Item 18):** Current and all-time longest Win, Loss, and Unbeaten runs; rolling 5-match form guide badges (`W W D W L`); embedded SVG rolling 5-game PPG career trajectory chart; and Most Improved Player of the Month calculation.
+- **Chemistry Matrix & Duo Leaderboards (Item 19):** Deadliest Duos (Top 10), Worst Duos (Top 10), and Most Frequent Duos with sample size visibility on every row (`"5 games together"`) and small-sample badges for 3–4 games; compact Regulars Synergy Heatmap for players with $\ge 10$ caps.
+- **Attendance & Indefinite Milestones (Item 20):** Milestone badges dynamically derived for 25, 50, 75, 100, 125... Caps; attendance denominator computed strictly from player's debut date (`"12 of 18 since debut (67%)"`); Iron Men consecutive attendance runs; and One-Cap Wonders list.
+- **Optimal Lineup & Curse Stat (Item 22):** Optimal 5-player lineup from eligible Elo ratings ($\ge 5$ games); The Curse Stat (player whose presence most lowers team scored goals relative to league average GF in Standard matches); The Blessed Stat; and Goal Differential (GD/game) as a distinct metric.
+
 ---
 
 ## 3. Current Data Health & Metrics
 
 | Metric | Count / Value | Status |
 | :--- | :--- | :--- |
-| **Total Recorded Matches** | 65 matches (130 team records) | ✅ Fully verified in `matches_v2` |
+| **Total Recorded Matches** | 67 matches (134 team records) | ✅ Fully verified in `matches_v2` (59 Standard, 8 Tournament) |
 | **Canonical Player Identities** | 68 unique players | ✅ Synced in `players_v2` |
-| **Active Regulars** | ~26 players (≥10 appearances) | ✅ Included in Roster Grid |
+| **Active Regulars** | ~26 players (≥10 appearances) | ✅ Included in Roster Grid & Heatmap |
 | **Venues Registered** | 5 active halls / fields + dynamic add | ✅ Synced in `locations` |
 | **Security Rules** | Enforced on all collections | ✅ Deployed to Cloud Firestore |
 | **Cloud Functions** | 4 callable endpoints (`setGeminiKey`, `testGeminiConnection`, `setGeminiModel`, `parseLineup`) | ✅ Live in `us-central1` |
@@ -99,24 +107,16 @@ graph TD
 Stage A — Core Fixes           [████████████████████] 100% (7/7 Complete)
 Stage B — Identity Layer       [████████████████████] 100% (4/4 Complete)
 Stage C — Entry Experience     [████████████████████] 100% (6/6 Complete)
-Stage D — Statistics Engine    [░░░░░░░░░░░░░░░░░░░░]   0% (Next up)
-Stage E — Community Layer      [░░░░░░░░░░░░░░░░░░░░]   0% (Scheduled)
+Stage D — Statistics Engine    [████████████████████] 100% (6/6 Complete)
+Stage E — Community Layer      [░░░░░░░░░░░░░░░░░░░░]   0% (Next up)
 ```
 
 ---
 
-## 5. Next Planned Milestones (Stage D & E)
+## 5. Next Planned Milestones (Stage E)
 
-1. **Stage D: Statistics & Analytics Engine (`stage-d-stats`):**
-   - **Item 16:** Elo & Power Ranking Engine (chronological team-weighted Elo).
-   - **Item 17:** Nemesis & Rivalry Head-to-Head Engine.
-   - **Item 18:** Streaks & Form Guide (`W-W-D-W-L` rolling PPG).
-   - **Item 19:** Chemistry Matrix & Duo Synergy Heatmap.
-   - **Item 20:** Appearance Milestones & Attendance Tracker.
-   - **Item 22:** Optimal Lineup Builder & Curse/Synergy Differential.
-
-2. **Stage E: Community & Engagement (`stage-e-community`):**
-   - **Item 32:** PWA Support (Installable Web App & Deep Linking).
-   - **Item 25:** Weekly Power Rankings.
-   - **Item 28:** Milestone Notices.
-   - **Item 29:** Monthly Awards (Player of the Month, Iron Man, etc.).
+1. **Stage E: Community & Engagement (`stage-e-community`):**
+   - **Item 32:** PWA Support (Installable Web App, `manifest.json`, Service Worker & Deep Linking).
+   - **Item 25:** Weekly Power Rankings (Monday view with movement arrows vs. last week, feeding off Item 16 Elo).
+   - **Item 28:** Milestone Notices ("Sam plays his 40th tonight", feeding off Item 20).
+   - **Item 29:** Monthly Awards (Player of the Month, Most Improved, Iron Man, Worst Duo, Ghost of the Month).

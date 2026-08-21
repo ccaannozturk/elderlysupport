@@ -113,6 +113,102 @@
         .btn-close { filter: invert(1); opacity: 0.8; }
         
         .sort-icon { font-size: 0.6rem; opacity: 0.5; margin-left: 2px; }
+
+        /* STAGE D: ANALYTICS & STATS ENGINE STYLING */
+        .badge-provisional {
+            background-color: rgba(210, 153, 34, 0.2);
+            color: #f0883e;
+            border: 1px solid rgba(210, 153, 34, 0.5);
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .badge-milestone {
+            background: linear-gradient(135deg, #ffd700, #ffae00);
+            color: #000;
+            font-weight: 800;
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.3);
+        }
+        .badge-small-sample {
+            background: rgba(163, 179, 188, 0.12);
+            color: #8b949e;
+            border: 1px dashed rgba(163, 179, 188, 0.3);
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .badge-form {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 800;
+            margin: 0 1px;
+        }
+        .badge-form-w { background-color: rgba(46, 160, 67, 0.25); color: #3fb950; border: 1px solid #2ea043; }
+        .badge-form-d { background-color: rgba(210, 153, 34, 0.25); color: #f0883e; border: 1px solid #d29922; }
+        .badge-form-l { background-color: rgba(248, 81, 73, 0.25); color: #ff7b72; border: 1px solid #f85149; }
+
+        .lineup-hero {
+            background: linear-gradient(145deg, rgba(47, 129, 247, 0.12) 0%, rgba(22, 27, 34, 0.95) 100%);
+            border: 1px solid rgba(47, 129, 247, 0.4);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .stat-card-custom {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            height: 100%;
+            transition: transform 0.15s ease, border-color 0.15s ease;
+        }
+        .stat-card-custom:hover {
+            border-color: #555;
+        }
+        .heatmap-container {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #0d1117;
+        }
+        .heatmap-table {
+            border-collapse: collapse;
+            font-size: 0.72rem;
+            width: 100%;
+            min-width: 600px;
+        }
+        .heatmap-table th, .heatmap-table td {
+            padding: 6px 8px;
+            text-align: center;
+            border: 1px solid #21262d;
+            white-space: nowrap;
+        }
+        .heatmap-table th {
+            background: #161b22;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+        .heatmap-cell-good { background: rgba(46, 160, 67, 0.25); color: #3fb950; font-weight: 700; }
+        .heatmap-cell-avg { background: rgba(210, 153, 34, 0.25); color: #f0883e; font-weight: 700; }
+        .heatmap-cell-bad { background: rgba(248, 81, 73, 0.25); color: #ff7b72; font-weight: 700; }
+        .heatmap-cell-empty { color: #444; font-size: 0.65rem; }
     </style>
 </head>
 <body>
@@ -164,6 +260,7 @@
                                 <th onclick="sortTable('drawn')">D <i class="fas fa-sort sort-icon"></i></th>
                                 <th onclick="sortTable('lost')">L <i class="fas fa-sort sort-icon"></i></th>
                                 <th onclick="sortTable('points')">PTS <i class="fas fa-sort sort-icon"></i></th>
+                                <th onclick="sortTable('elo')">ELO <i class="fas fa-sort sort-icon"></i></th>
                                 <th class="pe-3" onclick="sortTable('ppg')">PPG <i class="fas fa-sort sort-icon"></i></th>
                             </tr>
                         </thead>

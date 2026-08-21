@@ -1058,8 +1058,768 @@ function fallbackLocalParser(text) {
 }
 
 /* ==========================================================================
-   STATISTICS ENGINE (STAGE C: GOALS FIX FOR TOURNAMENTS)
+   STAGE D: STATISTICS & ANALYTICS ENGINE
    ========================================================================== */
+
+// Named Constants & Thresholds (Agreed across Stage D)
+const MIN_GAMES_RANKED_ELO   = 5;  // below this, rating is marked provisional (?)
+const MIN_GAMES_PAIR         = 3;  // chemistry, duo, nemesis, rivalry threshold
+const MIN_GAMES_IMPROVED     = 3;  // matches in current period for "most improved"
+const MILESTONE_INTERVAL     = 25; // badges at 25, 50, 75, 100, ... indefinitely
+const MIN_APPEARANCES_PPG    = 10; // Stage A item 13 qualifier for PPG ranking
+
+const STARTING_ELO           = 1200;
+const K_STANDARD_REG         = 32;
+const K_STANDARD_NEW         = 48; // for player's first 10 matches (< 10)
+const K_TOURN_REG            = 16;
+const K_TOURN_NEW            = 24;
+
+let latestEloMap = new Map(); // Expose final Elo rating map for Items 22 and 25
+
+/**
+ * Expected score formula for Elo rating system.
+ */
+function computeExpectedScore(rA, rB) {
+    return 1 / (1 + Math.pow(10, (rB - rA) / 400));
+}
+
+/**
+ * Extract millisecond timestamp from match date defensively.
+ */
+function getMatchTime(m) {
+    if (!m || !m.date) return 0;
+    if (m.date.toMillis && typeof m.date.toMillis === 'function') return m.date.toMillis();
+    if (m.date.toDate && typeof m.date.toDate === 'function') return m.date.toDate().getTime();
+    if (m.date.__type === 'timestamp') return new Date(m.date.value).getTime();
+    return new Date(m.date).getTime();
+}
+
+/**
+ * Item 16: Elo / Power Rating Engine
+ * Recomputes all-time ratings chronologically from scratch.
+ * Chronology tiebreak: sorted by date ascending, then by document ID ascending as the secondary tiebreak.
+ * Elo is path-dependent and several matches share a date; this tiebreak guarantees identical results on every load.
+ */
+function computeEloRatings(matches) {
+    const sorted = [...matches].sort((a, b) => {
+        const tA = getMatchTime(a);
+        const tB = getMatchTime(b);
+        if (tA !== tB) return tA - tB;
+        return (a.id || '').localeCompare(b.id || '');
+    });
+
+    const ratings = {}; // playerId -> current rating
+    const matchCounts = {}; // playerId -> matches count prior to this match
+    const ratingHistory = {}; // playerId -> array of { matchId, delta, rating, date }
+
+    const getRating = (id) => ratings[id] !== undefined ? ratings[id] : STARTING_ELO;
+    const getCount = (id) => matchCounts[id] || 0;
+
+    for (const m of sorted) {
+        if (!m.teams || m.teams.length < 2) continue;
+
+        if (m.type === 'Standard') {
+            const tA = m.teams[0];
+            const tB = m.teams[1];
+            const pA = tA.players || [];
+            const pB = tB.players || [];
+
+            const avgA = pA.length ? (pA.reduce((sum, p) => sum + getRating(p), 0) / pA.length) : STARTING_ELO;
+            const avgB = pB.length ? (pB.reduce((sum, p) => sum + getRating(p), 0) / pB.length) : STARTING_ELO;
+
+            const expA = computeExpectedScore(avgA, avgB);
+            const expB = 1 - expA;
+
+            let actA = 0.5, actB = 0.5;
+            const sA = tA.score || 0;
+            const sB = tB.score || 0;
+            if (sA > sB) { actA = 1; actB = 0; }
+            else if (sB > sA) { actA = 0; actB = 1; }
+
+            for (const p of pA) {
+                const k = getCount(p) < 10 ? K_STANDARD_NEW : K_STANDARD_REG;
+                const delta = k * (actA - expA);
+                const newR = getRating(p) + delta;
+                ratings[p] = newR;
+                matchCounts[p] = getCount(p) + 1;
+                if (!ratingHistory[p]) ratingHistory[p] = [];
+                ratingHistory[p].push({ matchId: m.id, delta, rating: newR, date: m.date });
+            }
+
+            for (const p of pB) {
+                const k = getCount(p) < 10 ? K_STANDARD_NEW : K_STANDARD_REG;
+                const delta = k * (actB - expB);
+                const newR = getRating(p) + delta;
+                ratings[p] = newR;
+                matchCounts[p] = getCount(p) + 1;
+                if (!ratingHistory[p]) ratingHistory[p] = [];
+                ratingHistory[p].push({ matchId: m.id, delta, rating: newR, date: m.date });
+            }
+        } else if (m.type === 'Tournament' && m.teams.length >= 3) {
+            // 3-team tournament: 1st beats 2nd, 1st beats 3rd, 2nd beats 3rd.
+            const r1 = m.teams.find(t => t.rank === 1) || m.teams[0];
+            const r2 = m.teams.find(t => t.rank === 2) || m.teams[1];
+            const r3 = m.teams.find(t => t.rank === 3) || m.teams[2];
+
+            const p1 = r1.players || [];
+            const p2 = r2.players || [];
+            const p3 = r3.players || [];
+
+            const avg1 = p1.length ? (p1.reduce((sum, p) => sum + getRating(p), 0) / p1.length) : STARTING_ELO;
+            const avg2 = p2.length ? (p2.reduce((sum, p) => sum + getRating(p), 0) / p2.length) : STARTING_ELO;
+            const avg3 = p3.length ? (p3.reduce((sum, p) => sum + getRating(p), 0) / p3.length) : STARTING_ELO;
+
+            // 3 pairwise comparisons using pre-tournament team ratings
+            const exp1_2 = computeExpectedScore(avg1, avg2);
+            const exp2_1 = 1 - exp1_2;
+
+            const exp1_3 = computeExpectedScore(avg1, avg3);
+            const exp3_1 = 1 - exp1_3;
+
+            const exp2_3 = computeExpectedScore(avg2, avg3);
+            const exp3_2 = 1 - exp2_3;
+
+            for (const p of p1) {
+                const k = getCount(p) < 10 ? K_TOURN_NEW : K_TOURN_REG;
+                const delta = (k * (1 - exp1_2)) + (k * (1 - exp1_3));
+                const newR = getRating(p) + delta;
+                ratings[p] = newR;
+                matchCounts[p] = getCount(p) + 1;
+                if (!ratingHistory[p]) ratingHistory[p] = [];
+                ratingHistory[p].push({ matchId: m.id, delta, rating: newR, date: m.date });
+            }
+
+            for (const p of p2) {
+                const k = getCount(p) < 10 ? K_TOURN_NEW : K_TOURN_REG;
+                const delta = (k * (0 - exp2_1)) + (k * (1 - exp2_3));
+                const newR = getRating(p) + delta;
+                ratings[p] = newR;
+                matchCounts[p] = getCount(p) + 1;
+                if (!ratingHistory[p]) ratingHistory[p] = [];
+                ratingHistory[p].push({ matchId: m.id, delta, rating: newR, date: m.date });
+            }
+
+            for (const p of p3) {
+                const k = getCount(p) < 10 ? K_TOURN_NEW : K_TOURN_REG;
+                const delta = (k * (0 - exp3_1)) + (k * (0 - exp3_2));
+                const newR = getRating(p) + delta;
+                ratings[p] = newR;
+                matchCounts[p] = getCount(p) + 1;
+                if (!ratingHistory[p]) ratingHistory[p] = [];
+                ratingHistory[p].push({ matchId: m.id, delta, rating: newR, date: m.date });
+            }
+        }
+    }
+
+    const sortedList = Object.keys(ratings).map(id => {
+        const matchesCount = matchCounts[id] || 0;
+        return {
+            id,
+            name: getPlayerDisplayName(id),
+            rating: Math.round(ratings[id]),
+            rawRating: ratings[id],
+            matches: matchesCount,
+            isProvisional: matchesCount < MIN_GAMES_RANKED_ELO
+        };
+    }).sort((a, b) => b.rawRating - a.rawRating);
+
+    latestEloMap = new Map();
+    sortedList.forEach(item => latestEloMap.set(item.id, item));
+
+    return { ratings, matchCounts, ratingHistory, sortedList };
+}
+
+/**
+ * Item 18: Compute Streaks & Form Guide
+ */
+function computePlayerStreaksAndForm(matches, targetIdOrName) {
+    const sorted = [...matches].sort((a, b) => {
+        const tA = getMatchTime(a);
+        const tB = getMatchTime(b);
+        if (tA !== tB) return tA - tB;
+        return (a.id || '').localeCompare(b.id || '');
+    });
+
+    const isMatchPlayer = (p) => {
+        if (!p) return false;
+        if (p === targetIdOrName) return true;
+        if (playersRegistry.has(targetIdOrName)) {
+            const reg = playersRegistry.get(targetIdOrName);
+            if (p === reg.id || p.toLowerCase() === reg.displayName.toLowerCase()) return true;
+            if ((reg.aliases || []).map(a => a.toLowerCase()).includes(p.toLowerCase())) return true;
+        }
+        return p.toLowerCase() === targetIdOrName.toLowerCase();
+    };
+
+    let curW = 0, maxW = 0;
+    let curL = 0, maxL = 0;
+    let curU = 0, maxU = 0;
+    const history = []; // array of { result: 'W'|'D'|'L', pts, date, matchId }
+
+    for (const m of sorted) {
+        let participated = false;
+        let result = 'L';
+        let pts = 0;
+
+        if (m.type === 'Standard') {
+            const tA = m.teams[0], tB = m.teams[1];
+            const inA = (tA.players || []).some(isMatchPlayer);
+            const inB = (tB.players || []).some(isMatchPlayer);
+            if (inA || inB) {
+                participated = true;
+                const myS = inA ? tA.score : tB.score;
+                const opS = inA ? tB.score : tA.score;
+                if (myS > opS) { result = 'W'; pts = 3; }
+                else if (myS === opS) { result = 'D'; pts = 1; }
+                else { result = 'L'; pts = 0; }
+            }
+        } else if (m.type === 'Tournament') {
+            const myTeam = (m.teams || []).find(t => (t.players || []).some(isMatchPlayer));
+            if (myTeam) {
+                participated = true;
+                pts = myTeam.points !== undefined ? myTeam.points : (myTeam.rank === 1 ? 3 : (myTeam.rank === 2 ? 1 : 0));
+                if (pts >= 3) result = 'W';
+                else if (pts === 1) result = 'D';
+                else result = 'L';
+            }
+        }
+
+        if (participated) {
+            history.push({ result, pts, date: m.date, matchId: m.id });
+
+            // Win streak
+            if (result === 'W') { curW++; if (curW > maxW) maxW = curW; }
+            else { curW = 0; }
+
+            // Loss streak
+            if (result === 'L') { curL++; if (curL > maxL) maxL = curL; }
+            else { curL = 0; }
+
+            // Unbeaten streak (W or D)
+            if (result === 'W' || result === 'D') { curU++; if (curU > maxU) maxU = curU; }
+            else { curU = 0; }
+        }
+    }
+
+    // Rolling 5-game PPG trajectory
+    const rollingPpgHistory = [];
+    for (let i = 0; i < history.length; i++) {
+        const windowStart = Math.max(0, i - 4);
+        const windowSlice = history.slice(windowStart, i + 1);
+        const sumPts = windowSlice.reduce((sum, h) => sum + h.pts, 0);
+        const ppg = sumPts / windowSlice.length;
+        const dObj = history[i].date ? (history[i].date.toDate ? history[i].date.toDate() : new Date(history[i].date)) : null;
+        const dateStr = dObj ? `${dObj.getDate()}/${dObj.getMonth() + 1}` : `Match ${i + 1}`;
+        rollingPpgHistory.push({ index: i + 1, ppg, dateStr });
+    }
+
+    const form5 = history.slice(-5).map(h => h.result); // most recent last
+
+    return {
+        curW, maxW,
+        curL, maxL,
+        curU, maxU,
+        form5,
+        rollingPpgHistory,
+        history
+    };
+}
+
+/**
+ * Render SVG Rolling 5-game PPG sparkline chart
+ */
+function renderRollingPpgSvg(rollingHistory) {
+    if (!rollingHistory || rollingHistory.length < 2) {
+        return `<div class="small text-muted text-center py-2">Play 2 or more matches to unlock your career PPG line chart.</div>`;
+    }
+    const width = 320;
+    const height = 80;
+    const padding = 14;
+    const drawW = width - padding * 2;
+    const drawH = height - padding * 2;
+    const maxVal = 3.0;
+
+    const points = rollingHistory.map((item, idx) => {
+        const x = padding + (idx / (rollingHistory.length - 1)) * drawW;
+        const val = Math.max(0, Math.min(3, item.ppg));
+        const y = height - padding - (val / maxVal) * drawH;
+        return { x, y, ppg: item.ppg, date: item.dateStr };
+    });
+
+    const polylinePts = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+    const firstP = points[0];
+    const lastP = points[points.length - 1];
+    const areaPts = `${polylinePts} ${lastP.x.toFixed(1)},${(height - padding)} ${firstP.x.toFixed(1)},${(height - padding)}`;
+
+    const guideY1 = (height - padding - (1.0 / 3.0) * drawH).toFixed(1);
+    const guideY2 = (height - padding - (2.0 / 3.0) * drawH).toFixed(1);
+
+    const circles = points.map(p => `
+        <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#2f81f7" stroke="#ffffff" stroke-width="1.5">
+            <title>${p.ppg.toFixed(2)} PPG (${p.date})</title>
+        </circle>
+    `).join('');
+
+    return `
+    <div class="bg-dark p-2 rounded border border-secondary mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <small class="text-muted" style="font-size:0.7rem; font-weight:700; letter-spacing:0.5px;">ROLLING 5-GAME PPG CAREER TREND</small>
+            <small class="text-info font-monospace" style="font-size:0.75rem; font-weight:700;">Latest: ${lastP.ppg.toFixed(2)} PPG</small>
+        </div>
+        <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:80px; overflow:visible;">
+            <defs>
+                <linearGradient id="ppgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#2f81f7" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#2f81f7" stop-opacity="0.0"/>
+                </linearGradient>
+            </defs>
+            <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" stroke="#30363d" stroke-width="1" />
+            <line x1="${padding}" y1="${guideY1}" x2="${width - padding}" y2="${guideY1}" stroke="#30363d" stroke-dasharray="3,3" stroke-width="1" />
+            <line x1="${padding}" y1="${guideY2}" x2="${width - padding}" y2="${guideY2}" stroke="#30363d" stroke-dasharray="3,3" stroke-width="1" />
+            <line x1="${padding}" y1="${padding}" x2="${width - padding}" y2="${padding}" stroke="#30363d" stroke-dasharray="3,3" stroke-width="1" />
+            
+            <text x="${padding}" y="${padding + 7}" fill="#666" font-size="8" font-family="sans-serif">3.0</text>
+            <text x="${padding}" y="${Number(guideY2) + 3}" fill="#666" font-size="8" font-family="sans-serif">2.0</text>
+            <text x="${padding}" y="${Number(guideY1) + 3}" fill="#666" font-size="8" font-family="sans-serif">1.0</text>
+
+            <polygon points="${areaPts}" fill="url(#ppgGrad)" />
+            <polyline points="${polylinePts}" fill="none" stroke="#2f81f7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            ${circles}
+        </svg>
+    </div>`;
+}
+
+/**
+ * Item 17: Nemesis & Rivalry Head-to-Head Engine
+ */
+function computeNemesisAndRivalry(matches, targetIdOrName) {
+    const isMatchPlayer = (p) => {
+        if (!p) return false;
+        if (p === targetIdOrName) return true;
+        if (playersRegistry.has(targetIdOrName)) {
+            const reg = playersRegistry.get(targetIdOrName);
+            if (p === reg.id || p.toLowerCase() === reg.displayName.toLowerCase()) return true;
+            if ((reg.aliases || []).map(a => a.toLowerCase()).includes(p.toLowerCase())) return true;
+        }
+        return p.toLowerCase() === targetIdOrName.toLowerCase();
+    };
+
+    const opposed = {}; // otherPlayerId -> { played: 0, won: 0, drawn: 0, lost: 0 }
+    const teammates = {}; // otherPlayerId -> { played: 0, won: 0, drawn: 0, lost: 0 }
+
+    for (const m of matches) {
+        if (m.type === 'Standard') {
+            const tA = m.teams[0], tB = m.teams[1];
+            const inA = (tA.players || []).some(isMatchPlayer);
+            const inB = (tB.players || []).some(isMatchPlayer);
+            if (!inA && !inB) continue;
+
+            const myTeam = inA ? tA : tB;
+            const oppTeam = inA ? tB : tA;
+            const isWin = myTeam.score > oppTeam.score;
+            const isDraw = myTeam.score === oppTeam.score;
+            const isLoss = myTeam.score < oppTeam.score;
+
+            // Teammates
+            (myTeam.players || []).forEach(p => {
+                if (!isMatchPlayer(p)) {
+                    if (!teammates[p]) teammates[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+                    teammates[p].played++;
+                    if (isWin) teammates[p].won++;
+                    else if (isDraw) teammates[p].drawn++;
+                    else teammates[p].lost++;
+                }
+            });
+
+            // Opponents
+            (oppTeam.players || []).forEach(p => {
+                if (!opposed[p]) opposed[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+                opposed[p].played++;
+                if (isWin) opposed[p].won++;
+                else if (isDraw) opposed[p].drawn++;
+                else opposed[p].lost++;
+            });
+        } else if (m.type === 'Tournament') {
+            const myTeam = (m.teams || []).find(t => (t.players || []).some(isMatchPlayer));
+            if (!myTeam) continue;
+
+            const myRank = myTeam.rank !== undefined ? myTeam.rank : 2;
+
+            // Teammates
+            (myTeam.players || []).forEach(p => {
+                if (!isMatchPlayer(p)) {
+                    if (!teammates[p]) teammates[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+                    teammates[p].played++;
+                    if (myRank === 1) teammates[p].won++;
+                    else if (myRank === 2) teammates[p].drawn++;
+                    else teammates[p].lost++;
+                }
+            });
+
+            // Opponents (two teams in same tournament count as opponents)
+            (m.teams || []).forEach(otherTeam => {
+                if (otherTeam === myTeam) return;
+                const oppRank = otherTeam.rank !== undefined ? otherTeam.rank : 2;
+                const isWin = myRank < oppRank;
+                const isDraw = myRank === oppRank;
+                const isLoss = myRank > oppRank;
+
+                (otherTeam.players || []).forEach(p => {
+                    if (!opposed[p]) opposed[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+                    opposed[p].played++;
+                    if (isWin) opposed[p].won++;
+                    else if (isDraw) opposed[p].drawn++;
+                    else opposed[p].lost++;
+                });
+            });
+        }
+    }
+
+    // Nemesis: Opponent lost to most often with played >= MIN_GAMES_PAIR (3)
+    let nemesis = null;
+    Object.entries(opposed).forEach(([oppId, rec]) => {
+        if (rec.played >= MIN_GAMES_PAIR) {
+            if (!nemesis || rec.lost > nemesis.lost || (rec.lost === nemesis.lost && rec.played > nemesis.played)) {
+                nemesis = {
+                    id: oppId,
+                    name: getPlayerDisplayName(oppId),
+                    ...rec
+                };
+            }
+        }
+    });
+
+    // Duo splits: For all players, gather together vs opposed records
+    const allRivals = new Set([...Object.keys(teammates), ...Object.keys(opposed)]);
+    const duoSplits = [];
+    allRivals.forEach(id => {
+        const t = teammates[id] || { played: 0, won: 0, drawn: 0, lost: 0 };
+        const o = opposed[id] || { played: 0, won: 0, drawn: 0, lost: 0 };
+        const showTogether = t.played >= MIN_GAMES_PAIR;
+        const showOpposed = o.played >= MIN_GAMES_PAIR;
+
+        if (showTogether || showOpposed) {
+            duoSplits.push({
+                id,
+                name: getPlayerDisplayName(id),
+                together: showTogether ? { ...t, wr: Math.round((t.won / t.played) * 100) } : null,
+                opposed: showOpposed ? { ...o, wr: Math.round((o.won / o.played) * 100) } : null,
+                totalMeetings: t.played + o.played
+            });
+        }
+    });
+
+    duoSplits.sort((a, b) => b.totalMeetings - a.totalMeetings);
+
+    return { nemesis, duoSplits };
+}
+
+/**
+ * Item 20: Attendance & Milestones Engine
+ */
+function computeAttendanceAndMilestones(matches) {
+    const sorted = [...matches].sort((a, b) => {
+        const tA = getMatchTime(a);
+        const tB = getMatchTime(b);
+        if (tA !== tB) return tA - tB;
+        return (a.id || '').localeCompare(b.id || '');
+    });
+
+    const totalGroupMatches = sorted.length;
+    const playerDebutIndex = {}; // pId -> earliest match index
+    const playerDebutDate = {}; // pId -> debut date string
+    const playerTotalPlayed = {}; // pId -> total matches
+    const playerConsecutive = {}; // pId -> { cur: 0, max: 0 }
+
+    sorted.forEach((m, matchIdx) => {
+        const matchPlayerIds = new Set();
+        (m.teams || []).forEach(t => {
+            (t.players || []).forEach(p => matchPlayerIds.add(p));
+        });
+
+        const allKnownPlayers = new Set([...Object.keys(playerDebutIndex), ...matchPlayerIds]);
+
+        allKnownPlayers.forEach(pId => {
+            if (matchPlayerIds.has(pId)) {
+                if (playerDebutIndex[pId] === undefined) {
+                    playerDebutIndex[pId] = matchIdx;
+                    const dObj = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : new Date();
+                    playerDebutDate[pId] = `${dObj.getDate()}/${dObj.getMonth() + 1}/${dObj.getFullYear()}`;
+                }
+                playerTotalPlayed[pId] = (playerTotalPlayed[pId] || 0) + 1;
+
+                if (!playerConsecutive[pId]) playerConsecutive[pId] = { cur: 0, max: 0 };
+                playerConsecutive[pId].cur++;
+                if (playerConsecutive[pId].cur > playerConsecutive[pId].max) {
+                    playerConsecutive[pId].max = playerConsecutive[pId].cur;
+                }
+            } else {
+                if (playerDebutIndex[pId] !== undefined) {
+                    if (!playerConsecutive[pId]) playerConsecutive[pId] = { cur: 0, max: 0 };
+                    playerConsecutive[pId].cur = 0;
+                }
+            }
+        });
+    });
+
+    const attendanceStats = {};
+    const oneCapWonders = [];
+    const milestoneAchievers = [];
+
+    Object.keys(playerDebutIndex).forEach(pId => {
+        const played = playerTotalPlayed[pId] || 0;
+        const debutIdx = playerDebutIndex[pId];
+        const possibleMatches = totalGroupMatches - debutIdx;
+        const rate = possibleMatches > 0 ? Math.round((played / possibleMatches) * 100) : 0;
+        const maxConsecutive = playerConsecutive[pId] ? playerConsecutive[pId].max : 0;
+
+        // Milestones derived dynamically via MILESTONE_INTERVAL = 25 indefinitely
+        const badges = [];
+        for (let m = MILESTONE_INTERVAL; m <= played; m += MILESTONE_INTERVAL) {
+            badges.push(`${m} Caps`);
+        }
+
+        const data = {
+            id: pId,
+            name: getPlayerDisplayName(pId),
+            played,
+            debutDate: playerDebutDate[pId] || 'Unknown',
+            possibleSinceDebut: possibleMatches,
+            attendanceRate: rate,
+            attendanceText: `${played} of ${possibleMatches} since debut`,
+            maxConsecutive,
+            badges
+        };
+
+        attendanceStats[pId] = data;
+
+        if (played === 1) oneCapWonders.push(data);
+        if (badges.length > 0) milestoneAchievers.push(data);
+    });
+
+    milestoneAchievers.sort((a, b) => b.played - a.played);
+    const ironMen = Object.values(attendanceStats).sort((a, b) => b.maxConsecutive - a.maxConsecutive).slice(0, 5);
+
+    return {
+        attendanceStats,
+        oneCapWonders,
+        milestoneAchievers,
+        ironMen
+    };
+}
+
+/**
+ * Item 22: Optimal Lineup & Curse Stat Engine
+ */
+function computeOptimalLineupAndCurse(matches, eloMap) {
+    // 1. Optimal Lineup: Top 5 players by Elo with >= 5 games (non-provisional)
+    const eligibleEloList = Array.from(eloMap.values())
+        .filter(p => !p.isProvisional && p.matches >= MIN_GAMES_RANKED_ELO)
+        .sort((a, b) => b.rawRating - a.rawRating);
+
+    const optimal5 = eligibleEloList.slice(0, 5);
+    const avgElo = optimal5.length ? Math.round(optimal5.reduce((sum, p) => sum + p.rawRating, 0) / optimal5.length) : STARTING_ELO;
+
+    // 2. Curse Stat: Standard matches only, >= 5 standard matches
+    const stdMatches = matches.filter(m => m.type === 'Standard');
+    let totalGoals = 0;
+    let totalTeamAppearances = 0;
+
+    stdMatches.forEach(m => {
+        totalGoals += (m.teams[0].score || 0) + (m.teams[1].score || 0);
+        totalTeamAppearances += 2;
+    });
+
+    const leagueAvgGF = totalTeamAppearances > 0 ? (totalGoals / totalTeamAppearances) : 0;
+
+    const playerStdStats = {}; // pId -> { games: 0, gf: 0, ga: 0 }
+
+    stdMatches.forEach(m => {
+        m.teams.forEach(t => {
+            const gf = t.score || 0;
+            const opp = m.teams.find(other => other !== t);
+            const ga = opp ? (opp.score || 0) : 0;
+
+            (t.players || []).forEach(p => {
+                if (!playerStdStats[p]) playerStdStats[p] = { games: 0, gf: 0, ga: 0 };
+                playerStdStats[p].games++;
+                playerStdStats[p].gf += gf;
+                playerStdStats[p].ga += ga;
+            });
+        });
+    });
+
+    const curseList = Object.keys(playerStdStats)
+        .filter(pId => playerStdStats[pId].games >= 5)
+        .map(pId => {
+            const s = playerStdStats[pId];
+            const avgGF = s.gf / s.games;
+            const deltaGF = avgGF - leagueAvgGF;
+            const avgGD = (s.gf - s.ga) / s.games;
+            return {
+                id: pId,
+                name: getPlayerDisplayName(pId),
+                games: s.games,
+                avgGF: avgGF.toFixed(2),
+                deltaGF: deltaGF.toFixed(2),
+                avgGD: avgGD.toFixed(2),
+                rawDeltaGF: deltaGF,
+                rawAvgGD: avgGD
+            };
+        });
+
+    curseList.sort((a, b) => a.rawDeltaGF - b.rawDeltaGF);
+
+    const cursed = curseList.length > 0 ? curseList[0] : null;
+    const blessed = curseList.length > 0 ? curseList[curseList.length - 1] : null;
+    const topGD = [...curseList].sort((a, b) => b.rawAvgGD - a.rawAvgGD)[0] || null;
+
+    return {
+        optimal5,
+        avgElo,
+        cursed,
+        blessed,
+        topGD,
+        leagueAvgGF: leagueAvgGF.toFixed(2)
+    };
+}
+
+/**
+ * Item 18: Most Improved Player Calculation
+ */
+function computeMostImproved(matches, filterYear, filterMonth) {
+    // Current/active month
+    let targetYear = filterYear === 'all' ? new Date().getFullYear() : parseInt(filterYear);
+    let targetMonth = filterMonth === 'all' ? new Date().getMonth() : parseInt(filterMonth);
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    const allTimeStats = {}; // pId -> { pts: 0, games: 0 }
+    const monthStats = {}; // pId -> { pts: 0, games: 0 }
+
+    matches.forEach(m => {
+        const d = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : new Date();
+        const mYear = d.getFullYear();
+        const mMonth = d.getMonth();
+        const inTargetMonth = mYear === targetYear && mMonth === targetMonth;
+
+        (m.teams || []).forEach(t => {
+            let pts = 0;
+            if (m.type === 'Standard') {
+                const opp = m.teams.find(other => other !== t);
+                if (t.score > opp.score) pts = 3;
+                else if (t.score === opp.score) pts = 1;
+            } else {
+                pts = t.points !== undefined ? t.points : (t.rank === 1 ? 3 : (t.rank === 2 ? 1 : 0));
+            }
+
+            (t.players || []).forEach(p => {
+                if (!allTimeStats[p]) allTimeStats[p] = { pts: 0, games: 0 };
+                allTimeStats[p].pts += pts;
+                allTimeStats[p].games++;
+
+                if (inTargetMonth) {
+                    if (!monthStats[p]) monthStats[p] = { pts: 0, games: 0 };
+                    monthStats[p].pts += pts;
+                    monthStats[p].games++;
+                }
+            });
+        });
+    });
+
+    const candidates = [];
+    Object.keys(monthStats).forEach(pId => {
+        const mData = monthStats[pId];
+        if (mData.games >= MIN_GAMES_IMPROVED) {
+            const mPpg = mData.pts / mData.games;
+            const aData = allTimeStats[pId];
+            const aPpg = aData && aData.games > 0 ? (aData.pts / aData.games) : mPpg;
+            const delta = mPpg - aPpg;
+
+            candidates.push({
+                id: pId,
+                name: getPlayerDisplayName(pId),
+                monthGames: mData.games,
+                monthPpg: mPpg.toFixed(2),
+                allTimePpg: aPpg.toFixed(2),
+                delta: delta.toFixed(2),
+                rawDelta: delta
+            });
+        }
+    });
+
+    candidates.sort((a, b) => b.rawDelta - a.rawDelta);
+
+    return {
+        candidates,
+        monthLabel: `${monthNames[targetMonth]} ${targetYear}`
+    };
+}
+
+/**
+ * Item 19: Chemistry Matrix & Duos
+ */
+function computeChemistryMatrix(matches) {
+    const duos = {};
+
+    matches.forEach(m => {
+        if (!m.teams || m.teams.length < 2) return;
+
+        m.teams.forEach(t => {
+            let isWin = false;
+            let pts = 0;
+            if (m.type === 'Standard') {
+                const opp = m.teams.find(other => other !== t);
+                if (t.score > opp.score) { isWin = true; pts = 3; }
+                else if (t.score === opp.score) { pts = 1; }
+            } else {
+                pts = t.points !== undefined ? t.points : (t.rank === 1 ? 3 : (t.rank === 2 ? 1 : 0));
+                if (pts >= 3) isWin = true;
+            }
+
+            const cleanPlayers = (t.players || []).map(p => ({ id: p, name: getPlayerDisplayName(p) })).sort((a, b) => a.id.localeCompare(b.id));
+
+            for (let i = 0; i < cleanPlayers.length; i++) {
+                for (let j = i + 1; j < cleanPlayers.length; j++) {
+                    const p1 = cleanPlayers[i];
+                    const p2 = cleanPlayers[j];
+                    const key = `${p1.id}__${p2.id}`;
+                    if (!duos[key]) {
+                        duos[key] = {
+                            p1: p1.id,
+                            p2: p2.id,
+                            names: `${p1.name} & ${p2.name}`,
+                            played: 0,
+                            won: 0,
+                            drawn: 0,
+                            lost: 0,
+                            pts: 0
+                        };
+                    }
+                    duos[key].played++;
+                    duos[key].pts += pts;
+                    if (isWin) duos[key].won++;
+                    else if (pts === 1) duos[key].drawn++;
+                    else duos[key].lost++;
+                }
+            }
+        });
+    });
+
+    const duoList = Object.values(duos).map(d => ({
+        ...d,
+        wr: (d.won / d.played) * 100,
+        ppg: d.pts / d.played
+    }));
+
+    const qualifyingDuos = duoList.filter(d => d.played >= MIN_GAMES_PAIR);
+
+    const bestDuos = [...qualifyingDuos].sort((a, b) => b.wr - a.wr || b.played - a.played).slice(0, 10);
+    const worstDuos = [...qualifyingDuos].sort((a, b) => a.wr - b.wr || b.played - a.played).slice(0, 10);
+    const mostPlayedDuos = [...qualifyingDuos].sort((a, b) => b.played - a.played || b.wr - a.wr).slice(0, 10);
+
+    return { bestDuos, worstDuos, mostPlayedDuos, allDuos: duos };
+}
 
 function processTeamStats(stats, playerArr, gf, ga, pts, isStandard = false) {
     if(!playerArr) return; 
@@ -1106,6 +1866,9 @@ function renderData() {
 
     const filtered = allMatches.filter(m => matchesFilter(m, year, month));
 
+    // Recompute All-Time Elo Ratings from scratch
+    computeEloRatings(allMatches);
+
     const list = document.getElementById('match-history-list');
     if(list) {
         list.innerHTML = "";
@@ -1134,7 +1897,7 @@ function renderData() {
                     const pB = esc((tB.players||[]).map(p => getPlayerDisplayName(p)).join(', '));
 
                     html = `
-                    <div class="match-card" onclick="openMatchModal('${m.id}')">
+                    <div class="match-card" onclick="openPlayerStats('${(tA.players||[])[0] || ''}')">
                         <div class="card-top"><span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> ${ytLink}</div>
                         <div class="card-body-strip">
                             <div class="team-block">
@@ -1166,7 +1929,7 @@ function renderData() {
                     const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
 
                     html = `
-                    <div class="match-card" onclick="openMatchModal('${m.id}')" style="border-left: 3px solid #ffea00;">
+                    <div class="match-card" onclick="openPlayerStats('${(r1.players||[])[0] || ''}')" style="border-left: 3px solid #ffea00;">
                         <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> ${ytLink}</div>
                         <div class="p-3 bg-card">
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${esc(r1.teamName)} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${esc((r1.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
@@ -1203,11 +1966,21 @@ function renderData() {
     if(tbody) {
         tbody.innerHTML = "";
         
-        const players = Object.values(stats).sort((a,b) => {
+        const players = Object.values(stats).map(p => {
+            const eloObj = latestEloMap.get(p.id);
+            return {
+                ...p,
+                elo: eloObj ? eloObj.rating : STARTING_ELO,
+                rawElo: eloObj ? eloObj.rawRating : STARTING_ELO,
+                isProvisional: eloObj ? eloObj.isProvisional : true,
+                eloMatches: eloObj ? eloObj.matches : p.played
+            };
+        }).sort((a,b) => {
             let valA = a[currentSortCol];
             let valB = b[currentSortCol];
             
             if(currentSortCol === 'ppg') { valA = a.points/a.played; valB = b.points/b.played; }
+            if(currentSortCol === 'elo') { valA = a.rawElo; valB = b.rawElo; }
             if(currentSortCol === 'name') {
                 return isSortDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
             }
@@ -1216,16 +1989,17 @@ function renderData() {
             return isSortDesc ? valB - valA : valA - valB;
         });
 
-        if(players.length === 0) tbody.innerHTML = "<tr><td colspan='8' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
+        if(players.length === 0) tbody.innerHTML = "<tr><td colspan='9' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
 
-        const MIN_APPEARANCES = 10;
-        const qualified = players.filter(p => p.played >= MIN_APPEARANCES);
-        const unqualified = players.filter(p => p.played < MIN_APPEARANCES);
+        const qualified = players.filter(p => p.played >= MIN_APPEARANCES_PPG);
+        const unqualified = players.filter(p => p.played < MIN_APPEARANCES_PPG);
 
         const rowHtml = (p, rankLabel, i, greyed) => {
             const ppg = (p.points / p.played).toFixed(2);
             const rowClass = (greyed ? 'text-muted opacity-50 ' : '') + (i%2===0 ? "" : "bg-white bg-opacity-5");
             const isGoldRank = !greyed && i===0 && currentSortCol==='points' && isSortDesc;
+            const eloBadge = p.isProvisional ? `<span class="badge-provisional ms-1" title="Provisional — ${p.eloMatches} of ${MIN_GAMES_RANKED_ELO} games">?</span>` : '';
+
             return `<tr data-player="${esc(p.id || p.name)}" style="cursor:pointer" class="${rowClass}">
                 <td class="ps-3 fw-bold text-start"><span class="rank-circle ${isGoldRank?'r-1':''}">${rankLabel}</span></td>
                 <td class="fw-bold text-start ${greyed ? '' : 'text-light'}">${esc(p.name)}</td>
@@ -1234,6 +2008,7 @@ function renderData() {
                 <td>${p.drawn}</td>
                 <td>${p.lost}</td>
                 <td class="${greyed ? '' : 'fw-bold text-white'}">${p.points}</td>
+                <td class="${greyed ? '' : 'fw-bold text-warning'}">${p.elo}${eloBadge}</td>
                 <td class="pe-3 ${greyed ? '' : 'fw-bold text-info'}">${ppg}</td>
             </tr>`;
         };
@@ -1241,7 +2016,7 @@ function renderData() {
         qualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, i + 1, i, false); });
 
         if(unqualified.length) {
-            tbody.innerHTML += `<tr><td colspan="8" class="text-center text-muted small py-2 border-top border-secondary" style="letter-spacing:1px">FEWER THAN ${MIN_APPEARANCES} APPEARANCES</td></tr>`;
+            tbody.innerHTML += `<tr><td colspan="9" class="text-center text-muted small py-2 border-top border-secondary" style="letter-spacing:1px">FEWER THAN ${MIN_APPEARANCES_PPG} APPEARANCES</td></tr>`;
             unqualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, '-', i, true); });
         }
     }
@@ -1249,30 +2024,37 @@ function renderData() {
     generateInsights(filtered);
 }
 
-function getCombinations(arr, k) {
-    let result = [];
-    function combine(start, combo) {
-        if (combo.length === k) { result.push([...combo]); return; }
-        for (let i = start; i < arr.length; i++) {
-            combo.push(arr[i]); combine(i + 1, combo); combo.pop();
-        }
-    }
-    combine(0, []);
-    return result;
-}
-
 function generateInsights(matches) {
-    let duos = {}, trios = {}, fullTeams = {};
-    let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
-    
-    let venueGoals = {};
+    const insightsContainer = document.getElementById('insightsContainer');
+    if(!insightsContainer) return;
+
+    // Filter context
+    const fYear = document.getElementById('filterYear');
+    const fMonth = document.getElementById('filterMonth');
+    const year = fYear ? fYear.value : '2026';
+    const month = fMonth ? fMonth.value : 'all';
+
+    // 1. Elo Ratings & Optimal Lineup (Item 16 & 22)
+    const eloData = computeEloRatings(allMatches); // All-time chronological
+    const lineupData = computeOptimalLineupAndCurse(allMatches, latestEloMap);
+
+    // 2. Chemistry & Duos (Item 19)
+    const chemData = computeChemistryMatrix(matches);
+
+    // 3. Streaks, Form & Most Improved (Item 18)
+    const improvedData = computeMostImproved(allMatches, year, month);
+
+    // 4. Attendance & Milestones (Item 20)
+    const attendData = computeAttendanceAndMilestones(allMatches);
+
+    // 5. Venue Goals (Standard matches only)
+    const venueGoals = {};
     let biggestBlowout = null;
     let highestScoring = null;
     let draws = 0;
 
     matches.forEach(m => {
         if (!m.teams || m.teams.length < 2) return;
-
         if (m.type === 'Standard') {
             const tA = m.teams[0], tB = m.teams[1];
             const total = (tA.score||0) + (tB.score||0);
@@ -1286,133 +2068,315 @@ function generateInsights(matches) {
             if(!highestScoring || total > highestScoring.total) highestScoring = {total, m};
             if(!biggestBlowout || margin > biggestBlowout.margin) biggestBlowout = {margin, m};
         }
-
-        m.teams.forEach(t => {
-            let isWin = false;
-            let pts = 0;
-            if(m.type === 'Standard') {
-                const opp = m.teams.find(other => other !== t);
-                if(t.score > opp.score) { isWin = true; pts = 3; }
-                else if(t.score === opp.score) { pts = 1; }
-            } else {
-                pts = t.points !== undefined ? t.points : (t.rank===1 ? 3 : (t.rank===2 ? 1 : 0));
-                if(pts >= 3) isWin = true;
-            }
-
-            let color = '';
-            if (m.type === 'Standard') {
-                color = t === m.teams[0] ? (m.colors?.[0]||'blue') : (m.colors?.[1]||'red');
-            } else {
-                color = t.originalKey === 'A' ? 'yellow' : (t.originalKey === 'B' ? 'blue' : 'red');
-            }
-            if(colorStats[color]) {
-                colorStats[color].p++;
-                if(isWin) colorStats[color].w++;
-            }
-
-            const cleanPlayers = (t.players||[]).map(p => getPlayerDisplayName(p)).sort();
-            
-            if (cleanPlayers.length >= 2) {
-                getCombinations(cleanPlayers, 2).forEach(pair => {
-                    const key = pair.join(" & ");
-                    if(!duos[key]) duos[key] = {p:0, w:0, pts:0};
-                    duos[key].p++; duos[key].pts += pts;
-                    if(isWin) duos[key].w++;
-                });
-            }
-
-            if (cleanPlayers.length >= 3) {
-                getCombinations(cleanPlayers, 3).forEach(trio => {
-                    const key = trio.join(", ");
-                    if(!trios[key]) trios[key] = {p:0, w:0, pts:0};
-                    trios[key].p++; trios[key].pts += pts;
-                    if(isWin) trios[key].w++;
-                });
-            }
-
-            if (cleanPlayers.length >= 4) {
-                const key = cleanPlayers.join(", ");
-                if(!fullTeams[key]) fullTeams[key] = {p:0, w:0, pts:0};
-                fullTeams[key].p++; fullTeams[key].pts += pts;
-                if(isWin) fullTeams[key].w++;
-            }
-        });
     });
 
-    const calcInsights = (recordObj, minGames) => {
-        let bestWR = null, worstWR = null, mostPlayed = null;
-        Object.entries(recordObj).forEach(([names, data]) => {
-            const wr = (data.w / data.p) * 100;
-            const ppg = data.pts / data.p;
-            const item = { names, ...data, wr, ppg };
+    // --- HTML RENDERERS ---
 
-            if(data.p >= minGames) {
-                if(!bestWR || wr > bestWR.wr || (wr === bestWR.wr && data.p > bestWR.p)) bestWR = item;
-                if(!worstWR || wr < worstWR.wr || (wr === worstWR.wr && data.p > worstWR.p)) worstWR = item;
-            }
-            if(!mostPlayed || data.p > mostPlayed.p) mostPlayed = item;
-        });
-        return { bestWR, worstWR, mostPlayed };
+    // A. Optimal Lineup Card
+    const optimalLineupHtml = lineupData.optimal5.length >= 5 ? `
+    <div class="col-12 mb-4">
+        <div class="lineup-hero">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="fw-bold text-white mb-0"><i class="fas fa-crown text-warning me-2"></i>OPTIMAL 5-PLAYER LINEUP</h6>
+                    <small class="text-muted">Highest-rated buildable 5-player squad (Min ${MIN_GAMES_RANKED_ELO} appearances)</small>
+                </div>
+                <div class="text-end">
+                    <span class="badge bg-primary fs-6 px-3 py-2">Avg Elo: ${lineupData.avgElo}</span>
+                </div>
+            </div>
+            <div class="row g-2">
+                ${lineupData.optimal5.map((p, idx) => `
+                    <div class="col">
+                        <div class="bg-dark p-2 rounded border border-secondary text-center" style="cursor:pointer" onclick="openPlayerStats('${p.id}')">
+                            <span class="badge bg-secondary mb-1">#${idx + 1}</span>
+                            <div class="fw-bold text-white small text-truncate">${esc(p.name)}</div>
+                            <div class="text-warning fw-bold fs-6 mt-1">${p.rating}</div>
+                            <small class="text-muted" style="font-size:0.65rem">${p.matches} Matches</small>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    </div>` : '';
+
+    // B. Power Rankings (Elo) Leaderboard
+    const powerRankingsRows = eloData.sortedList.slice(0, 10).map((p, idx) => {
+        const provBadge = p.isProvisional ? `<span class="badge-provisional ms-2">? Provisional (${p.matches}/${MIN_GAMES_RANKED_ELO})</span>` : '';
+        return `
+        <tr style="cursor:pointer" onclick="openPlayerStats('${p.id}')">
+            <td class="ps-3 text-start fw-bold"><span class="rank-circle ${idx===0?'r-1':''}">${idx + 1}</span></td>
+            <td class="text-start fw-bold text-white">${esc(p.name)} ${provBadge}</td>
+            <td class="fw-bold text-warning">${p.rating}</td>
+            <td class="pe-3 text-muted">${p.matches}</td>
+        </tr>`;
+    }).join('');
+
+    // C. Duo Leaderboard Tables
+    const renderDuoList = (list) => {
+        if (!list || list.length === 0) return `<div class="small text-muted p-3 text-center">Needs at least ${MIN_GAMES_PAIR} games together</div>`;
+        return list.map((d, i) => {
+            const smallSampleBadge = (d.played >= 3 && d.played <= 4) ? `<span class="badge-small-sample ms-2">3–4 games</span>` : '';
+            return `
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary border-opacity-50">
+                <div class="text-truncate me-2">
+                    <span class="text-muted small me-2 font-monospace">#${i + 1}</span>
+                    <span class="fw-bold text-white small">${esc(d.names)}</span>
+                    ${smallSampleBadge}
+                </div>
+                <div class="text-end text-nowrap">
+                    <span class="fw-bold fs-6 ${d.wr >= 60 ? 'text-success' : (d.wr <= 35 ? 'text-danger' : 'text-white')}">${Math.round(d.wr)}%</span>
+                    <span class="text-muted small ms-2 font-monospace">(${d.played} games together)</span>
+                </div>
+            </div>`;
+        }).join('');
     };
 
-    const duoStats = calcInsights(duos, 4);
-    const trioStats = calcInsights(trios, 3);
-    const fullTeamStats = calcInsights(fullTeams, 2);
-
-    const formatCard = (title, icon, data, type="wr") => {
-        if(!data) return `<div class="col-12 col-md-4 mb-3"><div class="card bg-dark border-secondary p-3 h-100"><div class="text-muted small fw-bold">${title}</div><div class="small text-muted my-2">Not enough matches yet</div></div></div>`;
-        
-        let statDisplay = "";
-        if (type === "wr") {
-            statDisplay = `<div class="fs-4 fw-bold text-success">${Math.round(data.wr)}% <span class="fs-6 text-muted font-monospace">(${data.w}W/${data.p}P)</span></div>`;
-        } else if (type === "worst") {
-            statDisplay = `<div class="fs-4 fw-bold text-danger">${Math.round(data.wr)}% <span class="fs-6 text-muted font-monospace">(${data.w}W/${data.p}P)</span></div>`;
-        } else {
-            statDisplay = `<div class="fs-4 fw-bold text-info">${data.p} <span class="fs-6 text-muted">Matches</span></div><div class="small text-muted">${data.w} Wins (${Math.round(data.wr)}% WR)</div>`;
-        }
-
-        return `
-        <div class="col-12 col-md-4 mb-3">
-            <div class="card bg-dark border-secondary p-3 h-100">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="text-muted small fw-bold" style="letter-spacing:0.5px">${title}</span>
-                    <i class="${icon} text-warning opacity-75"></i>
+    // D. Regulars Synergy Heatmap (~26 regular players)
+    const regularIds = Object.values(eloData.sortedList).filter(p => p.matches >= 10).map(p => p.id).slice(0, 26);
+    let heatmapRows = '';
+    if (regularIds.length >= 4) {
+        heatmapRows = `
+        <div class="col-12 mb-4">
+            <div class="stat-card-custom">
+                <h6 class="small fw-bold text-muted mb-2"><i class="fas fa-th text-info me-2"></i>REGULARS CHEMISTRY MATRIX (MIN 10 APPEARANCES)</h6>
+                <small class="text-muted d-block mb-3">Win rates when playing on the same team. Min ${MIN_GAMES_PAIR} games required to show percentage.</small>
+                <div class="heatmap-container">
+                    <table class="heatmap-table">
+                        <thead>
+                            <tr>
+                                <th class="text-start ps-2">Player</th>
+                                ${regularIds.map(id => `<th title="${esc(getPlayerDisplayName(id))}">${esc(getPlayerDisplayName(id).slice(0, 5))}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${regularIds.map(p1 => {
+                                const cells = regularIds.map(p2 => {
+                                    if (p1 === p2) return `<td class="heatmap-cell-empty bg-secondary bg-opacity-10">-</td>`;
+                                    const key1 = `${p1}__${p2}`;
+                                    const key2 = `${p2}__${p1}`;
+                                    const d = chemData.allDuos[key1] || chemData.allDuos[key2];
+                                    if (!d || d.played < MIN_GAMES_PAIR) {
+                                        return `<td class="heatmap-cell-empty" title="Fewer than ${MIN_GAMES_PAIR} games together">-</td>`;
+                                    }
+                                    const wr = Math.round((d.won / d.played) * 100);
+                                    const cellClass = wr >= 65 ? 'heatmap-cell-good' : (wr <= 35 ? 'heatmap-cell-bad' : 'heatmap-cell-avg');
+                                    return `<td class="${cellClass}" title="${esc(getPlayerDisplayName(p1))} & ${esc(getPlayerDisplayName(p2))}: ${wr}% (${d.won}W/${d.played}P)">${wr}%</td>`;
+                                }).join('');
+                                return `<tr><td class="text-start ps-2 fw-bold text-white bg-dark">${esc(getPlayerDisplayName(p1))}</td>${cells}</tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
                 </div>
-                <div class="fw-bold text-white small mb-1 text-truncate" title="${esc(data.names)}">${esc(data.names)}</div>
-                ${statDisplay}
             </div>
         </div>`;
-    };
+    }
 
+    // E. Curse & Scoring Impact Cards
+    const curseCardHtml = lineupData.cursed ? `
+    <div class="col-12 col-md-4 mb-3">
+        <div class="stat-card-custom border-danger border-opacity-50">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small fw-bold" style="letter-spacing:0.5px">THE CURSE STAT (MIN 5 STD)</span>
+                <i class="fas fa-ghost text-danger"></i>
+            </div>
+            <div class="fw-bold text-white fs-6 mb-1">${esc(lineupData.cursed.name)}</div>
+            <div class="fs-4 fw-bold text-danger">${lineupData.cursed.avgGF} <span class="fs-6 text-muted">GF/game</span></div>
+            <div class="small text-danger opacity-75 mt-1">${lineupData.cursed.deltaGF} vs league avg (${lineupData.leagueAvgGF} GF)</div>
+            <small class="text-muted d-block mt-2" style="font-size:0.7rem">Lowers team scored goals regardless of result (${lineupData.cursed.games} games)</small>
+        </div>
+    </div>` : `<div class="col-12 col-md-4 mb-3"><div class="stat-card-custom"><div class="small text-muted">Needs at least 5 standard matches</div></div></div>`;
+
+    const blessedCardHtml = lineupData.blessed ? `
+    <div class="col-12 col-md-4 mb-3">
+        <div class="stat-card-custom border-success border-opacity-50">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small fw-bold" style="letter-spacing:0.5px">THE BLESSED STAT (MIN 5 STD)</span>
+                <i class="fas fa-fire text-success"></i>
+            </div>
+            <div class="fw-bold text-white fs-6 mb-1">${esc(lineupData.blessed.name)}</div>
+            <div class="fs-4 fw-bold text-success">${lineupData.blessed.avgGF} <span class="fs-6 text-muted">GF/game</span></div>
+            <div class="small text-success opacity-75 mt-1">+${lineupData.blessed.deltaGF} vs league avg (${lineupData.leagueAvgGF} GF)</div>
+            <small class="text-muted d-block mt-2" style="font-size:0.7rem">Highest team scored goals impact (${lineupData.blessed.games} games)</small>
+        </div>
+    </div>` : `<div class="col-12 col-md-4 mb-3"><div class="stat-card-custom"><div class="small text-muted">Needs at least 5 standard matches</div></div></div>`;
+
+    const diffCardHtml = lineupData.topGD ? `
+    <div class="col-12 col-md-4 mb-3">
+        <div class="stat-card-custom border-info border-opacity-50">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small fw-bold" style="letter-spacing:0.5px">GOAL DIFFERENTIAL (PLUS/MINUS)</span>
+                <i class="fas fa-arrows-alt-v text-info"></i>
+            </div>
+            <div class="fw-bold text-white fs-6 mb-1">${esc(lineupData.topGD.name)}</div>
+            <div class="fs-4 fw-bold text-info">+${lineupData.topGD.avgGD} <span class="fs-6 text-muted">GD/game</span></div>
+            <div class="small text-muted mt-1">Goal differential per standard match</div>
+            <small class="text-muted d-block mt-2" style="font-size:0.7rem">Separate plus/minus metric (${lineupData.topGD.games} games)</small>
+        </div>
+    </div>` : `<div class="col-12 col-md-4 mb-3"><div class="stat-card-custom"><div class="small text-muted">Needs at least 5 standard matches</div></div></div>`;
+
+    // F. Most Improved of the Month
+    const mostImprovedHtml = improvedData.candidates.length > 0 ? `
+    <div class="col-12 col-md-6 mb-3">
+        <div class="stat-card-custom">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="text-muted small fw-bold" style="letter-spacing:0.5px">MOST IMPROVED (${esc(improvedData.monthLabel.toUpperCase())})</span>
+                <i class="fas fa-chart-line text-success"></i>
+            </div>
+            ${improvedData.candidates.slice(0, 3).map((c, i) => `
+                <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary border-opacity-50">
+                    <div>
+                        <span class="fw-bold text-white small me-2">${i + 1}. ${esc(c.name)}</span>
+                        <small class="text-muted font-monospace">(${c.monthGames} games in month)</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="fw-bold text-success fs-6">+${c.delta} PPG</span>
+                        <small class="text-muted d-block" style="font-size:0.65rem">${c.monthPpg} vs ${c.allTimePpg} career</small>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    </div>` : `
+    <div class="col-12 col-md-6 mb-3">
+        <div class="stat-card-custom">
+            <span class="text-muted small fw-bold d-block mb-2">MOST IMPROVED (${esc(improvedData.monthLabel.toUpperCase())})</span>
+            <div class="small text-muted">No players with ${MIN_GAMES_IMPROVED}+ matches in ${esc(improvedData.monthLabel)} yet.</div>
+        </div>
+    </div>`;
+
+    // G. Attendance & Milestones Cards
+    const milestonePills = attendData.milestoneAchievers.map(m => `
+        <span class="badge-milestone me-2 mb-2" onclick="openPlayerStats('${m.id}')" style="cursor:pointer">
+            <i class="fas fa-medal text-dark"></i> ${esc(m.name)}: ${m.badges[m.badges.length - 1]}
+        </span>
+    `).join('') || '<div class="small text-muted">No milestone badges unlocked yet.</div>';
+
+    const ironMenRows = attendData.ironMen.map((m, idx) => `
+        <div class="d-flex justify-content-between py-1 border-bottom border-secondary border-opacity-50 small">
+            <span class="text-white">${idx + 1}. ${esc(m.name)}</span>
+            <span class="text-info fw-bold">${m.maxConsecutive} consecutive games</span>
+        </div>
+    `).join('');
+
+    const attendanceLeadersRows = Object.values(attendData.attendanceStats)
+        .filter(m => m.possibleSinceDebut >= 5)
+        .sort((a, b) => b.attendanceRate - a.attendanceRate || b.played - a.played)
+        .slice(0, 5)
+        .map((m, idx) => `
+        <div class="d-flex justify-content-between py-1 border-bottom border-secondary border-opacity-50 small">
+            <span class="text-white">${idx + 1}. ${esc(m.name)}</span>
+            <span class="text-white font-monospace">${m.attendanceRate}% <span class="text-muted">(${m.attendanceText})</span></span>
+        </div>
+    `).join('');
+
+    // H. Venue Cards
     let venueCards = Object.entries(venueGoals).map(([v, d]) => {
         const avg = (d.goals / d.games).toFixed(1);
         return `<div class="col-6 col-md-3 mb-2"><div class="bg-dark border border-secondary rounded p-2 text-center"><div class="text-white small fw-bold text-truncate">${esc(v)}</div><div class="fs-5 fw-bold text-info my-1">${avg}</div><small class="text-muted" style="font-size:0.65rem">${d.goals} Goals / ${d.games} Games</small></div></div>`;
     }).join('');
 
-    const insightsContainer = document.getElementById('insightsContainer');
-    if(!insightsContainer) return;
-
+    // --- FINAL DASHBOARD ASSEMBLY ---
     insightsContainer.innerHTML = `
-        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-user-friends text-primary me-2"></i>DUOS & COMBOS</h6>
-        <div class="row mb-3">
-            ${formatCard("DEADLIEST DUO (MIN 4P)", "fas fa-skull-crossbones", duoStats.bestWR, "wr")}
-            ${formatCard("WORST DUO (MIN 4P)", "fas fa-heart-broken", duoStats.worstWR, "worst")}
-            ${formatCard("MOST FREQUENT DUO", "fas fa-link", duoStats.mostPlayed, "played")}
+        <!-- OPTIMAL LINEUP HERO -->
+        <div class="row">
+            ${optimalLineupHtml}
         </div>
 
-        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-users text-warning me-2"></i>TRIOS</h6>
-        <div class="row mb-3">
-            ${formatCard("BEST TRIO (MIN 3P)", "fas fa-crown", trioStats.bestWR, "wr")}
-            ${formatCard("WORST TRIO (MIN 3P)", "fas fa-poo", trioStats.worstWR, "worst")}
-            ${formatCard("MOST FREQUENT TRIO", "fas fa-fire", trioStats.mostPlayed, "played")}
-        </div>
-
-        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-shield-alt text-info me-2"></i>FULL SQUADS</h6>
+        <!-- POWER RANKINGS (ELO) LEADERBOARD -->
         <div class="row mb-4">
-            ${formatCard("BEST RECURRING SQUAD", "fas fa-award", fullTeamStats.bestWR, "wr")}
-            ${formatCard("MOST FREQUENT SQUAD", "fas fa-history", fullTeamStats.mostPlayed, "played")}
+            <div class="col-12">
+                <div class="stat-card-custom">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="fw-bold text-white mb-0"><i class="fas fa-bolt text-warning me-2"></i>ALL-TIME POWER RANKINGS (ELO ENGINE)</h6>
+                            <small class="text-muted">Chronological rating (Starting 1200, K=32/48, Tournaments=16/24). All-time rating.</small>
+                        </div>
+                        <span class="badge bg-secondary">Top 10</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 table-dark-custom text-center">
+                            <thead>
+                                <tr>
+                                    <th class="ps-3 text-start">#</th>
+                                    <th class="text-start">Player</th>
+                                    <th>Elo Rating</th>
+                                    <th class="pe-3">Matches</th>
+                                </tr>
+                            </thead>
+                            <tbody>${powerRankingsRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
+        <!-- CURSE & SCORING IMPACT (STANDARD MATCHES ONLY) -->
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-magic text-danger me-2"></i>SCORING IMPACT & GOAL STATS (STANDARD MATCHES ONLY)</h6>
+        <div class="row mb-4">
+            ${curseCardHtml}
+            ${blessedCardHtml}
+            ${diffCardHtml}
+        </div>
+
+        <!-- DUO & CHEMISTRY LEADERBOARDS -->
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-user-friends text-primary me-2"></i>CHEMISTRY & DUO LEADERBOARDS (MIN ${MIN_GAMES_PAIR} GAMES TOGETHER)</h6>
+        <div class="row mb-4">
+            <div class="col-12 col-md-4 mb-3">
+                <div class="stat-card-custom">
+                    <span class="text-muted small fw-bold d-block mb-3"><i class="fas fa-skull-crossbones text-success me-2"></i>DEADLIEST DUOS</span>
+                    ${renderDuoList(chemData.bestDuos)}
+                </div>
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+                <div class="stat-card-custom">
+                    <span class="text-muted small fw-bold d-block mb-3"><i class="fas fa-heart-broken text-danger me-2"></i>WORST DUOS</span>
+                    ${renderDuoList(chemData.worstDuos)}
+                </div>
+            </div>
+            <div class="col-12 col-md-4 mb-3">
+                <div class="stat-card-custom">
+                    <span class="text-muted small fw-bold d-block mb-3"><i class="fas fa-link text-info me-2"></i>MOST FREQUENT DUOS</span>
+                    ${renderDuoList(chemData.mostPlayedDuos)}
+                </div>
+            </div>
+        </div>
+
+        <!-- REGULARS HEATMAP -->
+        <div class="row">
+            ${heatmapRows}
+        </div>
+
+        <!-- STREAKS & MOST IMPROVED -->
+        <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-fire text-warning me-2"></i>FORM & ATTENDANCE INSIGHTS</h6>
+        <div class="row mb-4">
+            ${mostImprovedHtml}
+            <div class="col-12 col-md-6 mb-3">
+                <div class="stat-card-custom">
+                    <span class="text-muted small fw-bold d-block mb-2"><i class="fas fa-award text-warning me-2"></i>CAREER MILESTONE BADGES</span>
+                    <div class="d-flex flex-wrap pt-2">${milestonePills}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ATTENDANCE & CONSECUTIVE RUNS -->
+        <div class="row mb-4">
+            <div class="col-12 col-md-6 mb-3">
+                <div class="stat-card-custom">
+                    <span class="text-muted small fw-bold d-block mb-2"><i class="fas fa-calendar-check text-info me-2"></i>HIGHEST ATTENDANCE RATE SINCE DEBUT</span>
+                    <small class="text-muted d-block mb-2">Denominator = group matches played since player's debut date</small>
+                    ${attendanceLeadersRows}
+                </div>
+            </div>
+            <div class="col-12 col-md-6 mb-3">
+                <div class="stat-card-custom">
+                    <span class="text-muted small fw-bold d-block mb-2"><i class="fas fa-dumbbell text-success me-2"></i>IRON MEN (LONGEST ATTENDANCE STREAKS)</span>
+                    <small class="text-muted d-block mb-2">Most consecutive matches attended without missing</small>
+                    ${ironMenRows}
+                </div>
+            </div>
+        </div>
+
+        <!-- VENUE GOAL AVERAGES -->
         <h6 class="small fw-bold text-muted mb-3"><i class="fas fa-map-marker-alt text-danger me-2"></i>VENUE GOAL AVERAGES (STANDARD MATCHES ONLY)</h6>
         <div class="row mb-4">${venueCards || '<div class="small text-muted">No venue goal stats.</div>'}</div>
     `;
@@ -1442,18 +2406,17 @@ window.openPlayerStats = (targetIdOrName) => {
     if(pMatches.length === 0) return;
 
     let w=0, played=0, standardPlayed=0, pts=0, totalGF=0, totalGA=0;
-    let monthly = {}, recentForm = [];
-    let teammates = {};
+    let monthly = {};
     let colorStats = { 'yellow': {p:0, w:0}, 'blue': {p:0, w:0}, 'red': {p:0, w:0} };
     let venueStats = {};
 
     pMatches.forEach(m => {
         played++;
-        const monthIdx = m.date.toDate().getMonth();
+        const dObj = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : new Date();
+        const monthIdx = dObj.getMonth();
         if(!monthly[monthIdx]) monthly[monthIdx] = {p:0, w:0, pts:0};
         
         let matchPts=0, result='L', matchGF=0, matchGA=0, myColor='';
-        let myTeamMates = [];
 
         if(m.type==='Standard') {
             standardPlayed++;
@@ -1462,12 +2425,10 @@ window.openPlayerStats = (targetIdOrName) => {
             const opS=inA?m.teams[1].score:tA.score;
             matchGF = myS; matchGA = opS;
             myColor = inA ? (m.colors?.[0]||'blue') : (m.colors?.[1]||'red');
-            myTeamMates = inA ? tA.players : m.teams[1].players;
             
             if(myS>opS) {w++; matchPts=3; result='W';} else if(myS==opS) {matchPts=1; result='D';}
         } else {
             const myTeam = m.teams.find(t=>(t.players||[]).some(matchesPlayer));
-            myTeamMates = myTeam.players || [];
             matchPts = myTeam.points !== undefined ? myTeam.points : (myTeam.rank===1 ? 3 : (myTeam.rank===2 ? 1 : 0));
             
             let ogKey = myTeam.originalKey || ''; 
@@ -1476,15 +2437,6 @@ window.openPlayerStats = (targetIdOrName) => {
 
             if(matchPts >= 3) {w++; result='W';} else if(matchPts === 1) {result='D';} else {result='L';}
         }
-
-        myTeamMates.forEach(mate => {
-            if(!matchesPlayer(mate)) {
-                const mateName = getPlayerDisplayName(mate);
-                if(!teammates[mateName]) teammates[mateName] = {p:0, w:0};
-                teammates[mateName].p++;
-                if(result === 'W') teammates[mateName].w++;
-            }
-        });
 
         if(colorStats[myColor]) {
             colorStats[myColor].p++;
@@ -1497,24 +2449,74 @@ window.openPlayerStats = (targetIdOrName) => {
 
         pts += matchPts; totalGF += matchGF; totalGA += matchGA;
         monthly[monthIdx].p++; monthly[monthIdx].pts += matchPts; if(result==='W') monthly[monthIdx].w++;
-        if(recentForm.length < 5) recentForm.push(result);
     });
 
     const winRate = Math.round((w/played)*100);
     const goalsPerGame = standardPlayed > 0 ? (totalGF / standardPlayed).toFixed(2) : '0.00';
     const months = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
-    
-    const formDisplay = recentForm.reverse().map(r => r==='W' ? '<i class="fas fa-check text-success mx-1"></i>' : (r==='D' ? '<i class="far fa-circle text-warning mx-1"></i>' : '<i class="fas fa-times text-danger mx-1"></i>')).join('');
+
+    // Stage D Computations for this player
+    const targetPlayerId = playersRegistry.has(targetIdOrName) ? playersRegistry.get(targetIdOrName).id : targetIdOrName;
+    const streaksData = computePlayerStreaksAndForm(allMatches, targetPlayerId);
+    const rivalryData = computeNemesisAndRivalry(allMatches, targetPlayerId);
+    const attendanceAll = computeAttendanceAndMilestones(allMatches);
+    const playerAttend = attendanceAll.attendanceStats[targetPlayerId] || { attendanceText: `${played} of ${allMatches.length}`, debutDate: 'Unknown', badges: [] };
+
+    // Elo Rating & Provisional status
+    const eloInfo = latestEloMap.get(targetPlayerId) || { rating: STARTING_ELO, matches: played, isProvisional: played < MIN_GAMES_RANKED_ELO };
+    const eloBadge = eloInfo.isProvisional ? `<span class="badge-provisional ms-2" title="Provisional — ${eloInfo.matches} of ${MIN_GAMES_RANKED_ELO} games">? Provisional (${eloInfo.matches}/${MIN_GAMES_RANKED_ELO})</span>` : '';
+
+    // Form Badges: W W D W L (most recent last)
+    const formDisplay = streaksData.form5.length > 0 ? streaksData.form5.map(r => `
+        <span class="badge-form badge-form-${r.toLowerCase()}">${r}</span>
+    `).join('') : '<span class="text-muted small">No matches yet</span>';
+
+    // Rolling PPG SVG Chart
+    const ppgChartSvg = renderRollingPpgSvg(streaksData.rollingPpgHistory);
+
+    // Nemesis Display
+    let nemesisHtml = '';
+    if (rivalryData.nemesis && rivalryData.nemesis.lost > 0) {
+        nemesisHtml = `
+        <div class="p-3 bg-dark border border-danger border-opacity-50 rounded mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-danger small fw-bold"><i class="fas fa-skull me-1"></i> NEMESIS</span>
+                <span class="badge bg-danger bg-opacity-25 text-danger font-monospace">${rivalryData.nemesis.lost} Losses</span>
+            </div>
+            <div class="text-white fw-bold fs-6 mb-1">${esc(rivalryData.nemesis.name)}</div>
+            <div class="small text-muted">Lost ${rivalryData.nemesis.lost} of ${rivalryData.nemesis.played} meetings <span class="text-light font-monospace">(${rivalryData.nemesis.won}W-${rivalryData.nemesis.drawn}D-${rivalryData.nemesis.lost}L)</span></div>
+        </div>`;
+    } else {
+        nemesisHtml = `
+        <div class="p-2 bg-dark border border-secondary rounded mb-3 text-center small text-muted">
+            <i class="fas fa-shield-alt me-1 opacity-50"></i> No nemesis yet — needs at least ${MIN_GAMES_PAIR} meetings
+        </div>`;
+    }
+
+    // Duo Split Display (Record Together vs Record Opposed)
+    const duoSplitRows = rivalryData.duoSplits.slice(0, 3).map(d => {
+        const togText = d.together ? `<span class="text-success">${d.together.wr}% W <small class="text-muted">(${d.together.won}W/${d.together.played}P)</small></span>` : '<span class="text-muted">&lt;3P</span>';
+        const oppText = d.opposed ? `<span class="text-danger">${d.opposed.wr}% W <small class="text-muted">(${d.opposed.won}W/${d.opposed.played}P)</small></span>` : '<span class="text-muted">&lt;3P</span>';
+        return `
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary border-opacity-50 small">
+            <span class="text-white fw-bold"><i class="fas fa-user me-2 text-muted opacity-50"></i>${esc(d.name)}</span>
+            <div class="text-end">
+                <div><small class="text-muted me-1">Together:</small> ${togText}</div>
+                <div><small class="text-muted me-1">Opposed:</small> ${oppText}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Milestone Badges in Modal Header
+    const milestoneBadgesHtml = (playerAttend.badges || []).map(b => `
+        <span class="badge-milestone me-1"><i class="fas fa-medal text-dark"></i> ${b}</span>
+    `).join('');
 
     let monthRows = "";
     Object.keys(monthly).sort((a,b)=>a-b).forEach(mIdx => {
         const d = monthly[mIdx];
         monthRows += `<div class="d-flex justify-content-between py-2 border-bottom border-secondary small"><div style="width:40px" class="text-muted">${months[mIdx]}</div><div style="width:30px" class="text-center">${d.p}</div><div style="width:30px" class="text-center">${d.w}</div><div style="width:30px" class="text-center fw-bold text-white">${d.pts}</div></div>`;
     });
-
-    const topMates = Object.entries(teammates).sort((a,b) => b[1].p - a[1].p || b[1].w - a[1].w).slice(0,3);
-    let matesHtml = topMates.map(t => `<div class="d-flex justify-content-between small text-muted mb-1 border-bottom border-secondary pb-1"><span><i class="fas fa-user-friends me-2 opacity-50"></i>${esc(t[0])}</span><span class="text-white">${t[1].p} Matches <span class="ms-1 text-success">(${Math.round(t[1].w/t[1].p*100)}% W)</span></span></div>`).join('');
-    if(!matesHtml) matesHtml = "<div class='small text-muted'>Not enough data yet.</div>";
 
     const colMap = { 'yellow': 'text-warning', 'blue': 'text-primary', 'red': 'text-danger' };
     let colorsHtml = Object.entries(colorStats).filter(c => c[1].p > 0).sort((a,b) => b[1].w/b[1].p - a[1].w/a[1].p).map(c => {
@@ -1533,23 +2535,65 @@ window.openPlayerStats = (targetIdOrName) => {
     const psBody = document.getElementById('psBody');
     if(psBody) {
         psBody.innerHTML = `
-        <div class="text-center mb-3"><div class="mb-2 text-muted small" style="letter-spacing:1px">CURRENT FORM</div><div class="fs-5">${formDisplay}</div></div>
+        <!-- ELO & MILESTONES HEADER -->
+        <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary">
+            <div>
+                <span class="fs-5 fw-bold text-warning">${eloInfo.rating}</span> <small class="text-muted fw-bold">ELO</small>
+                ${eloBadge}
+            </div>
+            <div>${milestoneBadgesHtml}</div>
+        </div>
+
+        <!-- 4-BOX STAT SUMMARY -->
         <div class="row text-center mb-3 g-0 border border-secondary rounded overflow-hidden shadow-sm">
             <div class="col-3 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${played}</div><small class="text-muted" style="font-size:0.6rem">PLAYED</small></div>
             <div class="col-3 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${w}</div><small class="text-muted" style="font-size:0.6rem">WON</small></div>
             <div class="col-3 bg-dark p-2 border-end border-secondary"><div class="fw-bold text-white">${winRate}%</div><small class="text-muted" style="font-size:0.6rem">RATE</small></div>
             <div class="col-3 bg-dark p-2"><div class="fw-bold text-info">${goalsPerGame}</div><small class="text-muted" style="font-size:0.6rem">G/G (STD)</small></div>
         </div>
+
+        <!-- GOALS (STANDARD ONLY) & ATTENDANCE SINCE DEBUT -->
         <div class="mb-3 p-2 rounded bg-body border border-secondary small text-muted">
             <div class="d-flex justify-content-between"><span>Goals (Standard Matches Only):</span><span class="text-white fw-bold">${totalGF} GF / ${totalGA} GA (GD: ${totalGF - totalGA})</span></div>
-            <div class="d-flex justify-content-between mt-1"><span>Standard Matches:</span><span class="text-white">${standardPlayed}</span></div>
+            <div class="d-flex justify-content-between mt-1"><span>Attendance Rate:</span><span class="text-white fw-bold">${playerAttend.attendanceText}</span></div>
+            <div class="d-flex justify-content-between mt-1"><span>Debut Date:</span><span class="text-white">${playerAttend.debutDate}</span></div>
         </div>
+
+        <!-- FORM GUIDE & STREAKS -->
+        <div class="bg-dark p-3 rounded border border-secondary mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted fw-bold" style="letter-spacing:0.5px;">ROLLING 5-MATCH FORM</small>
+                <div>${formDisplay}</div>
+            </div>
+            <div class="d-flex justify-content-between pt-2 border-top border-secondary border-opacity-50 small">
+                <div><small class="text-muted d-block">Current Win Run</small><span class="fw-bold text-success">${streaksData.curW}</span></div>
+                <div><small class="text-muted d-block">Max Win Run</small><span class="fw-bold text-success">${streaksData.maxW}</span></div>
+                <div><small class="text-muted d-block">Max Loss Run</small><span class="fw-bold text-danger">${streaksData.maxL}</span></div>
+                <div><small class="text-muted d-block">Max Unbeaten</small><span class="fw-bold text-info">${streaksData.maxU}</span></div>
+            </div>
+        </div>
+
+        <!-- ROLLING 5-GAME PPG CHART -->
+        ${ppgChartSvg}
+
+        <!-- NEMESIS & HEAD-TO-HEAD -->
+        <h6 class="small fw-bold text-muted mb-2">NEMESIS & HEAD-TO-HEAD</h6>
+        ${nemesisHtml}
+
+        <!-- DUO SPLITS (TOGETHER VS OPPOSED) -->
+        <h6 class="small fw-bold text-muted mb-2">KEY RIVALRIES (TOGETHER VS OPPOSED)</h6>
+        <div class="bg-dark p-2 rounded border border-secondary mb-3">
+            ${duoSplitRows || '<div class="small text-muted p-2 text-center">Needs at least 3 meetings with a teammate/opponent</div>'}
+        </div>
+
+        <!-- COLOR & VENUE STATS -->
         <h6 class="small fw-bold text-muted mb-2">WIN RATE BY COLOR</h6>
-        <div class="row g-1 mb-4">${colorsHtml}</div>
+        <div class="row g-1 mb-3">${colorsHtml}</div>
+
         <h6 class="small fw-bold text-muted mb-2">WIN RATE BY VENUE</h6>
-        <div class="bg-dark p-2 rounded border border-secondary mb-4">${venuesHtml}</div>
-        <h6 class="small fw-bold text-muted mb-2">MOST PLAYED WITH</h6>
-        <div class="bg-dark p-2 rounded border border-secondary mb-4">${matesHtml}</div>
+        <div class="bg-dark p-2 rounded border border-secondary mb-3">${venuesHtml}</div>
+
+        <!-- MONTHLY BREAKDOWN -->
         <h6 class="small fw-bold text-muted border-bottom border-secondary pb-2 mb-0">MONTHLY BREAKDOWN</h6>
         <div class="d-flex justify-content-between py-1 text-muted small" style="font-size:0.7rem"><div style="width:40px">MO</div><div class="text-center" style="width:30px">P</div><div class="text-center" style="width:30px">W</div><div class="text-center" style="width:30px">PTS</div></div>
         ${monthRows}`;
