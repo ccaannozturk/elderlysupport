@@ -8,7 +8,7 @@ https://<your-pages-domain>/public-data/league.json
 
 Anyone may fetch it. No API key, no login, no Firebase SDK, no CORS setup —
 GitHub Pages sends `Access-Control-Allow-Origin: *`, so a browser can read it
-directly too. It is roughly 75 KB.
+directly too. It is roughly 155 KB (minified; Pages gzips it on the way out).
 
 This file exists so outside consumers (currently a WhatsApp chatbot) never touch
 Firestore. That means they cannot cost the project anything, cannot be rate
@@ -34,7 +34,7 @@ Re-fetching per chat message is pure waste.
 
 ```jsonc
 {
-  "schemaVersion": 1,          // bumped if the shape changes in a breaking way
+  "schemaVersion": 2,          // bumped if the shape changes in a breaking way
   "generatedAt": "2026-08-21T14:00:00.000Z",
   "counts":    { "matches": 65, "players": 68, "venues": 5 },
   "dateRange": { "first": "2026-01-07", "last": "2026-08-15" },
@@ -53,9 +53,38 @@ Re-fetching per chat message is pure waste.
       "goalsAgainst": 190,
       "goalDifference": -13,
       "firstAppearance": "2026-01-07",
-      "lastAppearance": "2026-08-15"
+      "lastAppearance": "2026-08-15",
+
+      // --- the site's own models (schemaVersion 2) ---
+      "elo": 1360,
+      "eloProvisional": false,    // true under 5 appearances — do not rank these
+      "streaks": {
+        "currentWin": 2, "currentLoss": 0, "currentUnbeaten": 8,
+        "longestWin": 3, "longestLoss": 2, "longestUnbeaten": 11
+      },
+      "recentForm": ["W","W","D","W","W"],   // oldest to newest
+      "debutDate": "7/1/2026",
+      "attendanceRate": 60,       // percent of games played since their debut
+      "gamesSinceDebut": 65,
+      "nemesis": { "name": "Ole", "playedAgainst": 15, "won": 4, "drawn": 3, "lost": 8 },
+      "duoSplits": [              // top 5 by meetings: record WITH vs AGAINST
+        { "name": "Hector",
+          "together": { "played": 11, "won": 4, "drawn": 4, "lost": 3, "wr": 36 },
+          "opposed":  { "played": 13, "won": 8, "drawn": 1, "lost": 4, "wr": 62 } }
+      ]
     }
   ],
+
+  "eloLeaderboard": [            // non-provisional players, best first
+    { "name": "Can", "elo": 1360, "appearances": 39 }
+  ],
+  "pairs": [                     // every duo with at least one game together
+    { "players": ["Hector","Stefan"], "played": 13, "won": 6, "drawn": 4,
+      "lost": 3, "winRate": 46, "pointsPerGame": 1.69 }
+  ],
+  "optimalLineup": [ { "name": "Can", "elo": 1360, "appearances": 39 } ],
+  "ironMen": [ { "name": "Hector", "appearances": 40, "attendanceRate": 62 } ],
+  "oneCapWonders": ["Jeremy", "Alex"],
 
   "matches": [                    // newest first
     {
@@ -96,14 +125,18 @@ Re-fetching per chat message is pure waste.
 
 5. **Small samples lie.** Someone with 2 appearances and a 100% win rate is not
    the best player. The site requires 10 appearances before ranking anyone on
-   points-per-game; apply something similar before making a claim.
+   points-per-game, and marks Elo `eloProvisional` under 5 appearances — respect
+   both. `eloLeaderboard` already excludes provisional players; use it rather
+   than sorting `players` by `elo` yourself.
 
 ### What is not in here, and why
 
-- **Elo ratings, chemistry, streaks, form.** These are the site's opinionated
-  models. Reimplementing them elsewhere would produce numbers that quietly
-  disagree with the website, which is worse than not having them. If you need
-  them, ask — better to export them than to invent a second formula.
+- Nothing model-related any more. Elo, chemistry (`pairs`), streaks, form,
+  nemesis, duo splits and attendance are all exported as of `schemaVersion 2`,
+  and they are computed by `stats-core.js` — **the same file the website loads**.
+  They are not a reimplementation, so they cannot disagree with the site.
+  **Do not compute your own rating.** If you need a figure that is not here,
+  ask for it to be exported rather than deriving a second version of it.
 - **Roasts.** Some players have opted out of being roasted. That opt-out is
   enforced on the site and does not automatically travel. **Do not generate
   roasts, insults, or mocking commentary about named players from this data.**
@@ -123,6 +156,15 @@ updating.
 
 ## For the maintainer: regenerating it
 
+**It refreshes itself.** `.github/workflows/refresh-public-data.yml` regenerates
+and commits the file every 6 hours, and the workflow only commits when the data
+actually changed, so a quiet week produces no commits at all.
+
+To publish immediately after a match night, go to **Actions → Refresh public
+league data → Run workflow**. Pages serves the new file a minute or two later.
+
+By hand, if you prefer:
+
 ```bash
 node scripts/export-public.js
 git add public-data/league.json
@@ -130,8 +172,14 @@ git commit -m "Refresh public league export"
 git push
 ```
 
-Pages serves the new file within a minute or two. No credentials are involved —
-the script reads the public REST API, exactly like `scripts/backup.js`.
+No credentials are involved anywhere — the script reads the public REST API,
+exactly like `scripts/backup.js`, and the workflow needs only the built-in
+`GITHUB_TOKEN`.
 
-Do this after entering matches, whenever you want the bot to be current. If it
-becomes a chore, it can be automated with a GitHub Action on a schedule.
+### Where the numbers come from
+
+`scripts/export-public.js` requires `stats-core.js`, which `index.html` also
+loads. There is one implementation of Elo, chemistry, streaks and the rest, and
+both the website and this export run it. `tests/elo-parity.test.js` additionally
+pins `functions/index.js` (which keeps its own copy, since Cloud Functions only
+upload the `functions/` directory) to the same results.

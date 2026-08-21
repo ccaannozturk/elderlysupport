@@ -19,9 +19,10 @@
  *   - Anything non-public. This reads only collections that are already
  *     world-readable, over the public REST API, with no credentials. If this
  *     script ever needs a service account, something has gone wrong.
- *   - Elo, chemistry, streaks. Those are the site's opinionated models and
- *     would drift out of step if reimplemented here. Only plain counting
- *     stats are exported. See docs/PUBLIC-DATA.md.
+ *   Elo, chemistry and streaks ARE exported, and are computed by requiring
+ *   stats-core.js — the same file index.html loads. They are never
+ *   reimplemented here; if they were, this export would quietly disagree with
+ *   the website, which is worse than omitting them. See docs/PUBLIC-DATA.md.
  *
  * Requires Node 18+ (for global fetch).
  *
@@ -33,12 +34,16 @@
 const fs = require('fs');
 const path = require('path');
 
+// The website's own engines — not a reimplementation. Whatever the Stats tab
+// says, this file says, because it is literally the same code.
+const core = require(path.join(__dirname, '..', 'stats-core.js'));
+
 const PROJECT_ID = 'elderly-support-league';
 const API_KEY = 'AIzaSyA7_V8m4sKxU-gGffeV3Uoa-deDieeu9rc'; // public by design
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
 // Bump when the OUTPUT shape changes in a way a consumer would notice.
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const argv = process.argv.slice(2);
 const flag = (name, fallback) => {
@@ -197,7 +202,7 @@ function buildExport(matchDocs, playerDocs) {
     });
   });
 
-  const players = [...stats.values()]
+  const playersOut = [...stats.values()]
     .map(s => ({
       ...s,
       pointsPerGame: s.appearances ? Number((s.points / s.appearances).toFixed(2)) : 0,
@@ -208,6 +213,90 @@ function buildExport(matchDocs, playerDocs) {
 
   const venues = [...new Set(matches.map(m => m.venue).filter(Boolean))].sort();
 
+  /* ---- the site's own models, via stats-core.js ---- */
+
+  // The engines expect Firestore-ish documents keyed by player id, so feed them
+  // the raw docs and resolve to display names on the way out.
+  core.setNameResolver(resolve);
+  const engineMatches = matchDocs
+    .map(m => {
+      const d = m.data || {};
+      const iso = d.date;
+      if (!iso || !Array.isArray(d.teams) || d.teams.length < 2) return null;
+      return { ...d, id: m.id, date: { toDate: () => new Date(iso), toMillis: () => new Date(iso).getTime() } };
+    })
+    .filter(Boolean);
+
+  const eloData = core.computeEloRatings(engineMatches);
+  const eloById = eloData.ratings || {};
+  const eloMeta = new Map((eloData.sortedList || []).map(p => [p.id, p]));
+
+  const chem = core.computeChemistryMatrix(engineMatches);
+  const attendance = core.computeAttendanceAndMilestones(engineMatches);
+  const lineup = core.computeOptimalLineupAndCurse(engineMatches, eloMeta);
+
+  // Attach per-player model output to the counting stats already built.
+  const byName = new Map(playersOut.map(p => [p.name, p]));
+  Object.keys(eloById).forEach(id => {
+    const p = byName.get(resolve(id));
+    if (!p) return;
+    const meta = eloMeta.get(id);
+    p.elo = Math.round(eloById[id]);
+    p.eloProvisional = meta ? !!meta.isProvisional : (p.appearances < core.MIN_GAMES_RANKED_ELO);
+
+    const s = core.computePlayerStreaksAndForm(engineMatches, id);
+    if (s) {
+      p.streaks = {
+        currentWin: s.curW || 0,
+        currentLoss: s.curL || 0,
+        currentUnbeaten: s.curU || 0,
+        longestWin: s.maxW || 0,
+        longestLoss: s.maxL || 0,
+        longestUnbeaten: s.maxU || 0
+      };
+      p.recentForm = Array.isArray(s.form5) ? s.form5 : [];   // oldest to newest
+    }
+
+    const att = attendance && attendance.attendanceStats ? attendance.attendanceStats[id] : null;
+    if (att) {
+      p.debutDate = att.debutDate || null;
+      p.attendanceRate = att.attendanceRate;          // percent of games since debut
+      p.gamesSinceDebut = att.possibleSinceDebut;
+    }
+
+    const n = core.computeNemesisAndRivalry(engineMatches, id);
+    if (n && n.nemesis) {
+      p.nemesis = {
+        name: resolve(n.nemesis.id),
+        playedAgainst: n.nemesis.played,
+        won: n.nemesis.won, drawn: n.nemesis.drawn, lost: n.nemesis.lost
+      };
+    }
+    // Record with a partner vs. against them — the site's duo split.
+    if (n && Array.isArray(n.duoSplits)) {
+      p.duoSplits = n.duoSplits.slice(0, 5).map(d => ({
+        name: resolve(d.id),
+        together: d.together,
+        opposed: d.opposed
+      }));
+    }
+  });
+
+  // Every pair with at least one game together, named not id-keyed.
+  const pairs = Object.values(chem.allDuos || {})
+    .map(d => ({
+      players: [resolve(d.p1), resolve(d.p2)].sort(),
+      played: d.played,
+      won: d.won, drawn: d.drawn, lost: d.lost,
+      winRate: d.played ? Math.round((d.won / d.played) * 100) : 0,
+      pointsPerGame: d.played ? Number((d.pts / d.played).toFixed(2)) : 0
+    }))
+    .sort((a, b) => b.played - a.played || a.players[0].localeCompare(b.players[0]));
+
+  const eloLeaderboard = (eloData.sortedList || [])
+    .filter(p => !p.isProvisional)
+    .map(p => ({ name: resolve(p.id), elo: Math.round(p.rawRating !== undefined ? p.rawRating : p.rating), appearances: p.matches }));
+
   return {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
@@ -215,15 +304,24 @@ function buildExport(matchDocs, playerDocs) {
     notes: [
       'Read-only snapshot of the Elderly Support League. Regenerated manually.',
       'Goal statistics cover Standard matches only; Tournament matches record no goals.',
-      'Elo ratings, chemistry and streaks are NOT included — those are computed on the site and would drift if reimplemented. Ask the maintainer before inventing a different rating.',
+      'Elo, chemistry, streaks and nemesis come from stats-core.js, the same code the website runs, so these numbers always match the site. Do not compute your own rating.',
       'Roasts are deliberately excluded: some players opted out of being roasted.'
     ],
-    counts: { matches: matches.length, players: players.length, venues: venues.length },
+    counts: { matches: matches.length, players: playersOut.length, venues: venues.length, pairs: pairs.length },
     dateRange: matches.length
       ? { first: matches[matches.length - 1].date, last: matches[0].date }
       : { first: null, last: null },
     venues,
-    players,
+    players: playersOut,
+    eloLeaderboard,
+    pairs,
+    optimalLineup: (lineup && lineup.optimal5) ? lineup.optimal5.map(p => ({
+      name: resolve(p.id), elo: p.rating, appearances: p.matches
+    })) : [],
+    oneCapWonders: (attendance && attendance.oneCapWonders || []).map(x => resolve(x.id)),
+    ironMen: (attendance && attendance.ironMen || []).map(x => ({
+      name: resolve(x.id), appearances: x.played, attendanceRate: x.attendanceRate
+    })),
     matches
   };
 }
@@ -247,10 +345,28 @@ if (require.main === module) {
       const out = buildExport(matchDocs, playerDocs);
       const file = path.join(__dirname, '..', outRel);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, JSON.stringify(out, null, 2), 'utf8');
 
+      // Written minified: the consumer is a program, and a scheduled job that
+      // rewrites a pretty-printed file every few hours bloats the repo for no
+      // one's benefit. Pages gzips it on the way out regardless.
+      const json = JSON.stringify(out);
+
+      // Skip the write when nothing but the timestamp changed, so the scheduled
+      // workflow does not produce an empty commit every single run.
+      if (fs.existsSync(file)) {
+        try {
+          const prev = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const strip = (o) => { const c = { ...o }; delete c.generatedAt; return JSON.stringify(c); };
+          if (strip(prev) === strip(out)) {
+            console.log(`\nNo change since the last export — ${outRel} left untouched.`);
+            return;
+          }
+        } catch (e) { /* unreadable or malformed: fall through and rewrite */ }
+      }
+
+      fs.writeFileSync(file, json, 'utf8');
       const kb = Math.round(fs.statSync(file).size / 1024);
-      console.log(`\nWrote ${out.counts.matches} matches and ${out.counts.players} players to ${outRel} (${kb} KB)`);
+      console.log(`\nWrote ${out.counts.matches} matches, ${out.counts.players} players and ${out.counts.pairs} pairs to ${outRel} (${kb} KB)`);
       console.log(`Date range: ${out.dateRange.first} to ${out.dateRange.last}`);
       console.log('\nCommit and push it. Pages will serve it within a minute or two.');
     } catch (err) {

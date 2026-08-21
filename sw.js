@@ -1,6 +1,6 @@
 /**
  * Service Worker: Elderly Support League PWA
- * Cache Version: esl-static-v1
+ * Cache Version: esl-static-v2
  *
  * EMERGENCY KILL SWITCH:
  * If the service worker ever misbehaves or serves stale assets that cannot be cleared:
@@ -9,12 +9,13 @@
  * 3. Deploy to production. All clients will automatically unregister the worker on next load.
  */
 
-const CACHE_NAME = 'esl-static-v1';
+const CACHE_NAME = 'esl-static-v2';
 
 // Static Shell Assets to Pre-cache
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './stats-core.js',   // must be cached with app.js: app.js depends on it
   './app.js',
   './manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap',

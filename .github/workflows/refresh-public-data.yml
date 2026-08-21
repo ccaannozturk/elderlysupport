@@ -1,0 +1,45 @@
+name: Refresh public league data
+
+# Keeps public-data/league.json in step with Firestore for outside consumers
+# (the WhatsApp chatbot). Runs on a schedule, and can be triggered by hand from
+# the Actions tab right after a match night.
+#
+# No secrets are needed. The export reads the public Firestore REST API, and the
+# built-in GITHUB_TOKEN is enough to commit back to the repo.
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'    # every 6 hours, UTC
+  workflow_dispatch:          # the "Run workflow" button
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-public-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Regenerate the export
+        run: node scripts/export-public.js
+
+      - name: Commit only if the data actually changed
+        run: |
+          if [ -z "$(git status --porcelain public-data/league.json)" ]; then
+            echo "No change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public-data/league.json
+          git commit -m "Refresh public league export"
+          git push
