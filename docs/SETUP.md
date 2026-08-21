@@ -150,3 +150,98 @@ script deliberately fails loudly on any unmapped name rather than guessing.
 
 Take your time with this file — it's the one input that can't be automated, and
 everything downstream inherits its decisions.
+
+---
+
+## 7. Deploying a rules change (the repeatable procedure)
+
+Use this any time `firestore.rules` changes. Written for the Phase 1 fixtures /
+roasts change, but the steps are the same every time.
+
+### Why the order matters
+
+Rules and client queries have to agree. Deploy **rules first, then the client**:
+
+| | old client (unconstrained listen) | new client (`where('status','==',…)`) |
+|---|---|---|
+| **old rules** (`status != 'draft'`) | denied — today's bug | may or may not be admitted; do not rely on it |
+| **new rules** (`status == 'scheduled'`) | denied — same as today, no regression | works |
+
+Rules-first is safe in both directions. Client-first has a window where the
+public queries may still be denied.
+
+### 1. Get the branch locally and read the diff
+
+```bash
+git fetch origin claude/community-chemistry-review-nmwjac
+git checkout claude/community-chemistry-review-nmwjac
+git diff main -- firestore.rules
+```
+
+Read it. Two `allow read` conditions change, nothing else. Never deploy rules
+from a branch that does not contain the change — deploying from `main` would
+push the *old* rules back over a good deploy.
+
+### 2. Confirm which account and project the CLI will use
+
+```bash
+firebase login:list          # must be the admin account
+firebase use                 # must print elderly-support-league
+```
+
+`firebase login` authenticates *you* on this machine and every later command
+inherits it, including commands an agent runs. If `login:list` shows the wrong
+account, `firebase logout` then `firebase login`.
+
+### 3. Test against the emulator first (optional, ~2 minutes)
+
+```bash
+firebase emulators:start --import=./emulator-data
+```
+
+Open http://localhost:5000 in a **private window** (so you are signed out) and
+open the Community tab. You want the Next Game and Roast cards to render and the
+DevTools console to be free of `permission-denied`. Then sign in as admin and
+confirm Roast Studio still lists drafts and played fixtures.
+
+### 4. Deploy the rules — only the rules
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+`--only firestore:rules` matters: a bare `firebase deploy` would also push
+Functions and Hosting. Propagation is a few seconds.
+
+### 5. Verify in production, signed out
+
+Open the live site in a **private window**. On the Community tab:
+
+- Next Game and Roast of the Week render (assuming a scheduled fixture and a
+  published roast exist).
+- No amber warning banner at the top of the tab. Phase 1 makes a denied feed
+  visible instead of silent, so that banner *is* the failure signal.
+- DevTools console shows no `permission-denied` / "Missing or insufficient
+  permissions".
+
+Then sign in as admin and confirm Roast Studio still sees drafts.
+
+### 6. Then ship the client
+
+Merge the branch to `main`. GitHub Pages serves `main`, so that is what puts the
+matching client queries live. Hard-refresh afterwards — the service worker caches
+`app.js`, so a soft reload can keep serving the old one.
+
+### If something looks wrong
+
+Rules deploys are versioned. Firebase Console → Firestore → Rules → **History**,
+pick the previous version, Restore. Faster than re-deploying from a revert
+commit, and it does not touch data. The Rules Playground on the same screen will
+simulate a read against a specific document path if you want to check a condition
+without deploying.
+
+### No index deploy needed
+
+The Phase 1 public queries are single-field equality filters, sorted client-side
+on purpose. Adding an `orderBy` alongside the `where` would require a composite
+index and a second deploy — that was avoided deliberately.
