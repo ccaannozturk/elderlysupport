@@ -3504,10 +3504,34 @@ window.regenerateRecap = async (matchId, event) => {
 };
 
 /** Item 34: AI Stats Assistant Query */
+window.autoResizeTextarea = (el) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    const newHeight = Math.min(el.scrollHeight, 160);
+    el.style.height = `${newHeight}px`;
+    el.style.overflowY = el.scrollHeight > 160 ? 'auto' : 'hidden';
+};
+
+window.handleStatsQueryKeydown = (e, el) => {
+    if (e.key === 'Enter') {
+        if (e.shiftKey) {
+            // Shift + Enter: Allow new line and auto-expand downward
+            setTimeout(() => {
+                window.autoResizeTextarea(el);
+            }, 0);
+        } else {
+            // Enter alone: Submit query
+            e.preventDefault();
+            window.executeStatsQuery();
+        }
+    }
+};
+
 window.setQueryPrompt = (text) => {
     const input = document.getElementById('statsQueryInput');
     if (input) {
         input.value = text;
+        window.autoResizeTextarea(input);
         window.executeStatsQuery();
     }
 };
@@ -3549,12 +3573,18 @@ window.executeStatsQuery = async () => {
                     </div>
                     <div class="text-white" style="line-height:1.6; font-size:0.9rem;">${esc(cleanAnswer)}</div>
                 `;
+                setTimeout(() => {
+                    resBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 50);
             }
         }
     } catch (err) {
         if (resBox) {
             resBox.classList.remove('d-none');
             resBox.innerHTML = `<span class="text-danger"><i class="fas fa-exclamation-circle me-1"></i>${esc(err.message)}</span>`;
+            setTimeout(() => {
+                resBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 50);
         }
     } finally {
         if (spinner) spinner.classList.add('d-none');
