@@ -52,6 +52,14 @@ let locationsRegistry = new Set(DEFAULT_LOCATIONS);
 let currentUser = null;
 let selectedPlayers = { A: [], B: [], TournA: [], TournB: [], TournC: [] };
 let allMatches = []; 
+let allFixtures = [];
+let allRoasts = [];
+let activeLinkedFixtureId = null;
+let activeRoastCandidates = [];
+let activeSelectedRoastAngle = null;
+let currentParsedFixtureSquads = null;
+let roastSettingsState = { intensity: 3, allowProfanity: false, optedOutPlayerIds: [] };
+
 let playersRegistry = new Map(); // playerId -> { id, displayName, aliases, active }
 let currentModalContext = null; // { teamKey, index, rawInput, candidates, top3 }
 let activeTeamTarget = 'A'; // 'A' | 'B' | 'TournA' | 'TournB' | 'TournC'
@@ -166,6 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPlayerNames();
     fetchMatches();
     fetchLocations();
+    fetchFixtures();
+    fetchRoasts();
     
     const dDate = document.getElementById('matchDate');
     if(dDate) dDate.valueAsDate = new Date();
@@ -2017,6 +2027,18 @@ function renderMatchesList(filtered) {
                 const ytLink = m.youtubeLink ? `<a href="${esc(safeUrl(m.youtubeLink))}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
                 const shareBtn = `<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2 text-decoration-none" onclick="copyShareLink('match', '${m.id}', 'Match on ${dateStr}', event)" title="Share Match Link" style="font-size:0.75rem;"><i class="fas fa-share-alt"></i></button>`;
 
+                const previewHtml = (m.preview || m.predictedWinner) ? `
+                <div class="p-2 border-top border-secondary border-opacity-25 bg-black bg-opacity-35 small text-light" style="font-size:0.75rem;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="text-warning fw-bold"><i class="fas fa-feather-alt me-1"></i>Commissioner Preview</span>
+                        ${m.predictionResult ? (m.predictionResult === 'correct' 
+                            ? `<span class="badge bg-success bg-opacity-25 text-success fw-bold font-monospace" style="font-size:0.7rem;">🎯 Pick: ${esc(m.predictedWinner || 'Favorite')} (✓ Correct)</span>` 
+                            : `<span class="badge bg-danger bg-opacity-25 text-danger fw-bold font-monospace" style="font-size:0.7rem;">💀 Pick: ${esc(m.predictedWinner || 'Favorite')} (✗ Wrong)</span>`) 
+                            : (m.predictedWinner ? `<span class="badge bg-secondary font-monospace" style="font-size:0.7rem;">Pick: ${esc(m.predictedWinner)}</span>` : '')}
+                    </div>
+                    ${m.preview ? `<div class="fst-italic opacity-90">${esc(m.preview)}</div>` : ''}
+                </div>` : '';
+
                 const recapHtml = m.recap ? `
                 <div class="p-2 border-top border-secondary border-opacity-25 bg-black bg-opacity-25 small text-light opacity-90" style="font-size:0.75rem; font-style:italic;">
                     <i class="fas fa-quote-left text-warning me-1 opacity-75" style="font-size:0.65rem;"></i>
@@ -2049,6 +2071,7 @@ function renderMatchesList(filtered) {
                                 <div class="team-players text-end text-muted small" style="font-size:0.75rem">${pB}</div>
                             </div>
                         </div>
+                        ${previewHtml}
                         ${recapHtml}
                         ${adminBtns}
                     </div>`;
@@ -2079,6 +2102,7 @@ function renderMatchesList(filtered) {
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${esc(r2.teamName)} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${renderPlayerPills(r2.players)}</div></div>
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${esc(r3.teamName)} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${renderPlayerPills(r3.players)}</div></div>
                         </div>
+                        ${previewHtml}
                         ${recapHtml}
                         ${adminBtns}
                     </div>`;
@@ -3093,6 +3117,33 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         
         const docRef = isEdit ? db.collection(DB_CONFIG.collections.matches).doc(editingId) : db.collection(DB_CONFIG.collections.matches).doc();
         await docRef.set(matchData);
+
+        // Item 42: Link to scheduled fixture if active or matching
+        try {
+            let fixtureToResolve = window.activeLinkedFixtureId;
+            if (!fixtureToResolve && allFixtures && allFixtures.length > 0) {
+                const scheduledF = allFixtures.find(f => f.status === 'scheduled');
+                if (scheduledF && scheduledF.squads && scheduledF.squads.length >= 2) {
+                    const fP1 = scheduledF.squads[0].players || [];
+                    const fP2 = scheduledF.squads[1].players || [];
+                    const mP1 = (matchData.teams[0] || {}).players || [];
+                    const mP2 = (matchData.teams[1] || {}).players || [];
+                    const overlap1 = fP1.filter(p => mP1.includes(p)).length;
+                    const overlap2 = fP2.filter(p => mP2.includes(p)).length;
+                    if (overlap1 >= 2 && overlap2 >= 2) {
+                        fixtureToResolve = scheduledF.id;
+                    }
+                }
+            }
+
+            if (fixtureToResolve) {
+                const resolveFn = functions.httpsCallable('resolveFixtureToMatch');
+                await resolveFn({ fixtureId: fixtureToResolve, matchId: docRef.id });
+                window.activeLinkedFixtureId = null;
+            }
+        } catch (resErr) {
+            console.warn("Could not resolve fixture to match:", resErr.message);
+        }
 
         // Stage D+ Item 33: Trigger AI match recap in background (fire-and-forget, never blocks save)
         try {
@@ -4163,7 +4214,797 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
     };
 }
 
-/** Item 29: Community Tab Rendering */
+/* ======================================================================
+   ITEM 42: FIXTURES, ROAST STUDIO & PREDICTION LIFECYCLE
+   ====================================================================== */
+
+const ROAST_THRESHOLD = 0.60;
+
+function computeRoastAngles(allMatches, playersList, optOutIds = []) {
+  const sorted = [...allMatches].sort((a, b) => {
+    const tA = a.date ? (a.date.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime()) : 0;
+    const tB = b.date ? (b.date.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime()) : 0;
+    if (tA !== tB) return tA - tB;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+
+  const nameMap = new Map();
+  playersList.forEach(p => {
+    nameMap.set(p.id, p.displayName || p.id);
+  });
+  const getName = (id) => nameMap.get(id) || getPlayerDisplayName(id) || id;
+
+  const caps = {};
+  const currentStreaks = {};
+  const lastPlayedDate = {};
+  const h2h = {};
+  const duoRecords = {};
+
+  const latestTime = sorted.length > 0 ? (sorted[sorted.length - 1].date ? (sorted[sorted.length - 1].date.toDate ? sorted[sorted.length - 1].date.toDate().getTime() : new Date(sorted[sorted.length - 1].date).getTime()) : Date.now()) : Date.now();
+
+  for (const m of sorted) {
+    const mDate = m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : new Date();
+    if (!m.teams || m.teams.length < 2) continue;
+
+    if (m.type === 'Standard') {
+      const tA = m.teams[0], tB = m.teams[1];
+      const pA = tA.players || [], pB = tB.players || [];
+      const sA = tA.score || 0, sB = tB.score || 0;
+      const resA = sA > sB ? 'W' : (sA === sB ? 'D' : 'L');
+      const resB = sB > sA ? 'W' : (sB === sA ? 'D' : 'L');
+
+      [...pA, ...pB].forEach(p => {
+        caps[p] = (caps[p] || 0) + 1;
+        lastPlayedDate[p] = mDate;
+      });
+
+      // Streaks
+      pA.forEach(p => {
+        if (!currentStreaks[p]) currentStreaks[p] = { w: 0, l: 0, u: 0, winless: 0 };
+        if (resA === 'W') { currentStreaks[p].w++; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless = 0; }
+        else if (resA === 'D') { currentStreaks[p].w = 0; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless++; }
+        else { currentStreaks[p].w = 0; currentStreaks[p].u = 0; currentStreaks[p].l++; currentStreaks[p].winless++; }
+      });
+      pB.forEach(p => {
+        if (!currentStreaks[p]) currentStreaks[p] = { w: 0, l: 0, u: 0, winless: 0 };
+        if (resB === 'W') { currentStreaks[p].w++; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless = 0; }
+        else if (resB === 'D') { currentStreaks[p].w = 0; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless++; }
+        else { currentStreaks[p].w = 0; currentStreaks[p].u = 0; currentStreaks[p].l++; currentStreaks[p].winless++; }
+      });
+
+      // Duos
+      [ { team: pA, res: resA }, { team: pB, res: resB } ].forEach(({ team, res }) => {
+        const sP = [...team].sort();
+        for (let i = 0; i < sP.length; i++) {
+          for (let j = i + 1; j < sP.length; j++) {
+            const key = `${sP[i]}__${sP[j]}`;
+            if (!duoRecords[key]) duoRecords[key] = { p1: sP[i], p2: sP[j], played: 0, won: 0 };
+            duoRecords[key].played++;
+            if (res === 'W') duoRecords[key].won++;
+          }
+        }
+      });
+
+      // H2H
+      pA.forEach(p1 => {
+        pB.forEach(p2 => {
+          const k1 = `${p1}__${p2}`;
+          const k2 = `${p2}__${p1}`;
+          if (!h2h[k1]) h2h[k1] = [];
+          if (!h2h[k2]) h2h[k2] = [];
+          h2h[k1].push(resA);
+          h2h[k2].push(resB);
+        });
+      });
+    } else {
+      m.teams.forEach(t => {
+        const isWin = (t.rank === 1);
+        (t.players || []).forEach(p => {
+          caps[p] = (caps[p] || 0) + 1;
+          lastPlayedDate[p] = mDate;
+          if (!currentStreaks[p]) currentStreaks[p] = { w: 0, l: 0, u: 0, winless: 0 };
+          if (isWin) { currentStreaks[p].w++; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless = 0; }
+          else { currentStreaks[p].w = 0; currentStreaks[p].u = 0; currentStreaks[p].l++; currentStreaks[p].winless++; }
+        });
+      });
+    }
+  }
+
+  // 30-day Elo delta
+  const thirtyDaysAgoMs = latestTime - (30 * 24 * 60 * 60 * 1000);
+  const priorMatches = sorted.filter(m => {
+    const t = m.date ? (m.date.toDate ? m.date.toDate().getTime() : new Date(m.date).getTime()) : 0;
+    return t < thirtyDaysAgoMs;
+  });
+  const eloPrior = computeEloRatings(priorMatches).ratings || {};
+  const eloCurrent = computeEloRatings(sorted).ratings || {};
+
+  const candidates = [];
+
+  // Losing Streak
+  Object.entries(currentStreaks).forEach(([pId, s]) => {
+    if (optOutIds.includes(pId)) return;
+    if (s.l >= 3) {
+      const score = Math.min(0.95, Number((0.45 + s.l * 0.12).toFixed(2)));
+      candidates.push({
+        angleType: 'losing_streak',
+        targetPlayerId: pId,
+        targetPlayerName: getName(pId),
+        score,
+        facts: `${getName(pId)} has lost ${s.l} consecutive matches in a row`,
+        rawMetric: `${s.l} straight losses`
+      });
+    }
+  });
+
+  // Ghost
+  Object.entries(caps).forEach(([pId, count]) => {
+    if (optOutIds.includes(pId)) return;
+    if (count >= 8 && lastPlayedDate[pId]) {
+      const diffMs = latestTime - lastPlayedDate[pId].getTime();
+      const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (days >= 35) {
+        const score = Math.min(0.92, Number((0.48 + days * 0.005).toFixed(2)));
+        candidates.push({
+          angleType: 'ghost',
+          targetPlayerId: pId,
+          targetPlayerName: getName(pId),
+          score,
+          facts: `${getName(pId)} (${count} career caps) has not appeared for ${days} days (last seen ${lastPlayedDate[pId].toLocaleDateString()})`,
+          rawMetric: `${days} days absent`
+        });
+      }
+    }
+  });
+
+  // Worst Duo
+  Object.values(duoRecords).forEach(d => {
+    if (optOutIds.includes(d.p1) || optOutIds.includes(d.p2)) return;
+    if (d.played >= 4) {
+      const wr = Math.round((d.won / d.played) * 100);
+      if (wr <= 30) {
+        const score = Math.min(0.90, Number((0.50 + (30 - wr) * 0.012 + d.played * 0.02).toFixed(2)));
+        candidates.push({
+          angleType: 'worst_duo',
+          targetPlayerId: `${d.p1}__${d.p2}`,
+          targetPlayerName: `${getName(d.p1)} & ${getName(d.p2)}`,
+          score,
+          facts: `${getName(d.p1)} and ${getName(d.p2)} have won only ${d.won} of their ${d.played} matches together (${wr}% win rate)`,
+          rawMetric: `${d.won}W-${d.played - d.won}L (${wr}%)`
+        });
+      }
+    }
+  });
+
+  // Elo Slide
+  Object.keys(eloCurrent).forEach(pId => {
+    if (optOutIds.includes(pId)) return;
+    const cur = Math.round(eloCurrent[pId] || STARTING_ELO);
+    const prev = Math.round(eloPrior[pId] || STARTING_ELO);
+    const delta = cur - prev;
+    if (delta <= -35 && (caps[pId] || 0) >= 5) {
+      const drop = Math.abs(delta);
+      const score = Math.min(0.90, Number((0.45 + drop * 0.006).toFixed(2)));
+      candidates.push({
+        angleType: 'elo_slide',
+        targetPlayerId: pId,
+        targetPlayerName: getName(pId),
+        score,
+        facts: `${getName(pId)}'s Elo rating dropped by ${drop} points over the last 30 days (from ${prev} to ${cur})`,
+        rawMetric: `${delta} Elo in 30 days`
+      });
+    }
+  });
+
+  // Severe Nemesis
+  Object.entries(h2h).forEach(([key, history]) => {
+    const [p1, p2] = key.split('__');
+    if (optOutIds.includes(p1) || optOutIds.includes(p2)) return;
+    let trailingLosses = 0;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i] === 'L') trailingLosses++;
+      else break;
+    }
+    if (trailingLosses >= 3) {
+      const score = Math.min(0.95, Number((0.50 + trailingLosses * 0.11).toFixed(2)));
+      candidates.push({
+        angleType: 'nemesis',
+        targetPlayerId: p1,
+        targetPlayerName: getName(p1),
+        score,
+        facts: `${getName(p1)} has suffered ${trailingLosses} straight defeats against ${getName(p2)}`,
+        rawMetric: `${trailingLosses} straight losses vs ${getName(p2)}`
+      });
+    }
+  });
+
+  // Winless Drought
+  Object.entries(currentStreaks).forEach(([pId, s]) => {
+    if (optOutIds.includes(pId)) return;
+    if (s.winless >= 4 && s.l < s.winless) {
+      const score = Math.min(0.88, Number((0.45 + s.winless * 0.08).toFixed(2)));
+      candidates.push({
+        angleType: 'cold_streak',
+        targetPlayerId: pId,
+        targetPlayerName: getName(pId),
+        score,
+        facts: `${getName(pId)} has gone ${s.winless} consecutive matches without a single win`,
+        rawMetric: `${s.winless} games winless`
+      });
+    }
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.map(c => ({
+    ...c,
+    belowThreshold: c.score < ROAST_THRESHOLD
+  }));
+}
+
+function fetchFixtures() {
+    try {
+        db.collection('fixtures').onSnapshot(snap => {
+            allFixtures = [];
+            snap.forEach(doc => {
+                allFixtures.push({ id: doc.id, ...doc.data() });
+            });
+            updateCommissionerStatsUI();
+            renderExistingFixturesList();
+            renderCommunityTab(allMatches);
+        }, err => {
+            console.warn('Fixtures snapshot notice:', err.message);
+        });
+    } catch (e) {}
+}
+
+function fetchRoasts() {
+    try {
+        db.collection('roasts').onSnapshot(snap => {
+            allRoasts = [];
+            snap.forEach(doc => {
+                allRoasts.push({ id: doc.id, ...doc.data() });
+            });
+            renderCommunityTab(allMatches);
+        }, err => {
+            console.warn('Roasts snapshot notice:', err.message);
+        });
+    } catch (e) {}
+}
+
+window.openRoastStudio = async () => {
+    if (!currentUser) return alert("Admin login required.");
+    updateCommissionerStatsUI();
+    loadRoastCandidates();
+    populateFixtureVenueSelect();
+    renderExistingFixturesList();
+    loadRoastSettingsUI();
+};
+
+function updateCommissionerStatsUI() {
+    const resolvedFixtures = allFixtures.filter(f => f.status === 'played' && f.predictionResult);
+    const correctCount = resolvedFixtures.filter(f => f.predictionResult === 'correct').length;
+    const wrongCount = resolvedFixtures.filter(f => f.predictionResult === 'wrong').length;
+    const total = correctCount + wrongCount;
+    const rate = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+
+    safeText('commissionerHeaderBadge', `Commissioner: ${correctCount}-${wrongCount}`);
+    safeText('commissionerStatsText', `${correctCount} Correct – ${wrongCount} Wrong`);
+    safeText('commissionerRateText', `${rate}% Accuracy across ${total} completed fixtures`);
+}
+
+window.loadRoastCandidates = async () => {
+    const container = document.getElementById('roastCandidatesContainer');
+    if (container) {
+        container.innerHTML = '<div class="text-center py-3 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading candidate angles...</div>';
+    }
+
+    let candidates = [];
+    try {
+        const getFn = functions.httpsCallable('getRoastAngleCandidates');
+        const res = await getFn();
+        if (res.data && res.data.ok) {
+            candidates = res.data.candidates || [];
+            if (res.data.settings) roastSettingsState = res.data.settings;
+        }
+    } catch (err) {
+        const playersList = Array.from(playersRegistry.values());
+        candidates = computeRoastAngles(allMatches, playersList, roastSettingsState.optedOutPlayerIds || []);
+    }
+
+    activeRoastCandidates = candidates;
+    renderRoastCandidatesUI();
+};
+
+function renderRoastCandidatesUI() {
+    const container = document.getElementById('roastCandidatesContainer');
+    if (!container) return;
+
+    if (!activeRoastCandidates || activeRoastCandidates.length === 0) {
+        container.innerHTML = '<div class="text-center py-3 text-muted small">No roast candidates found in current league history.</div>';
+        return;
+    }
+
+    container.innerHTML = activeRoastCandidates.map((c, idx) => {
+        const isBelow = c.belowThreshold || c.score < ROAST_THRESHOLD;
+        const opacityClass = isBelow ? 'opacity-50' : '';
+        const badgeColor = isBelow ? 'bg-secondary' : 'bg-danger';
+
+        return `
+        <div class="p-2 mb-1 rounded border border-secondary d-flex justify-content-between align-items-center ${opacityClass}" style="cursor:pointer; background: #161b22;" onclick="selectRoastAngle(${idx})">
+            <div>
+                <span class="badge ${badgeColor} me-1 font-monospace" style="font-size:0.7rem;">${esc(c.angleType)}</span>
+                <span class="text-white fw-bold small">${esc(c.targetPlayerName)}</span>
+                <small class="text-muted d-block" style="font-size:0.75rem;">${esc(c.rawMetric || c.facts)}</small>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-dark border border-secondary font-monospace">${c.score.toFixed(2)}</span>
+                ${isBelow ? '<small class="text-muted d-block" style="font-size:0.65rem;">Below threshold</small>' : ''}
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+window.selectRoastAngle = (idx) => {
+    const c = activeRoastCandidates[idx];
+    if (!c) return;
+    activeSelectedRoastAngle = c;
+
+    const box = document.getElementById('selectedAngleBox');
+    if (box) box.classList.remove('d-none');
+
+    safeText('selAngleTypeBadge', c.angleType.toUpperCase());
+    safeText('selAnglePlayer', c.targetPlayerName);
+    safeText('selAngleScoreBadge', `Score: ${c.score.toFixed(2)}`);
+    safeText('selAngleFacts', c.facts);
+
+    const variantsOutput = document.getElementById('roastVariantsOutput');
+    if (variantsOutput) variantsOutput.classList.add('d-none');
+};
+
+window.executeGenerateRoastVariants = async () => {
+    if (!activeSelectedRoastAngle) return alert("Please select an angle first.");
+
+    const spinner = document.getElementById('genRoastSpinner');
+    const btn = document.getElementById('btnGenerateRoast');
+    const output = document.getElementById('roastVariantsOutput');
+    const list = document.getElementById('roastVariantsList');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (btn) btn.disabled = true;
+
+    try {
+        const genFn = functions.httpsCallable('generateRoastVariants');
+        const res = await genFn({
+            angleType: activeSelectedRoastAngle.angleType,
+            targetPlayerName: activeSelectedRoastAngle.targetPlayerName,
+            facts: activeSelectedRoastAngle.facts,
+            intensity: roastSettingsState.intensity || 3,
+            allowProfanity: Boolean(roastSettingsState.allowProfanity)
+        });
+
+        const data = res.data;
+        if (data && data.ok && data.variants) {
+            if (list) {
+                list.innerHTML = data.variants.map(v => `
+                    <div class="p-3 rounded bg-dark border border-secondary">
+                        <div class="text-light fst-italic mb-2" style="font-size:0.95rem; line-height:1.5;">"${esc(v.text)}"</div>
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary border-opacity-50">
+                            <small class="text-muted"><i class="fas fa-check-circle text-info me-1"></i>Facts checkable: ${esc(activeSelectedRoastAngle.facts)}</small>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-success fw-bold px-3" onclick="publishRoastVariant('${esc(v.text)}', this)"><i class="fas fa-paper-plane me-1"></i>Publish</button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="discardRoastVariant(this)">Discard</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            if (output) output.classList.remove('d-none');
+        }
+    } catch (err) {
+        alert("Failed to generate roast variants: " + err.message);
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.publishRoastVariant = async (roastText, btnEl) => {
+    if (!activeSelectedRoastAngle) return;
+    if (btnEl) btnEl.disabled = true;
+
+    try {
+        const pubFn = functions.httpsCallable('publishRoast');
+        await pubFn({
+            roastText,
+            targetPlayerId: activeSelectedRoastAngle.targetPlayerId,
+            targetPlayerName: activeSelectedRoastAngle.targetPlayerName,
+            angleType: activeSelectedRoastAngle.angleType,
+            facts: activeSelectedRoastAngle.facts,
+            intensity: roastSettingsState.intensity || 3
+        });
+
+        showToast('Roast of the Week published to Community tab!');
+        const modalEl = document.getElementById('roastStudioModal');
+        if (modalEl) {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
+    } catch (err) {
+        alert("Failed to publish roast: " + err.message);
+        if (btnEl) btnEl.disabled = false;
+    }
+};
+
+window.discardRoastVariant = (btnEl) => {
+    const card = btnEl ? btnEl.closest('.p-3') : null;
+    if (card) card.remove();
+};
+
+function populateFixtureVenueSelect() {
+    const select = document.getElementById('fixtureVenueSelect');
+    if (!select) return;
+    const sorted = Array.from(locationsRegistry).sort((a, b) => a.localeCompare(b));
+    select.innerHTML = sorted.map(loc => `<option value="${esc(loc)}" ${loc==='Sportgebouw Bibian Mentel'?'selected':''}>${esc(loc)}</option>`).join('');
+}
+
+window.onFixturePasteInput = (val) => {
+    const previewBox = document.getElementById('fixtureSquadsPreview');
+    const h2hStrip = document.getElementById('fixtureH2HStrip');
+    const btnGen = document.getElementById('btnGenFixturePreview');
+
+    if (!val || !val.trim()) {
+        if (previewBox) previewBox.innerHTML = '<span class="text-muted">Paste squads above to resolve players through Stage B resolver.</span>';
+        if (h2hStrip) h2hStrip.classList.add('d-none');
+        if (btnGen) btnGen.disabled = true;
+        currentParsedFixtureSquads = null;
+        return;
+    }
+
+    // Split squads by 'vs' or by newlines
+    const rawBlocks = val.split(/(?:^|\n)\s*(?:vs|v|\-{3,}|\={3,})\s*(?:\n|$)/i);
+    let squadLines = [];
+    if (rawBlocks.length >= 2) {
+        squadLines = [rawBlocks[0], rawBlocks[1]];
+    } else {
+        const lines = val.split('\n').map(l => l.trim()).filter(Boolean);
+        if (lines.length >= 2) {
+            squadLines = [lines[0], lines.slice(1).join(', ')];
+        } else {
+            squadLines = [val, ''];
+        }
+    }
+
+    let hasUnresolved = false;
+    const parsedSquads = squadLines.map((block, sIdx) => {
+        const cleanedBlock = block.replace(/^(?:team\s*[ab]|squad\s*[ab]|yellow|blue|red)[:\-\s]*/i, '');
+        const rawNames = cleanedBlock.split(/[,;\n\t]+/).map(s => s.trim().replace(/^[-*•\d.)\s]+/, '')).filter(Boolean);
+
+        const chips = [];
+        const playerIds = [];
+
+        rawNames.forEach(rawName => {
+            const res = resolvePlayerInput(rawName, sIdx === 0 ? 'A' : 'B');
+            if (res && res.status === 'resolved') {
+                chips.push(`<span class="badge bg-success bg-opacity-25 text-success me-1 mb-1">✓ ${esc(res.displayName)}</span>`);
+                playerIds.push(res.id);
+            } else {
+                hasUnresolved = true;
+                chips.push(`<span class="badge bg-danger bg-opacity-25 text-danger me-1 mb-1">✗ ${esc(rawName)} (Unresolved)</span>`);
+            }
+        });
+
+        return {
+            name: sIdx === 0 ? 'Squad A' : 'Squad B',
+            chips,
+            players: playerIds,
+            rawCount: rawNames.length
+        };
+    });
+
+    if (previewBox) {
+        previewBox.innerHTML = `
+            <div class="row g-2">
+                <div class="col-6">
+                    <div class="fw-bold text-white small mb-1">Squad A (${parsedSquads[0].players.length} resolved):</div>
+                    <div class="d-flex flex-wrap">${parsedSquads[0].chips.join('') || '<span class="text-muted">Empty</span>'}</div>
+                </div>
+                <div class="col-6">
+                    <div class="fw-bold text-white small mb-1">Squad B (${parsedSquads[1].players.length} resolved):</div>
+                    <div class="d-flex flex-wrap">${parsedSquads[1].chips.join('') || '<span class="text-muted">Empty</span>'}</div>
+                </div>
+            </div>
+            ${hasUnresolved ? '<div class="alert alert-danger py-1 px-2 mt-2 mb-0 small"><i class="fas fa-exclamation-triangle me-1"></i>Unresolved names detected! Hard gate: All players must map to existing roster.</div>' : ''}
+        `;
+    }
+
+    const isValid = !hasUnresolved && parsedSquads[0].players.length > 0 && parsedSquads[1].players.length > 0;
+    if (btnGen) btnGen.disabled = !isValid;
+
+    if (isValid) {
+        currentParsedFixtureSquads = parsedSquads;
+        const eloData = computeEloRatings(allMatches).ratings || {};
+        const avgEloA = Math.round(parsedSquads[0].players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / parsedSquads[0].players.length);
+        const avgEloB = Math.round(parsedSquads[1].players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / parsedSquads[1].players.length);
+
+        if (h2hStrip) {
+            h2hStrip.classList.remove('d-none');
+            h2hStrip.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div><b>Squad A:</b> Avg Elo <span class="text-info fw-bold">${avgEloA}</span></div>
+                    <span class="badge bg-secondary">H2H PREVIEW</span>
+                    <div><b>Squad B:</b> Avg Elo <span class="text-info fw-bold">${avgEloB}</span></div>
+                </div>
+            `;
+        }
+    } else {
+        if (h2hStrip) h2hStrip.classList.add('d-none');
+    }
+};
+
+let currentDraftPreviewData = null;
+window.executeGenerateFixturePreview = async () => {
+    if (!currentParsedFixtureSquads) return alert("Please paste and resolve squads first.");
+
+    const dateVal = document.getElementById('fixtureDateTime')?.value;
+    const venueVal = document.getElementById('fixtureVenueSelect')?.value || 'Sportgebouw Bibian Mentel';
+    const intensity = document.getElementById('fixturePreviewIntensity')?.value || 3;
+
+    const spinner = document.getElementById('genFixtureSpinner');
+    const btn = document.getElementById('btnGenFixturePreview');
+    const draftCard = document.getElementById('fixtureDraftReviewCard');
+
+    if (spinner) spinner.classList.remove('d-none');
+    if (btn) btn.disabled = true;
+
+    try {
+        const previewFn = functions.httpsCallable('generateFixturePreview');
+        const res = await previewFn({
+            squads: currentParsedFixtureSquads,
+            venue: venueVal,
+            date: dateVal,
+            intensity: Number(intensity)
+        });
+
+        const data = res.data;
+        if (data && data.ok) {
+            currentDraftPreviewData = {
+                ...data,
+                date: dateVal,
+                venue: venueVal,
+                squads: currentParsedFixtureSquads
+            };
+
+            safeText('draftPredictedWinnerBadge', `Prediction: ${data.predictedWinner} (${data.predictedWinnerOdds}% odds)`);
+            safeText('draftPreviewText', `"${data.preview}"`);
+            if (draftCard) draftCard.classList.remove('d-none');
+        }
+    } catch (err) {
+        alert("Failed to generate draft preview: " + err.message);
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+        if (btn) btn.disabled = false;
+    }
+};
+
+window.publishCurrentFixture = async () => {
+    if (!currentDraftPreviewData) return;
+
+    try {
+        const saveFn = functions.httpsCallable('saveFixture');
+        await saveFn({
+            status: 'scheduled',
+            venue: currentDraftPreviewData.venue,
+            date: currentDraftPreviewData.date,
+            squads: currentDraftPreviewData.squads,
+            preview: currentDraftPreviewData.preview,
+            previewAngle: currentDraftPreviewData.previewAngle,
+            predictedWinner: currentDraftPreviewData.predictedWinner,
+            predictedWinnerOdds: currentDraftPreviewData.predictedWinnerOdds,
+            predictionModel: currentDraftPreviewData.modelUsed
+        });
+
+        showToast('Fixture published! Predicted winner permanently frozen.');
+        const draftCard = document.getElementById('fixtureDraftReviewCard');
+        if (draftCard) draftCard.classList.add('d-none');
+        const pasteInput = document.getElementById('fixtureSquadsPaste');
+        if (pasteInput) pasteInput.value = '';
+        onFixturePasteInput('');
+    } catch (err) {
+        alert("Failed to publish fixture: " + err.message);
+    }
+};
+
+function renderExistingFixturesList() {
+    const list = document.getElementById('existingFixturesList');
+    if (!list) return;
+
+    if (!allFixtures || allFixtures.length === 0) {
+        list.innerHTML = '<div class="text-muted small">No scheduled or past fixtures found.</div>';
+        return;
+    }
+
+    const sorted = [...allFixtures].sort((a, b) => {
+        const tA = a.date ? (a.date.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime()) : 0;
+        const tB = b.date ? (b.date.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime()) : 0;
+        return tB - tA;
+    });
+
+    list.innerHTML = sorted.map(f => {
+        const isScheduled = f.status === 'scheduled';
+        const isPlayed = f.status === 'played';
+        const dateStr = f.date ? formatDate(f.date.toDate ? f.date.toDate() : new Date(f.date)) : 'Upcoming';
+        const sq1Names = (f.squads?.[0]?.players || []).map(getPlayerDisplayName).join(', ');
+        const sq2Names = (f.squads?.[1]?.players || []).map(getPlayerDisplayName).join(', ');
+
+        let statusBadge = `<span class="badge bg-secondary font-monospace">${f.status}</span>`;
+        if (isScheduled) statusBadge = `<span class="badge bg-info text-dark font-monospace fw-bold">SCHEDULED</span>`;
+        if (isPlayed) {
+            statusBadge = f.predictionResult === 'correct'
+                ? `<span class="badge bg-success bg-opacity-25 text-success font-monospace fw-bold">✓ Pick Correct</span>`
+                : `<span class="badge bg-danger bg-opacity-25 text-danger font-monospace fw-bold">✗ Pick Wrong</span>`;
+        }
+
+        return `
+        <div class="p-2 rounded bg-dark border border-secondary d-flex justify-content-between align-items-center">
+            <div>
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <b class="text-white small">${dateStr}</b>
+                    <small class="text-muted">${esc(f.venue || '')}</small>
+                    ${statusBadge}
+                </div>
+                <small class="text-muted d-block" style="font-size:0.75rem;">${esc(sq1Names)} vs ${esc(sq2Names)}</small>
+                ${f.predictedWinner ? `<small class="text-warning font-monospace" style="font-size:0.7rem;">🎯 Pick: ${esc(f.predictedWinner)}</small>` : ''}
+            </div>
+            <div class="d-flex gap-2">
+                ${isScheduled ? `<button class="btn btn-sm btn-primary fw-bold py-1 px-2" onclick="recordResultShortcut('${f.id}')" style="font-size:0.75rem;"><i class="fas fa-clipboard-check me-1"></i>Record Result</button>` : ''}
+                ${f.status !== 'archived' ? `<button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="archiveFixtureHandler('${f.id}')" style="font-size:0.75rem;">Archive</button>` : ''}
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+window.recordResultShortcut = (fixtureId) => {
+    const f = allFixtures.find(x => x.id === fixtureId);
+    if (!f || !f.squads || f.squads.length < 2) return;
+
+    window.activeLinkedFixtureId = fixtureId;
+
+    // Switch to match entry tab
+    const adminTab = document.querySelector('button[data-bs-target="#admin"]');
+    if (adminTab) new bootstrap.Tab(adminTab).show();
+
+    // Close modal
+    const modalEl = document.getElementById('roastStudioModal');
+    if (modalEl) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
+
+    // Set Standard match type
+    const rbStd = document.getElementById('typeStandard');
+    if (rbStd) rbStd.click();
+
+    // Set Date & Location
+    if (f.date) {
+        const d = f.date.toDate ? f.date.toDate() : new Date(f.date);
+        const dInput = document.getElementById('matchDate');
+        if (dInput) dInput.value = d.toISOString().split('T')[0];
+    }
+    if (f.venue) {
+        locationsRegistry.add(f.venue);
+        renderLocationsSelect(f.venue);
+    }
+
+    // Populate resolved chips
+    const toChip = (pId) => ({
+        status: 'resolved',
+        id: pId,
+        displayName: getPlayerDisplayName(pId),
+        rawInput: getPlayerDisplayName(pId)
+    });
+
+    selectedPlayers.A = (f.squads[0].players || []).map(toChip);
+    selectedPlayers.B = (f.squads[1].players || []).map(toChip);
+
+    const nameA = document.getElementById('nameTeamA');
+    if (nameA) nameA.value = f.squads[0].name || 'Squad A';
+    const nameB = document.getElementById('nameTeamB');
+    if (nameB) nameB.value = f.squads[1].name || 'Squad B';
+
+    renderList('A');
+    renderList('B');
+    renderRosterGrid();
+    updateSaveButtonState();
+    showToast('Match entry pre-populated! Enter score and save.');
+};
+
+window.archiveFixtureHandler = async (fixtureId) => {
+    try {
+        const arcFn = functions.httpsCallable('archiveFixture');
+        await arcFn({ fixtureId });
+        showToast('Fixture archived.');
+    } catch (err) {
+        alert("Failed to archive fixture: " + err.message);
+    }
+};
+
+function loadRoastSettingsUI() {
+    const range = document.getElementById('roastIntensityRange');
+    const profCheck = document.getElementById('roastProfanityCheck');
+    const optContainer = document.getElementById('roastOptOutContainer');
+
+    if (range) range.value = roastSettingsState.intensity || 3;
+    updateIntensityLabel(roastSettingsState.intensity || 3);
+    if (profCheck) profCheck.checked = Boolean(roastSettingsState.allowProfanity);
+
+    if (optContainer) {
+        const players = Array.from(playersRegistry.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+        optContainer.innerHTML = players.map(p => {
+            const isOptedOut = (roastSettingsState.optedOutPlayerIds || []).includes(p.id);
+            return `
+            <div class="form-check form-check-inline me-2 mb-1">
+                <input class="form-check-input" type="checkbox" id="opt_${p.id}" value="${p.id}" ${isOptedOut ? 'checked' : ''}>
+                <label class="form-check-label small text-white" for="opt_${p.id}">${esc(p.displayName)}</label>
+            </div>
+            `;
+        }).join('');
+    }
+}
+
+window.updateIntensityLabel = (val) => {
+    const lbl = document.getElementById('intensityValLabel');
+    const textMap = {
+        1: '1 (Gentle Ribbing)',
+        2: '2 (Light Banter)',
+        3: '3 (Playful Bite)',
+        4: '4 (Savage Humor)',
+        5: '5 (Scorched Earth)'
+    };
+    if (lbl) lbl.innerText = textMap[val] || `${val}`;
+};
+
+window.saveRoastSettingsHandler = async () => {
+    const intensity = document.getElementById('roastIntensityRange')?.value || 3;
+    const allowProfanity = document.getElementById('roastProfanityCheck')?.checked || false;
+    const optContainer = document.getElementById('roastOptOutContainer');
+    const checked = optContainer ? Array.from(optContainer.querySelectorAll('input:checked')).map(i => i.value) : [];
+
+    const spinner = document.getElementById('saveSettingsSpinner');
+    if (spinner) spinner.classList.remove('d-none');
+
+    try {
+        const saveFn = functions.httpsCallable('saveRoastSettings');
+        await saveFn({
+            intensity: Number(intensity),
+            allowProfanity,
+            optedOutPlayerIds: checked
+        });
+
+        roastSettingsState = { intensity: Number(intensity), allowProfanity, optedOutPlayerIds: checked };
+        showToast('Roast settings saved successfully.');
+    } catch (err) {
+        alert("Failed to save settings: " + err.message);
+    } finally {
+        if (spinner) spinner.classList.add('d-none');
+    }
+};
+
+function formatCountdown(targetDate) {
+    if (!targetDate || isNaN(targetDate.getTime())) return '';
+    const now = new Date();
+    const diffMs = targetDate.getTime() - now.getTime();
+    if (diffMs <= 0) return 'Kickoff imminent / Today';
+    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    if (days > 0) return `In ${days}d ${hours}h`;
+    const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    return `In ${hours}h ${mins}m`;
+}
+
+/** Item 29 & Item 42: Community Tab Rendering with Strict Hierarchy */
 window.selectedCommunityAwardsMonth = null;
 window.renderCommunityTabWithMonth = (monthVal) => {
     window.selectedCommunityAwardsMonth = monthVal;
@@ -4174,7 +5015,98 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     const container = document.getElementById('communityContainer');
     if (!container) return;
 
-    // 1. Weekly Power Rankings (Item 25)
+    // Helper: render player pills with profile navigation
+    const renderPlayerPills = (playerIds) => {
+        if (!playerIds || playerIds.length === 0) return '';
+        return playerIds.map(pId => {
+            const name = getPlayerDisplayName(pId);
+            return `<span class="player-pill" data-player-id="${esc(pId)}">${esc(name)}</span>`;
+        }).join(', ');
+    };
+
+    // 1. CARD 1: NEXT GAME SCHEDULED (Item 42)
+    let nextGameHtml = '';
+    const scheduledFixture = allFixtures.find(f => f.status === 'scheduled');
+    if (scheduledFixture && scheduledFixture.squads && scheduledFixture.squads.length >= 2) {
+        const fDate = scheduledFixture.date ? (scheduledFixture.date.toDate ? scheduledFixture.date.toDate() : new Date(scheduledFixture.date)) : null;
+        const countdownStr = fDate ? formatCountdown(fDate) : 'Upcoming';
+        const dateDisplay = fDate ? formatDate(fDate) : 'Upcoming';
+
+        const eloData = computeEloRatings(matches).ratings || {};
+        const sq1 = scheduledFixture.squads[0];
+        const sq2 = scheduledFixture.squads[1];
+        const avgElo1 = sq1.players?.length ? Math.round(sq1.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq1.players.length) : STARTING_ELO;
+        const avgElo2 = sq2.players?.length ? Math.round(sq2.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq2.players.length) : STARTING_ELO;
+
+        nextGameHtml = `
+        <div class="card bg-dark border-info border-opacity-75 p-3 mb-4 shadow-sm" id="nextGameScheduledCard">
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-50">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-info text-dark fw-bold"><i class="far fa-calendar-alt me-1"></i>NEXT GAME</span>
+                    <span class="text-white small fw-bold"><i class="far fa-clock me-1 text-info"></i>${esc(countdownStr)}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small"><i class="fas fa-map-marker-alt text-primary me-1"></i>${esc(scheduledFixture.venue || 'Sportgebouw Bibian Mentel')}</span>
+                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none" onclick="copyShareLink('fixture', '${scheduledFixture.id}', 'Next Fixture — Elderly Support', event)" title="Share Fixture"><i class="fas fa-share-alt"></i></button>
+                </div>
+            </div>
+            
+            <div class="row g-2 mb-3 align-items-center text-center">
+                <div class="col-5">
+                    <h6 class="fw-bold text-white mb-1">${esc(sq1.name || 'Squad A')}</h6>
+                    <div class="text-info small fw-bold mb-1">Avg Elo: ${avgElo1}</div>
+                    <div class="small text-muted">${renderPlayerPills(sq1.players)}</div>
+                </div>
+                <div class="col-2">
+                    <span class="badge bg-secondary font-monospace px-2 py-1" style="font-size:0.8rem">VS</span>
+                </div>
+                <div class="col-5">
+                    <h6 class="fw-bold text-white mb-1">${esc(sq2.name || 'Squad B')}</h6>
+                    <div class="text-info small fw-bold mb-1">Avg Elo: ${avgElo2}</div>
+                    <div class="small text-muted">${renderPlayerPills(sq2.players)}</div>
+                </div>
+            </div>
+
+            ${scheduledFixture.preview ? `
+            <div class="p-3 rounded bg-black bg-opacity-40 border border-warning border-opacity-50 mt-2">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-warning fw-bold small"><i class="fas fa-feather-alt me-1"></i>The Commissioner's Preview:</span>
+                    ${scheduledFixture.predictedWinner ? `<span class="badge bg-warning text-dark font-monospace fw-bold" style="font-size:0.75rem">🎯 Pick: ${esc(scheduledFixture.predictedWinner)} (${scheduledFixture.predictedWinnerOdds || 55}% odds)</span>` : ''}
+                </div>
+                <div class="text-light fst-italic" style="font-size:0.9rem; line-height:1.5;">"${esc(scheduledFixture.preview)}"</div>
+            </div>
+            ` : ''}
+        </div>
+        `;
+    }
+
+    // 2. CARD 2: ROAST OF THE WEEK (Item 42)
+    let roastHtml = '';
+    const publishedRoasts = allRoasts.filter(r => r.status === 'published');
+    if (publishedRoasts.length > 0) {
+        const latestRoast = publishedRoasts[publishedRoasts.length - 1];
+        roastHtml = `
+        <div class="card bg-dark border-danger p-3 mb-4 shadow-sm" id="roastOfTheWeekCard">
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-50">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-danger text-white fw-bold"><i class="fas fa-fire me-1"></i>ROAST OF THE WEEK</span>
+                    <span class="text-muted small">Target: <b class="text-white">${esc(latestRoast.targetPlayerName)}</b></span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary font-monospace" style="font-size:0.7rem">Intensity ${latestRoast.intensity || 3}/5</span>
+                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none" onclick="copyShareLink('roast', '${latestRoast.id}', 'Roast: ${esc(latestRoast.targetPlayerName)}', event)" title="Share Roast"><i class="fas fa-share-alt"></i></button>
+                </div>
+            </div>
+            <div class="text-light fst-italic my-2" style="font-size:0.95rem; line-height:1.5;">"${esc(latestRoast.roastText)}"</div>
+            <div class="small text-muted pt-1 border-top border-secondary border-opacity-25 d-flex justify-content-between">
+                <span><i class="fas fa-check-circle text-info me-1"></i>Facts: ${esc(latestRoast.facts || '')}</span>
+                <span>${latestRoast.publishedAt ? formatDate(latestRoast.publishedAt.toDate ? latestRoast.publishedAt.toDate() : new Date(latestRoast.publishedAt)) : ''}</span>
+            </div>
+        </div>
+        `;
+    }
+
+    // 3. CARD 3: WEEKLY POWER RANKINGS (Item 25)
     const powerData = computeWeeklyPowerRankings(matches);
     let powerRankingsRows = '';
 
@@ -4212,7 +5144,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         ? `<span class="text-success small"><i class="fas fa-check-circle me-1"></i>${powerData.matchesInWindowCount} matches in 7-day window (${powerData.dateRangeText})</span>`
         : `<span class="text-muted small"><i class="fas fa-info-circle me-1"></i>No matches in the past 7 days (${powerData.dateRangeText}). Movement unchanged.</span>`;
 
-    // 2. Milestone Watch (Item 28)
+    // 4. CARD 4: MILESTONE WATCH (Item 28) - Collapsed by default
     const watchlist = computeMilestoneWatch(matches);
     let milestoneWatchHtml = '';
     if (watchlist.length === 0) {
@@ -4231,7 +5163,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         `).join('') + `</div>`;
     }
 
-    // 3. Monthly Awards with Interactive Dropdown (Item 29)
+    // 5. CARD 5: MONTHLY AWARDS (Item 29) - Collapsed by default
     const fYear = document.getElementById('filterYear');
     const curYear = fYear ? (fYear.value === 'all' ? '2026' : fYear.value) : '2026';
 
@@ -4258,7 +5190,6 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         return `<option value="${mo}" ${isSel}>${monthNames[mo]} ${curYear}</option>`;
     }).join('');
 
-    // Fetch cached citation from Firestore
     let cachedCitation = '';
     const awardDocId = `${curYear}-${activeMonth}`;
     try {
@@ -4325,7 +5256,6 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         </div>
     </div>`;
 
-    // AI Citation banner
     let citationBanner = '';
     const adminCitationBtn = (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase() && awardsData.potm)
         ? `<button class="btn btn-sm btn-outline-info ms-2" onclick="generateAwardCitation('${curYear}', '${activeMonth}', '${esc(awardsData.potm.name)}', '${awardsData.potm.ppg} PPG in ${awardsData.monthName}')"><i class="fas fa-wand-magic-sparkles me-1"></i>↺ Generate Citation</button>`
@@ -4345,16 +5275,13 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     }
 
     container.innerHTML = `
-        <!-- MILESTONE WATCH (ITEM 28) -->
-        <div class="card bg-dark border-secondary p-3 mb-4">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="fw-bold text-white small m-0"><i class="fas fa-flag-checkered text-warning me-2"></i>MILESTONE WATCH (25-CAP INTERVALS)</h6>
-                <span class="badge bg-secondary">Within 1–2 Games</span>
-            </div>
-            ${milestoneWatchHtml}
-        </div>
+        <!-- 1. NEXT GAME SCHEDULED (ITEM 42) -->
+        ${nextGameHtml}
 
-        <!-- WEEKLY POWER RANKINGS (ITEM 25) -->
+        <!-- 2. ROAST OF THE WEEK (ITEM 42) -->
+        ${roastHtml}
+
+        <!-- 3. WEEKLY POWER RANKINGS (ITEM 25) -->
         <div class="card bg-dark border-secondary p-3 mb-4">
             <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                 <h6 class="fw-bold text-white small m-0"><i class="fas fa-bolt text-warning me-2"></i>WEEKLY POWER RANKINGS (7-DAY MOVEMENT)</h6>
@@ -4379,29 +5306,46 @@ async function renderCommunityTab(matches, forcedMonth = null) {
             </div>
         </div>
 
-        <!-- MONTHLY AWARDS WITH INLINE MONTH SELECTOR (ITEM 29) -->
+        <!-- 4. MILESTONE WATCH (ITEM 28) - Collapsed by default -->
         <div class="card bg-dark border-secondary p-3 mb-4">
-            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold text-white small m-0"><i class="fas fa-flag-checkered text-warning me-2"></i>MILESTONE WATCH (25-CAP INTERVALS)</h6>
+                <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#milestoneWatchCollapse" aria-expanded="false">
+                    Toggle View
+                </button>
+            </div>
+            <div class="collapse" id="milestoneWatchCollapse">
+                ${milestoneWatchHtml}
+            </div>
+        </div>
+
+        <!-- 5. MONTHLY AWARDS (ITEM 29) - Collapsed by default -->
+        <div class="card bg-dark border-secondary p-3 mb-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
                 <div>
                     <h6 class="fw-bold text-white small m-0"><i class="fas fa-trophy text-info me-2"></i>MONTHLY AWARDS (${awardsData.monthName} ${curYear})</h6>
                     <small class="text-muted">Honoring standout performances and league stories</small>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <label class="text-muted small fw-bold mb-0">Month:</label>
                     <select id="communityAwardsMonth" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto; font-size: 0.8rem;" onchange="renderCommunityTabWithMonth(this.value)">
                         ${monthOptionsHtml}
                     </select>
+                    <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#awardsCollapse" aria-expanded="false">
+                        Toggle View
+                    </button>
                 </div>
             </div>
-            ${citationBanner}
-            <div class="row">
-                ${potmCard}
-                ${improvedCard}
-                ${ironManCard}
-            </div>
-            <div class="row">
-                ${worstDuoCard}
-                ${ghostCard}
+            <div class="collapse" id="awardsCollapse">
+                ${citationBanner}
+                <div class="row">
+                    ${potmCard}
+                    ${improvedCard}
+                    ${ironManCard}
+                </div>
+                <div class="row">
+                    ${worstDuoCard}
+                    ${ghostCard}
+                </div>
             </div>
         </div>
     `;
@@ -4464,11 +5408,15 @@ if (typeof module !== 'undefined' && module.exports) {
         MIN_GAMES_PAIR,
         MIN_GAMES_IMPROVED,
         MILESTONE_INTERVAL,
+        ROAST_THRESHOLD,
         minAppearancesForPeriod,
         computeWeeklyPowerRankings,
         computeMilestoneWatch,
         computeMonthlyAwards,
         resolvePlayerIdentifier,
-        computeEloRatings
+        computeEloRatings,
+        computeRoastAngles,
+        computeExpectedScore
     };
 }
+

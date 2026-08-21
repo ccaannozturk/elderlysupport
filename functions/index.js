@@ -1620,3 +1620,643 @@ exports.scheduledBackup = functions.pubsub.schedule('every sunday 03:00').timeZo
   return null;
 });
 
+/* ======================================================================
+   ITEM 42: FIXTURES, ROAST STUDIO & PREDICTION LIFECYCLE
+   ====================================================================== */
+
+const ROAST_THRESHOLD = 0.60;
+
+/** Deterministic Roast Angle Candidate Finder */
+function computeRoastAngles(allMatches, playersList, optOutIds = []) {
+  const sorted = [...allMatches].sort((a, b) => {
+    const tA = getMatchTime(a);
+    const tB = getMatchTime(b);
+    if (tA !== tB) return tA - tB;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+
+  const nameMap = new Map();
+  playersList.forEach(p => {
+    nameMap.set(p.id, p.displayName || p.id);
+  });
+  const getName = (id) => nameMap.get(id) || id;
+
+  const caps = {};
+  const currentStreaks = {}; // { w: 0, l: 0, u: 0 }
+  const lastPlayedDate = {};
+  const h2h = {}; // p1__p2: ['W','L',...]
+  const duoRecords = {}; // p1__p2: { played, won }
+
+  const latestTime = sorted.length > 0 ? getMatchTime(sorted[sorted.length - 1]) : Date.now();
+  const latestDate = new Date(latestTime);
+
+  for (const m of sorted) {
+    const mDate = getMatchDate(m);
+    if (!m.teams || m.teams.length < 2) continue;
+
+    if (m.type === 'Standard') {
+      const tA = m.teams[0], tB = m.teams[1];
+      const pA = tA.players || [], pB = tB.players || [];
+      const sA = tA.score || 0, sB = tB.score || 0;
+      const resA = sA > sB ? 'W' : (sA === sB ? 'D' : 'L');
+      const resB = sB > sA ? 'W' : (sB === sA ? 'D' : 'L');
+
+      [...pA, ...pB].forEach(p => {
+        caps[p] = (caps[p] || 0) + 1;
+        lastPlayedDate[p] = mDate;
+      });
+
+      // Streaks
+      pA.forEach(p => {
+        if (!currentStreaks[p]) currentStreaks[p] = { w: 0, l: 0, u: 0, winless: 0 };
+        if (resA === 'W') { currentStreaks[p].w++; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless = 0; }
+        else if (resA === 'D') { currentStreaks[p].w = 0; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless++; }
+        else { currentStreaks[p].w = 0; currentStreaks[p].u = 0; currentStreaks[p].l++; currentStreaks[p].winless++; }
+      });
+      pB.forEach(p => {
+        if (!currentStreaks[p]) currentStreaks[p] = { w: 0, l: 0, u: 0, winless: 0 };
+        if (resB === 'W') { currentStreaks[p].w++; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless = 0; }
+        else if (resB === 'D') { currentStreaks[p].w = 0; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless++; }
+        else { currentStreaks[p].w = 0; currentStreaks[p].u = 0; currentStreaks[p].l++; currentStreaks[p].winless++; }
+      });
+
+      // Duos
+      [ { team: pA, res: resA }, { team: pB, res: resB } ].forEach(({ team, res }) => {
+        const sP = [...team].sort();
+        for (let i = 0; i < sP.length; i++) {
+          for (let j = i + 1; j < sP.length; j++) {
+            const key = `${sP[i]}__${sP[j]}`;
+            if (!duoRecords[key]) duoRecords[key] = { p1: sP[i], p2: sP[j], played: 0, won: 0 };
+            duoRecords[key].played++;
+            if (res === 'W') duoRecords[key].won++;
+          }
+        }
+      });
+
+      // H2H
+      pA.forEach(p1 => {
+        pB.forEach(p2 => {
+          const k1 = `${p1}__${p2}`;
+          const k2 = `${p2}__${p1}`;
+          if (!h2h[k1]) h2h[k1] = [];
+          if (!h2h[k2]) h2h[k2] = [];
+          h2h[k1].push(resA);
+          h2h[k2].push(resB);
+        });
+      });
+    } else {
+      m.teams.forEach(t => {
+        const isWin = (t.rank === 1);
+        (t.players || []).forEach(p => {
+          caps[p] = (caps[p] || 0) + 1;
+          lastPlayedDate[p] = mDate;
+          if (!currentStreaks[p]) currentStreaks[p] = { w: 0, l: 0, u: 0, winless: 0 };
+          if (isWin) { currentStreaks[p].w++; currentStreaks[p].u++; currentStreaks[p].l = 0; currentStreaks[p].winless = 0; }
+          else { currentStreaks[p].w = 0; currentStreaks[p].u = 0; currentStreaks[p].l++; currentStreaks[p].winless++; }
+        });
+      });
+    }
+  }
+
+  // Compute 30-day Elo delta
+  const thirtyDaysAgoMs = latestTime - (30 * 24 * 60 * 60 * 1000);
+  const priorMatches = sorted.filter(m => getMatchTime(m) < thirtyDaysAgoMs);
+  const eloPrior = computeEloRatings(priorMatches).ratings || {};
+  const eloCurrent = computeEloRatings(sorted).ratings || {};
+
+  const candidates = [];
+
+  // Angle 1: Losing Streak (Straight Losses)
+  Object.entries(currentStreaks).forEach(([pId, s]) => {
+    if (optOutIds.includes(pId)) return;
+    if (s.l >= 3) {
+      const score = Math.min(0.95, Number((0.45 + s.l * 0.12).toFixed(2)));
+      candidates.push({
+        angleType: 'losing_streak',
+        targetPlayerId: pId,
+        targetPlayerName: getName(pId),
+        score,
+        facts: `${getName(pId)} has lost ${s.l} consecutive matches in a row`,
+        rawMetric: `${s.l} straight losses`
+      });
+    }
+  });
+
+  // Angle 2: Ghost of the League (Absent Regular)
+  Object.entries(caps).forEach(([pId, count]) => {
+    if (optOutIds.includes(pId)) return;
+    if (count >= 8 && lastPlayedDate[pId]) {
+      const diffMs = latestTime - lastPlayedDate[pId].getTime();
+      const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      if (days >= 35) {
+        const score = Math.min(0.92, Number((0.48 + days * 0.005).toFixed(2)));
+        candidates.push({
+          angleType: 'ghost',
+          targetPlayerId: pId,
+          targetPlayerName: getName(pId),
+          score,
+          facts: `${getName(pId)} (${count} career caps) has not appeared for ${days} days (last seen ${lastPlayedDate[pId].toLocaleDateString()})`,
+          rawMetric: `${days} days absent`
+        });
+      }
+    }
+  });
+
+  // Angle 3: Cold Duo / Worst Partnership
+  Object.values(duoRecords).forEach(d => {
+    if (optOutIds.includes(d.p1) || optOutIds.includes(d.p2)) return;
+    if (d.played >= 4) {
+      const wr = Math.round((d.won / d.played) * 100);
+      if (wr <= 30) {
+        const score = Math.min(0.90, Number((0.50 + (30 - wr) * 0.012 + d.played * 0.02).toFixed(2)));
+        candidates.push({
+          angleType: 'worst_duo',
+          targetPlayerId: `${d.p1}__${d.p2}`,
+          targetPlayerName: `${getName(d.p1)} & ${getName(d.p2)}`,
+          score,
+          facts: `${getName(d.p1)} and ${getName(d.p2)} have won only ${d.won} of their ${d.played} matches together (${wr}% win rate)`,
+          rawMetric: `${d.won}W-${d.played - d.won}L (${wr}%)`
+        });
+      }
+    }
+  });
+
+  // Angle 4: Elo Slide / Form Collapse
+  Object.keys(eloCurrent).forEach(pId => {
+    if (optOutIds.includes(pId)) return;
+    const cur = Math.round(eloCurrent[pId] || STARTING_ELO);
+    const prev = Math.round(eloPrior[pId] || STARTING_ELO);
+    const delta = cur - prev;
+    if (delta <= -35 && (caps[pId] || 0) >= 5) {
+      const drop = Math.abs(delta);
+      const score = Math.min(0.90, Number((0.45 + drop * 0.006).toFixed(2)));
+      candidates.push({
+        angleType: 'elo_slide',
+        targetPlayerId: pId,
+        targetPlayerName: getName(pId),
+        score,
+        facts: `${getName(pId)}'s Elo rating dropped by ${drop} points over the last 30 days (from ${prev} to ${cur})`,
+        rawMetric: `${delta} Elo in 30 days`
+      });
+    }
+  });
+
+  // Angle 5: Severe Nemesis
+  Object.entries(h2h).forEach(([key, history]) => {
+    const [p1, p2] = key.split('__');
+    if (optOutIds.includes(p1) || optOutIds.includes(p2)) return;
+    let trailingLosses = 0;
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i] === 'L') trailingLosses++;
+      else break;
+    }
+    if (trailingLosses >= 3) {
+      const score = Math.min(0.95, Number((0.50 + trailingLosses * 0.11).toFixed(2)));
+      candidates.push({
+        angleType: 'nemesis',
+        targetPlayerId: p1,
+        targetPlayerName: getName(p1),
+        score,
+        facts: `${getName(p1)} has suffered ${trailingLosses} straight defeats against ${getName(p2)}`,
+        rawMetric: `${trailingLosses} straight losses vs ${getName(p2)}`
+      });
+    }
+  });
+
+  // Angle 6: Winless Drought
+  Object.entries(currentStreaks).forEach(([pId, s]) => {
+    if (optOutIds.includes(pId)) return;
+    if (s.winless >= 4 && s.l < s.winless) {
+      const score = Math.min(0.88, Number((0.45 + s.winless * 0.08).toFixed(2)));
+      candidates.push({
+        angleType: 'cold_streak',
+        targetPlayerId: pId,
+        targetPlayerName: getName(pId),
+        score,
+        facts: `${getName(pId)} has gone ${s.winless} consecutive matches without a single win`,
+        rawMetric: `${s.winless} games winless`
+      });
+    }
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.map(c => ({
+    ...c,
+    belowThreshold: c.score < ROAST_THRESHOLD
+  }));
+}
+
+exports.computeRoastAngles = computeRoastAngles;
+
+/** 8. Item 42: Get Scored Roast Angle Candidates */
+exports.getRoastAngleCandidates = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const matchesSnap = await db.collection('matches_v2').get();
+  const allMatches = [];
+  matchesSnap.forEach(d => allMatches.push({ id: d.id, ...d.data() }));
+
+  const playersSnap = await db.collection('players_v2').get();
+  const playersList = [];
+  playersSnap.forEach(d => playersList.push({ id: d.id, ...d.data() }));
+
+  const settingsDoc = await db.collection('config').doc('roast_settings').get();
+  const settings = settingsDoc.exists ? settingsDoc.data() : { intensity: 3, allowProfanity: false, optedOutPlayerIds: [] };
+  const optOutList = settings.optedOutPlayerIds || [];
+
+  const candidates = computeRoastAngles(allMatches, playersList, optOutList);
+
+  return {
+    ok: true,
+    candidates,
+    threshold: ROAST_THRESHOLD,
+    settings
+  };
+});
+
+/** 9. Item 42: Generate 3 Roast Variants */
+exports.generateRoastVariants = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const angleType = data && data.angleType ? String(data.angleType).trim() : '';
+  const targetPlayerName = data && data.targetPlayerName ? String(data.targetPlayerName).trim() : '';
+  const facts = data && data.facts ? String(data.facts).trim() : '';
+  const intensity = data && data.intensity !== undefined ? Number(data.intensity) : 3;
+  const allowProfanity = Boolean(data && data.allowProfanity);
+
+  if (!facts || !targetPlayerName) {
+    throw new functions.https.HttpsError('invalid-argument', 'Target player name and verified facts are required.');
+  }
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  const intensityGuide = {
+    1: 'Gentle, friendly ribbing with warmth and affectionate banter. Low sting.',
+    2: 'Light banter, funny observational tease.',
+    3: 'Playful bite, sharp, dry wit, classic comedy roast. Medium sting.',
+    4: 'Savage humor, punchy comedic burn with sharp delivery.',
+    5: 'Scorched earth, merciless comedic roast. Maximum hilarity and burn.'
+  }[intensity] || 'Sharp, playful comedy roast.';
+
+  const profanityRule = allowProfanity
+    ? 'Moderate playful swearing/slang is permitted if natural to locker room banter.'
+    : 'Strictly NO profanity or vulgar slurs.';
+
+  const prompt = `You are the resident comedic roaster for the Elderly Support recreational football league in Amsterdam.
+Write 3 DISTINCT, witty, hilarious roast variants targeting ${targetPlayerName} based STRICTLY on the verified facts below.
+
+VERIFIED FACTUAL RECORD:
+${facts}
+
+INTENSITY LEVEL (${intensity}/5):
+${intensityGuide}
+
+CONTENT & PROFANITY RULES:
+1. ${profanityRule}
+2. CITE THE EXACT NUMBERS in the facts above (e.g. loss count, days absent, win rate, or Elo drop). Do NOT invent fake stats or outside storylines.
+3. Keep each roast variant concise (1 to 2 punchy sentences maximum).
+4. Tone: clever, witty, memorable, banter-heavy.
+5. Return strictly JSON in this schema:
+{
+  "variants": [
+    { "id": 1, "text": "First punchy roast option..." },
+    { "id": 2, "text": "Second distinct comedic angle..." },
+    { "id": 3, "text": "Third witty variant..." }
+  ]
+}
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  let variants = [];
+  try {
+    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    variants = parsed.variants || [];
+  } catch (e) {
+    variants = [{ id: 1, text: geminiRes.text.replace(/[{}"]/g, '').trim() }];
+  }
+
+  return {
+    ok: true,
+    variants,
+    modelUsed: geminiRes.modelUsed
+  };
+});
+
+/** 10. Item 42: Publish Roast */
+exports.publishRoast = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const roastText = data && data.roastText ? String(data.roastText).trim() : '';
+  const targetPlayerId = data && data.targetPlayerId ? String(data.targetPlayerId).trim() : '';
+  const targetPlayerName = data && data.targetPlayerName ? String(data.targetPlayerName).trim() : '';
+  const angleType = data && data.angleType ? String(data.angleType).trim() : 'custom';
+  const facts = data && data.facts ? String(data.facts).trim() : '';
+  const intensity = data && data.intensity ? Number(data.intensity) : 3;
+
+  if (!roastText || !targetPlayerName) {
+    throw new functions.https.HttpsError('invalid-argument', 'Roast text and target player are required.');
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const docRef = db.collection('roasts').doc();
+  await docRef.set({
+    roastText,
+    targetPlayerId,
+    targetPlayerName,
+    angleType,
+    facts,
+    intensity,
+    status: 'published',
+    publishedAt: now,
+    createdAt: now
+  });
+
+  return { ok: true, roastId: docRef.id };
+});
+
+/** 11. Item 42: Generate Fixture Preview & Immutable Prediction */
+exports.generateFixturePreview = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const squads = data && data.squads ? data.squads : [];
+  const venue = data && data.venue ? String(data.venue).trim() : 'Sportgebouw Bibian Mentel';
+  const fixtureDate = data && data.date ? String(data.date).trim() : '';
+  const intensity = data && data.intensity ? Number(data.intensity) : 3;
+
+  if (!squads || squads.length < 2) {
+    throw new functions.https.HttpsError('invalid-argument', 'At least two squads are required for a fixture preview.');
+  }
+
+  const matchesSnap = await db.collection('matches_v2').get();
+  const allMatches = [];
+  matchesSnap.forEach(d => allMatches.push({ id: d.id, ...d.data() }));
+
+  const playersSnap = await db.collection('players_v2').get();
+  const nameMap = new Map();
+  playersSnap.forEach(d => nameMap.set(d.id, d.data().displayName || d.id));
+  const getName = (id) => nameMap.get(id) || id;
+
+  const eloData = computeEloRatings(allMatches);
+  const ratings = eloData.ratings || {};
+
+  const squadStats = squads.map((sq, sIdx) => {
+    const pList = sq.players || [];
+    const pNames = pList.map(getName);
+    const avgElo = pList.length > 0 ? Math.round(pList.reduce((sum, p) => sum + (ratings[p] || STARTING_ELO), 0) / pList.length) : STARTING_ELO;
+    return {
+      name: sq.name || `Squad ${String.fromCharCode(65 + sIdx)}`,
+      players: pList,
+      playerNames: pNames,
+      avgElo
+    };
+  });
+
+  // Calculate predicted favorite from average Elo
+  const sqA = squadStats[0];
+  const sqB = squadStats[1];
+  const eloDiff = sqA.avgElo - sqB.avgElo;
+  const expWinA = computeExpectedScore(sqA.avgElo, sqB.avgElo);
+  const predictedWinner = eloDiff >= 0 ? sqA.name : sqB.name;
+  const winProbability = Math.round((eloDiff >= 0 ? expWinA : (1 - expWinA)) * 100);
+
+  // Identify head-to-head storylines
+  const storylineItems = [];
+  sqA.players.forEach(pA => {
+    sqB.players.forEach(pB => {
+      storylineItems.push({
+        pA: getName(pA),
+        pB: getName(pB)
+      });
+    });
+  });
+
+  const flaggedStoryline = `${sqA.name} (avg ${sqA.avgElo} Elo) vs ${sqB.name} (avg ${sqB.avgElo} Elo). Key rivalry clash.`;
+
+  const keyDoc = await db.collection('config').doc('gemini').get();
+  if (!keyDoc.exists || !keyDoc.data().apiKey) {
+    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+  }
+  const apiKey = keyDoc.data().apiKey;
+
+  const metaDoc = await db.collection('config').doc('gemini_meta').get();
+  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+
+  const prompt = `You are "The Commissioner", the pompous, sharp-tongued, all-knowing authoritative executive of the Elderly Support recreational football league in Amsterdam.
+Write a 2 to 3 sentence official Match Preview & Prediction for the upcoming scheduled fixture.
+
+MATCH DETAILS:
+- Venue: ${venue}
+- Date: ${fixtureDate || 'Upcoming Weekend'}
+- SQUAD 1: ${sqA.name} (Average Elo: ${sqA.avgElo}) — Lineup: ${sqA.playerNames.join(', ')}
+- SQUAD 2: ${sqB.name} (Average Elo: ${sqB.avgElo}) — Lineup: ${sqB.playerNames.join(', ')}
+- COMPUTED FAVORITE: ${predictedWinner} (${winProbability}% win probability based on team Elo ratings)
+
+STRICT COMMISSIONER GUIDELINES:
+1. Tone: Pompous, supremely confident, entertaining, authoritative, slightly theatrical.
+2. Explicitly state your unwavering prediction: pick ${predictedWinner} to win.
+3. Reference the specific players or team strengths. Never mention jersey colors.
+4. Keep it to 2–3 sharp, highly readable sentences.
+5. Return strictly JSON:
+{
+  "preview": "Your authoritative 2-3 sentence preview text ending with a bold prediction.",
+  "previewAngle": "Team Elo Clash"
+}
+`;
+
+  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  let previewText = '';
+  let previewAngle = 'Elo Differential';
+  try {
+    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    previewText = parsed.preview || cleaned;
+    previewAngle = parsed.previewAngle || 'Elo Differential';
+  } catch (e) {
+    previewText = geminiRes.text.replace(/[{}"]/g, '').trim();
+  }
+
+  return {
+    ok: true,
+    preview: previewText,
+    predictedWinner,
+    predictedWinnerOdds: winProbability,
+    previewAngle,
+    storyline: flaggedStoryline,
+    squadStats,
+    modelUsed: geminiRes.modelUsed
+  };
+});
+
+/** 12. Item 42: Save / Publish Fixture */
+exports.saveFixture = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const fixtureId = (data && data.fixtureId) ? String(data.fixtureId).trim() : db.collection('fixtures').doc().id;
+  const status = (data && data.status) ? String(data.status).trim() : 'draft';
+  const venue = (data && data.venue) ? String(data.venue).trim() : 'Sportgebouw Bibian Mentel';
+  const squads = data && data.squads ? data.squads : [];
+  const preview = data && data.preview ? String(data.preview).trim() : null;
+  const previewAngle = data && data.previewAngle ? String(data.previewAngle).trim() : null;
+  const predictedWinner = data && data.predictedWinner ? String(data.predictedWinner).trim() : null;
+  const predictedWinnerOdds = data && data.predictedWinnerOdds ? Number(data.predictedWinnerOdds) : null;
+  const predictionModel = data && data.predictionModel ? String(data.predictionModel).trim() : null;
+  const dateRaw = data && data.date ? data.date : null;
+
+  let timestamp = null;
+  if (dateRaw) {
+    const d = new Date(dateRaw);
+    if (!isNaN(d.getTime())) {
+      timestamp = admin.firestore.Timestamp.fromDate(d);
+    }
+  }
+  if (!timestamp) timestamp = admin.firestore.Timestamp.now();
+
+  const docRef = db.collection('fixtures').doc(fixtureId);
+  const existingSnap = await docRef.get();
+  const now = admin.firestore.FieldValue.serverTimestamp();
+
+  const fixtureData = {
+    status,
+    venue,
+    squads,
+    preview,
+    previewAngle,
+    predictedWinner,
+    predictedWinnerOdds,
+    predictionModel,
+    date: timestamp,
+    updatedAt: now
+  };
+
+  if (!existingSnap.exists) {
+    fixtureData.createdAt = now;
+    fixtureData.matchId = null;
+    fixtureData.predictionResult = null;
+  }
+
+  if (status === 'scheduled' && (!existingSnap.exists || existingSnap.data().status !== 'scheduled')) {
+    fixtureData.publishedAt = now;
+  }
+
+  await docRef.set(fixtureData, { merge: true });
+
+  return { ok: true, fixtureId };
+});
+
+/** 13. Item 42: Resolve Fixture to Match (Evaluate Prediction) */
+exports.resolveFixtureToMatch = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const fixtureId = data && data.fixtureId ? String(data.fixtureId).trim() : '';
+  const matchId = data && data.matchId ? String(data.matchId).trim() : '';
+
+  if (!fixtureId || !matchId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Fixture ID and Match ID are required.');
+  }
+
+  const fixtureSnap = await db.collection('fixtures').doc(fixtureId).get();
+  if (!fixtureSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Fixture not found.');
+  }
+
+  const matchSnap = await db.collection('matches_v2').doc(matchId).get();
+  if (!matchSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Match document not found.');
+  }
+
+  const fData = fixtureSnap.data();
+  const mData = matchSnap.data();
+
+  // Determine actual winning team
+  let actualWinner = null;
+  if (mData.type === 'Standard' && mData.teams && mData.teams.length >= 2) {
+    const tA = mData.teams[0];
+    const tB = mData.teams[1];
+    if ((tA.score || 0) > (tB.score || 0)) actualWinner = tA.teamName || 'Squad A';
+    else if ((tB.score || 0) > (tA.score || 0)) actualWinner = tB.teamName || 'Squad B';
+    else actualWinner = 'Draw';
+  } else if (mData.teams && mData.teams.length > 0) {
+    const r1 = mData.teams.find(t => t.rank === 1) || mData.teams[0];
+    actualWinner = r1.teamName || 'Squad A';
+  }
+
+  let predictionResult = 'wrong';
+  if (fData.predictedWinner && actualWinner) {
+    if (fData.predictedWinner.toLowerCase().trim() === actualWinner.toLowerCase().trim()) {
+      predictionResult = 'correct';
+    }
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await db.collection('fixtures').doc(fixtureId).set({
+    status: 'played',
+    matchId,
+    actualWinner,
+    predictionResult,
+    resolvedAt: now
+  }, { merge: true });
+
+  // Attach fixture preview and immutable prediction result to the match document
+  await db.collection('matches_v2').doc(matchId).set({
+    linkedFixtureId: fixtureId,
+    preview: fData.preview || null,
+    predictedWinner: fData.predictedWinner || null,
+    predictionResult,
+    predictionModel: fData.predictionModel || null
+  }, { merge: true });
+
+  return {
+    ok: true,
+    fixtureId,
+    matchId,
+    predictedWinner: fData.predictedWinner,
+    actualWinner,
+    predictionResult
+  };
+});
+
+/** 14. Item 42: Archive Fixture */
+exports.archiveFixture = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const fixtureId = data && data.fixtureId ? String(data.fixtureId).trim() : '';
+  if (!fixtureId) {
+    throw new functions.https.HttpsError('invalid-argument', 'Fixture ID is required.');
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await db.collection('fixtures').doc(fixtureId).set({
+    status: 'archived',
+    archivedAt: now
+  }, { merge: true });
+
+  return { ok: true, fixtureId };
+});
+
+/** 15. Item 42: Save Roast Settings */
+exports.saveRoastSettings = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+
+  const intensity = (data && data.intensity !== undefined) ? Number(data.intensity) : 3;
+  const allowProfanity = Boolean(data && data.allowProfanity);
+  const optedOutPlayerIds = Array.isArray(data && data.optedOutPlayerIds) ? data.optedOutPlayerIds : [];
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  await db.collection('config').doc('roast_settings').set({
+    intensity,
+    allowProfanity,
+    optedOutPlayerIds,
+    updatedAt: now
+  }, { merge: true });
+
+  return { ok: true };
+});
+
