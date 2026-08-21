@@ -187,14 +187,41 @@ desktop grid 26x27 intact; no page overflow; no console errors.
 
 ---
 
-## Phase 5 — Fixture and roast lifecycle
+## Phase 5 — Fixture and roast lifecycle  ✅ complete
 
-- [ ] **13. Expiry and selection**
-  - "Roast of the Week" and "NEXT GAME" never expire: a stale roast sits
-    indefinitely and a past fixture stays pinned with a negative countdown until
-    manually marked played. Add auto-expiry.
-  - `allFixtures.find(f => f.status === 'scheduled')` picks an arbitrary match when
-    several are scheduled. Pick the soonest.
+- [x] **13. Expiry and selection**
+  - `selectFeaturedFixture()` picks the **soonest upcoming** scheduled fixture
+    rather than the first document found. A 3-hour grace keeps a match in progress
+    billed as NEXT GAME; after that it becomes an amber **AWAITING RESULT** card
+    reading "Played 20/08/2026 — result not recorded" for a week, then drops off.
+    Previously `formatCountdown()` reported "Kickoff imminent / Today" for any past
+    date, so a played fixture stayed pinned indefinitely.
+  - `selectFeaturedRoast()` keeps the newest published roast, demotes it from
+    "ROAST OF THE WEEK" to "LATEST ROAST" after 7 days, and retires it after 30.
+  - 17 unit tests cover the selection rules (grace window, overdue ordering,
+    missing dates, drafts, staleness boundaries).
+
+- [x] **15. Fixture and roast deep links**
+  - `copyShareLink('roast'|'fixture', …)` has always produced `?roast=` and
+    `?fixture=` URLs, but `handleDeepLinks()` only understood `player`, `match`
+    and `tab` — so every shared roast or fixture link landed on the homepage.
+  - `?roast=<id>` highlights the card when that roast is the featured one, and
+    otherwise opens it in a modal, reading the document directly so a link to an
+    older roast still works. `?fixture=<id>` highlights the featured fixture or
+    explains that it is no longer next.
+  - Both wait for the snapshot **and** the render before deciding; without that
+    the check ran against an empty list and a link to the featured roast opened a
+    modal on top of the card it should have highlighted.
+
+- [x] **16. Admin: delete any roast**
+  - Roast Studio → Tab A now lists every roast (newest first) with its target,
+    date, status, and a badge marking the one currently on the Community tab.
+  - Delete goes through a confirmation modal showing the full roast text, matching
+    the match-delete pattern from Stage A item 14 — deletion happens on a phone
+    and mis-taps are the real risk.
+  - Deletion is a direct Firestore write. `firestore.rules` already limits
+    `roasts` writes to the admin, so **no Cloud Function or rules deploy is
+    needed** for this.
 
 ---
 

@@ -190,6 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setupGeminiKeyForm();
     setupRoastVariantHandlers();
     setupChemistryHandlers();
+    setupCommunityHandlers();
+    setupRoastAdminHandlers();
 
     const lb = document.getElementById('leaderboard-body');
     if(lb) lb.addEventListener('click', (e) => {
@@ -3821,6 +3823,8 @@ function handleDeepLinks() {
 
     const playerParam = params.get('player');
     const matchParam = params.get('match');
+    const roastParam = params.get('roast');
+    const fixtureParam = params.get('fixture');
     const tabParam = params.get('tab');
 
     if (playerParam) {
@@ -3847,6 +3851,14 @@ function handleDeepLinks() {
                 showToast('Match record not found.');
             }
         }, 300);
+    } else if (roastParam) {
+        // copyShareLink('roast', ...) has always produced these URLs; nothing
+        // used to read them, so a shared roast link just landed on the homepage.
+        deepLinkHandled = true;
+        openSharedRoast(roastParam);
+    } else if (fixtureParam) {
+        deepLinkHandled = true;
+        openSharedFixture(fixtureParam);
     } else if (tabParam) {
         deepLinkHandled = true;
         const triggerTab = document.querySelector(`[data-bs-target="#${tabParam}"]`);
@@ -3854,6 +3866,95 @@ function handleDeepLinks() {
             bootstrap.Tab.getOrCreateInstance(triggerTab).show();
         }
     }
+}
+
+/** Resolve once `cond()` is truthy, or give up after `timeoutMs`. */
+function waitFor(cond, timeoutMs = 2500) {
+    if (cond()) return Promise.resolve(true);
+    return new Promise(resolve => {
+        const started = Date.now();
+        const tick = () => {
+            if (cond()) return resolve(true);
+            if (Date.now() - started > timeoutMs) return resolve(false);
+            setTimeout(tick, 100);
+        };
+        tick();
+    });
+}
+
+function showCommunityTab() {
+    const triggerTab = document.querySelector('[data-bs-target="#community"]');
+    if (triggerTab && typeof bootstrap !== 'undefined') {
+        bootstrap.Tab.getOrCreateInstance(triggerTab).show();
+    }
+}
+
+async function openSharedFixture(fixtureId) {
+    showCommunityTab();
+    await waitFor(() => allFixtures.length > 0);
+    await waitFor(() => !!document.getElementById('nextGameScheduledCard'), 1200);
+    const featured = selectFeaturedFixture(allFixtures);
+    const card = document.getElementById('nextGameScheduledCard');
+    if (card && featured && featured.fixture.id === fixtureId) return highlightCard(card);
+    showToast('That fixture is no longer the next game.');
+}
+
+function highlightCard(card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('border-warning');
+    setTimeout(() => card.classList.remove('border-warning'), 3000);
+}
+
+/**
+ * A shared roast link must work for any published roast, not only the one
+ * currently featured — the featured one rotates and eventually goes stale.
+ * Reads the document directly; rules allow a public get on a published roast.
+ */
+async function openSharedRoast(roastId) {
+    showCommunityTab();
+
+    // Deep links fire on DOMContentLoaded, before the roasts snapshot has
+    // arrived. Without this wait, a link to the *featured* roast would decide
+    // "not featured" against an empty list and open the modal over the very
+    // card it should have highlighted.
+    // The snapshot has to land AND the tab has to render before the card exists.
+    await waitFor(() => allRoasts.length > 0);
+    await waitFor(() => !!document.getElementById('roastOfTheWeekCard'), 1200);
+
+    let roast = allRoasts.find(r => r.id === roastId);
+    if (!roast) {
+        try {
+            const doc = await db.collection('roasts').doc(roastId).get();
+            if (doc.exists) roast = { id: doc.id, ...doc.data() };
+        } catch (e) {
+            console.warn('Shared roast fetch failed:', e.message);
+        }
+    }
+
+    if (!roast || roast.status !== 'published') {
+        return showToast('That roast is no longer available.');
+    }
+
+    const featured = selectFeaturedRoast(allRoasts);
+    const card = document.getElementById('roastOfTheWeekCard');
+    if (card && featured && featured.roast.id === roastId) {
+        return highlightCard(card);
+    }
+
+    const titleEl = document.getElementById('pairDetailTitle');
+    const bodyEl = document.getElementById('pairDetailBody');
+    const modalEl = document.getElementById('pairDetailModal');
+    if (!titleEl || !bodyEl || !modalEl) return;
+
+    const when = roastMillis(roast);
+    titleEl.textContent = `Roast: ${getPlayerDisplayName(roast.targetPlayerId) || roast.targetPlayerName || ''}`;
+    bodyEl.innerHTML = `
+        <div class="text-light fst-italic mb-3" style="font-size:1rem; line-height:1.55;">"${esc(roast.roastText || '')}"</div>
+        <div class="small text-muted border-top border-secondary border-opacity-25 pt-2 d-flex flex-wrap justify-content-between gap-2">
+            <span><i class="fas fa-check-circle text-info me-1"></i>Facts: ${esc(roast.facts || '—')}</span>
+            <span>${when ? esc(formatDate(new Date(when))) : ''}</span>
+        </div>`;
+    if (typeof bootstrap !== 'undefined') bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 /** Item 25: Weekly Power Rankings Computation */
@@ -4536,6 +4637,18 @@ function renderChemistryMatrix() {
 
 // One delegated listener for the whole section — chemistry controls and cells
 // carry player ids, and an inline onclick would break on any id with a quote.
+// Share buttons carry ids and player names, so they use data- attributes and a
+// delegated listener rather than inline handlers that a quote would break.
+function setupCommunityHandlers() {
+    const container = document.getElementById('communityContainer');
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+        const btn = e.target.closest('.js-share');
+        if (!btn) return;
+        copyShareLink(btn.dataset.shareType, btn.dataset.shareId, btn.dataset.shareTitle || 'Elderly Support League', e);
+    });
+}
+
 function setupChemistryHandlers() {
     const container = document.getElementById('insightsContainer');
     if (!container) return;
@@ -4931,6 +5044,7 @@ function fetchRoasts(mode = 'public') {
             snap.forEach(doc => {
                 allRoasts.push({ id: doc.id, ...doc.data() });
             });
+            renderPublishedRoastsList();
             renderCommunityTab(allMatches);
         }, err => noteCommunityFeedError('roasts', err));
     } catch (e) {
@@ -4944,6 +5058,7 @@ window.openRoastStudio = async () => {
     loadRoastCandidates();
     populateFixtureVenueSelect();
     renderExistingFixturesList();
+    renderPublishedRoastsList();
     loadRoastSettingsUI();
 };
 
@@ -5349,6 +5464,109 @@ function renderExistingFixturesList() {
     }).join('');
 }
 
+/* ----------------------------------------------------------------------
+   Roast management: list every roast and delete any of them.
+   Deletion is a direct Firestore write — firestore.rules already restricts
+   `roasts` writes to the admin, so no Cloud Function is needed. The admin
+   listener is unconstrained, so this list sees drafts too.
+   ---------------------------------------------------------------------- */
+function renderPublishedRoastsList() {
+    const list = document.getElementById('publishedRoastsList');
+    const badge = document.getElementById('roastCountBadge');
+    if (!list) return;
+
+    const sorted = [...(allRoasts || [])].sort((a, b) => roastMillis(b) - roastMillis(a));
+    if (badge) badge.textContent = String(sorted.length);
+
+    if (sorted.length === 0) {
+        list.innerHTML = '<div class="text-muted small">No roasts published yet.</div>';
+        return;
+    }
+
+    const featured = selectFeaturedRoast(allRoasts);
+    const featuredId = featured ? featured.roast.id : null;
+
+    list.innerHTML = sorted.map(r => {
+        const when = roastMillis(r);
+        const isLive = r.id === featuredId;
+        const statusBadge = isLive
+            ? `<span class="badge bg-danger bg-opacity-25 text-danger font-monospace fw-bold" style="font-size:0.65rem">ON COMMUNITY TAB</span>`
+            : `<span class="badge bg-secondary font-monospace" style="font-size:0.65rem">${esc(String(r.status || 'unknown').toUpperCase())}</span>`;
+        return `
+        <div class="p-2 rounded bg-dark border border-secondary">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+                <div style="min-width:0">
+                    <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                        <b class="text-white small">${esc(r.targetPlayerName || 'Unknown')}</b>
+                        <small class="text-muted">${when ? esc(formatDate(new Date(when))) : 'No date'}</small>
+                        ${statusBadge}
+                    </div>
+                    <small class="text-muted d-block fst-italic" style="font-size:0.75rem; overflow-wrap:anywhere">"${esc(r.roastText || '')}"</small>
+                </div>
+                <button class="btn btn-sm btn-outline-danger py-1 px-2 js-delete-roast" data-roast-id="${esc(r.id)}" style="font-size:0.75rem" title="Delete roast">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+window.confirmDeleteRoast = (roastId) => {
+    if (!isSuperAdmin(currentUser)) return alert('Admin login required.');
+    const r = (allRoasts || []).find(x => x.id === roastId);
+    if (!r) return;
+
+    const summary = document.getElementById('deleteRoastSummary');
+    const target = document.getElementById('deleteRoastTargetId');
+    if (target) target.value = roastId;
+    if (summary) {
+        const when = roastMillis(r);
+        summary.innerHTML = `
+            <div class="mb-2"><b>Target:</b> ${esc(r.targetPlayerName || 'Unknown')}</div>
+            <div class="mb-2"><b>Published:</b> ${when ? esc(formatDate(new Date(when))) : 'Unknown'}</div>
+            <div class="mb-2"><b>Intensity:</b> ${esc(String(r.intensity || 3))}/5</div>
+            <div class="border-top border-secondary pt-2 mt-2 fst-italic text-muted" style="overflow-wrap:anywhere">"${esc(r.roastText || '')}"</div>`;
+    }
+
+    const modalEl = document.getElementById('deleteRoastModal');
+    if (modalEl && typeof bootstrap !== 'undefined') bootstrap.Modal.getOrCreateInstance(modalEl).show();
+};
+
+window.executeDeleteRoast = async () => {
+    const target = document.getElementById('deleteRoastTargetId');
+    const id = target ? target.value : '';
+    if (!id) return;
+
+    const modalEl = document.getElementById('deleteRoastModal');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
+
+    const load = document.getElementById('loadingOverlay');
+    if (load) load.classList.remove('d-none');
+    try {
+        await db.collection('roasts').doc(id).delete();
+        showToast('Roast deleted.');
+        // The admin snapshot listener refreshes allRoasts and the Community tab;
+        // this list lives in a modal the listener does not know about.
+        renderPublishedRoastsList();
+    } catch (err) {
+        alert('Delete failed: ' + err.message);
+    } finally {
+        if (load) load.classList.add('d-none');
+    }
+};
+
+function setupRoastAdminHandlers() {
+    const list = document.getElementById('publishedRoastsList');
+    if (!list) return;
+    list.addEventListener('click', (e) => {
+        const btn = e.target.closest('.js-delete-roast');
+        if (btn) confirmDeleteRoast(btn.dataset.roastId);
+    });
+}
+
 window.recordResultShortcut = (fixtureId) => {
     const f = allFixtures.find(x => x.id === fixtureId);
     if (!f || !f.squads || f.squads.length < 2) return;
@@ -5475,6 +5693,75 @@ window.saveRoastSettingsHandler = async () => {
     }
 };
 
+/* ======================================================================
+   ITEM 13: FIXTURE & ROAST LIFECYCLE
+   ----------------------------------------------------------------------
+   Neither card used to expire. A fixture stayed pinned as "NEXT GAME" with
+   a "Kickoff imminent" countdown long after it was played, and the first
+   scheduled document won regardless of date, so several scheduled fixtures
+   meant an arbitrary one was featured. A roast sat as "OF THE WEEK"
+   indefinitely.
+   ====================================================================== */
+const FIXTURE_GRACE_MS  = 3 * 60 * 60 * 1000;       // still "next" while being played
+const FIXTURE_AWAIT_MS  = 7 * 24 * 60 * 60 * 1000;  // then "awaiting result" for a week
+const ROAST_FRESH_MS    = 7 * 24 * 60 * 60 * 1000;  // "of the week" only while true
+const ROAST_STALE_MS    = 30 * 24 * 60 * 60 * 1000; // retired from the tab after this
+
+function fixtureMillis(f) {
+    if (!f || !f.date) return 0;
+    const d = f.date.toDate ? f.date.toDate() : new Date(f.date);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+/**
+ * The fixture the Community tab should feature, if any.
+ * Returns { fixture, state } where state is 'upcoming' or 'awaiting'.
+ */
+function selectFeaturedFixture(fixtures, now = Date.now()) {
+    const scheduled = (fixtures || []).filter(f =>
+        f.status === 'scheduled' && f.squads && f.squads.length >= 2 && fixtureMillis(f) > 0);
+    if (scheduled.length === 0) return null;
+
+    // Soonest still-upcoming fixture wins — not simply the first one found.
+    const upcoming = scheduled
+        .filter(f => fixtureMillis(f) >= now - FIXTURE_GRACE_MS)
+        .sort((a, b) => fixtureMillis(a) - fixtureMillis(b));
+    if (upcoming.length > 0) return { fixture: upcoming[0], state: 'upcoming' };
+
+    // Recently played but never recorded: prompt instead of pretending it's next.
+    const overdue = scheduled
+        .filter(f => now - fixtureMillis(f) <= FIXTURE_AWAIT_MS)
+        .sort((a, b) => fixtureMillis(b) - fixtureMillis(a));
+    if (overdue.length > 0) return { fixture: overdue[0], state: 'awaiting' };
+
+    return null;
+}
+
+function roastMillis(r) {
+    if (!r) return 0;
+    const t = r.publishedAt || r.createdAt;
+    if (!t) return 0;
+    if (t.toMillis) return t.toMillis();
+    const d = t.toDate ? t.toDate() : new Date(t);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+/**
+ * The roast to feature. Returns { roast, fresh } — `fresh` false means it is
+ * shown, but no longer billed as this week's.
+ */
+function selectFeaturedRoast(roasts, now = Date.now()) {
+    const published = (roasts || [])
+        .filter(r => r.status === 'published')
+        .sort((a, b) => roastMillis(b) - roastMillis(a));
+    if (published.length === 0) return null;
+
+    const latest = published[0];
+    const age = now - roastMillis(latest);
+    if (roastMillis(latest) > 0 && age > ROAST_STALE_MS) return null;
+    return { roast: latest, fresh: roastMillis(latest) === 0 || age <= ROAST_FRESH_MS };
+}
+
 function formatCountdown(targetDate) {
     if (!targetDate || isNaN(targetDate.getTime())) return '';
     const now = new Date();
@@ -5510,10 +5797,15 @@ async function renderCommunityTab(matches, forcedMonth = null) {
 
     // 1. CARD 1: NEXT GAME SCHEDULED (Item 42)
     let nextGameHtml = '';
-    const scheduledFixture = allFixtures.find(f => f.status === 'scheduled');
-    if (scheduledFixture && scheduledFixture.squads && scheduledFixture.squads.length >= 2) {
+    const featuredFixture = selectFeaturedFixture(allFixtures);
+    const scheduledFixture = featuredFixture ? featuredFixture.fixture : null;
+    if (scheduledFixture) {
+        const awaitingResult = featuredFixture.state === 'awaiting';
         const fDate = scheduledFixture.date ? (scheduledFixture.date.toDate ? scheduledFixture.date.toDate() : new Date(scheduledFixture.date)) : null;
-        const countdownStr = fDate ? formatCountdown(fDate) : 'Upcoming';
+        // A fixture whose date has passed is awaiting a result, not imminent.
+        const countdownStr = awaitingResult
+            ? `Played ${fDate ? formatDate(fDate) : ''} — result not recorded`
+            : (fDate ? formatCountdown(fDate) : 'Upcoming');
         const dateDisplay = fDate ? formatDate(fDate) : 'Upcoming';
 
         const eloData = computeEloRatings(matches).ratings || {};
@@ -5523,15 +5815,15 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         const avgElo2 = sq2.players?.length ? Math.round(sq2.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq2.players.length) : STARTING_ELO;
 
         nextGameHtml = `
-        <div class="card bg-dark border-info border-opacity-75 p-3 mb-4 shadow-sm" id="nextGameScheduledCard">
-            <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-50">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-info text-dark fw-bold"><i class="far fa-calendar-alt me-1"></i>NEXT GAME</span>
-                    <span class="text-white small fw-bold"><i class="far fa-clock me-1 text-info"></i>${esc(countdownStr)}</span>
+        <div class="card bg-dark ${awaitingResult ? 'border-warning' : 'border-info'} border-opacity-75 p-3 mb-4 shadow-sm" id="nextGameScheduledCard">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary border-opacity-50">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="badge ${awaitingResult ? 'bg-warning' : 'bg-info'} text-dark fw-bold"><i class="far fa-calendar-alt me-1"></i>${awaitingResult ? 'AWAITING RESULT' : 'NEXT GAME'}</span>
+                    <span class="text-white small fw-bold"><i class="far fa-clock me-1 ${awaitingResult ? 'text-warning' : 'text-info'}"></i>${esc(countdownStr)}</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="text-muted small"><i class="fas fa-map-marker-alt text-primary me-1"></i>${esc(scheduledFixture.venue || 'Sportgebouw Bibian Mentel')}</span>
-                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none" onclick="copyShareLink('fixture', '${scheduledFixture.id}', 'Next Fixture — Elderly Support', event)" title="Share Fixture"><i class="fas fa-share-alt"></i></button>
+                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none js-share" data-share-type="fixture" data-share-id="${esc(scheduledFixture.id)}" data-share-title="Next Fixture — Elderly Support" title="Share Fixture"><i class="fas fa-share-alt"></i></button>
                 </div>
             </div>
             
@@ -5566,30 +5858,21 @@ async function renderCommunityTab(matches, forcedMonth = null) {
 
     // 2. CARD 2: ROAST OF THE WEEK (Item 42)
     let roastHtml = '';
-    // Sort explicitly: an unordered snapshot arrives in document-ID order, so
-    // taking the last element gave an arbitrary roast rather than the newest.
-    const roastMillis = (r) => {
-        const t = r.publishedAt || r.createdAt;
-        if (!t) return 0;
-        if (t.toMillis) return t.toMillis();
-        const d = t.toDate ? t.toDate() : new Date(t);
-        return isNaN(d.getTime()) ? 0 : d.getTime();
-    };
-    const publishedRoasts = allRoasts
-        .filter(r => r.status === 'published')
-        .sort((a, b) => roastMillis(b) - roastMillis(a));
-    if (publishedRoasts.length > 0) {
-        const latestRoast = publishedRoasts[0];
+    // Newest published roast, retired from the tab once it goes stale (item 13).
+    const featuredRoast = selectFeaturedRoast(allRoasts);
+    if (featuredRoast) {
+        const latestRoast = featuredRoast.roast;
+        const roastIsFresh = featuredRoast.fresh;
         roastHtml = `
-        <div class="card bg-dark border-danger p-3 mb-4 shadow-sm" id="roastOfTheWeekCard">
-            <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-50">
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-danger text-white fw-bold"><i class="fas fa-fire me-1"></i>ROAST OF THE WEEK</span>
+        <div class="card bg-dark ${roastIsFresh ? 'border-danger' : 'border-secondary'} p-3 mb-4 shadow-sm" id="roastOfTheWeekCard">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary border-opacity-50">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="badge ${roastIsFresh ? 'bg-danger' : 'bg-secondary'} text-white fw-bold"><i class="fas fa-fire me-1"></i>${roastIsFresh ? 'ROAST OF THE WEEK' : 'LATEST ROAST'}</span>
                     <span class="text-muted small">Target: <b class="text-white">${esc(latestRoast.targetPlayerName)}</b></span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <span class="badge bg-secondary font-monospace" style="font-size:0.7rem">Intensity ${latestRoast.intensity || 3}/5</span>
-                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none" onclick="copyShareLink('roast', '${latestRoast.id}', 'Roast: ${esc(latestRoast.targetPlayerName)}', event)" title="Share Roast"><i class="fas fa-share-alt"></i></button>
+                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none js-share" data-share-type="roast" data-share-id="${esc(latestRoast.id)}" data-share-title="Roast: ${esc(latestRoast.targetPlayerName)}" title="Share Roast"><i class="fas fa-share-alt"></i></button>
                 </div>
             </div>
             <div class="text-light fst-italic my-2" style="font-size:0.95rem; line-height:1.5;">"${esc(latestRoast.roastText)}"</div>
