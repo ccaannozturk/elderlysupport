@@ -436,17 +436,30 @@ const RECAP_SILENCE_THRESHOLD = 65;
 
 function getMatchTime(m) {
   if (!m || !m.date) return 0;
-  if (m.date.value) return new Date(m.date.value).getTime();
-  if (m.date.toMillis && typeof m.date.toMillis === 'function') return m.date.toMillis();
-  if (m.date.toDate && typeof m.date.toDate === 'function') return m.date.toDate().getTime();
-  return new Date(m.date).getTime();
+  if (typeof m.date === 'number') return m.date;
+  if (m.date.value) {
+    const t = new Date(m.date.value).getTime();
+    if (!isNaN(t)) return t;
+  }
+  if (typeof m.date.toMillis === 'function') {
+    try { return m.date.toMillis(); } catch (e) {}
+  }
+  if (typeof m.date.toDate === 'function') {
+    try { return m.date.toDate().getTime(); } catch (e) {}
+  }
+  if (typeof m.date._seconds === 'number') {
+    return m.date._seconds * 1000 + Math.round((m.date._nanoseconds || 0) / 1000000);
+  }
+  if (typeof m.date.seconds === 'number') {
+    return m.date.seconds * 1000 + Math.round((m.date.nanoseconds || 0) / 1000000);
+  }
+  const t = new Date(m.date).getTime();
+  return isNaN(t) ? 0 : t;
 }
 
 function getMatchDate(m) {
-  if (!m || !m.date) return new Date(0);
-  if (m.date.value) return new Date(m.date.value);
-  if (m.date.toDate && typeof m.date.toDate === 'function') return m.date.toDate();
-  return new Date(m.date);
+  const ms = getMatchTime(m);
+  return new Date(ms);
 }
 
 function computeExpectedScore(rA, rB) {
@@ -932,70 +945,71 @@ function computeMatchAngles(allMatches, targetMatchId, nameResolver = (id) => id
 
 /** 5. Item 33: Match Recap Blurbs */
 exports.generateMatchRecap = functions.https.onCall(async (data, context) => {
-  assertAdmin(context);
+  try {
+    assertAdmin(context);
 
-  const matchId = data && data.matchId ? String(data.matchId).trim() : '';
-  if (!matchId) {
-    throw new functions.https.HttpsError('invalid-argument', 'Match ID is required.');
-  }
+    const matchId = data && data.matchId ? String(data.matchId).trim() : '';
+    if (!matchId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Match ID is required.');
+    }
 
-  const keyDoc = await db.collection('config').doc('gemini').get();
-  if (!keyDoc.exists || !keyDoc.data().apiKey) {
-    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
-  }
-  const apiKey = keyDoc.data().apiKey;
+    const keyDoc = await db.collection('config').doc('gemini').get();
+    if (!keyDoc.exists || !keyDoc.data().apiKey) {
+      throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
+    }
+    const apiKey = keyDoc.data().apiKey;
 
-  const metaDoc = await db.collection('config').doc('gemini_meta').get();
-  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
+    const metaDoc = await db.collection('config').doc('gemini_meta').get();
+    const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
 
-  // Fetch all matches and players for deterministic timeline & stats
-  const matchesSnap = await db.collection('matches_v2').get();
-  const allMatches = [];
-  matchesSnap.forEach(d => {
-    allMatches.push({ id: d.id, ...d.data() });
-  });
+    // Fetch all matches and players for deterministic timeline & stats
+    const matchesSnap = await db.collection('matches_v2').get();
+    const allMatches = [];
+    matchesSnap.forEach(d => {
+      allMatches.push({ id: d.id, ...d.data() });
+    });
 
-  const targetMatch = allMatches.find(m => m.id === matchId);
-  if (!targetMatch) {
-    throw new functions.https.HttpsError('not-found', 'Match document not found.');
-  }
+    const targetMatch = allMatches.find(m => m.id === matchId);
+    if (!targetMatch) {
+      throw new functions.https.HttpsError('not-found', 'Match document not found.');
+    }
 
-  const playersSnap = await db.collection('players_v2').get();
-  const nameMap = new Map();
-  playersSnap.forEach(d => {
-    nameMap.set(d.id, d.data().displayName || d.id);
-  });
-  const getName = (id) => nameMap.get(id) || id;
+    const playersSnap = await db.collection('players_v2').get();
+    const nameMap = new Map();
+    playersSnap.forEach(d => {
+      nameMap.set(d.id, d.data().displayName || d.id);
+    });
+    const getName = (id) => nameMap.get(id) || id;
 
-  // Compute deterministic angle
-  const angleRes = computeMatchAngles(allMatches, matchId, getName);
+    // Compute deterministic angle
+    const angleRes = computeMatchAngles(allMatches, matchId, getName);
 
-  // Step 2: Silence Threshold - if no angle cleared threshold, store null recap
-  if (angleRes.isSilent || !angleRes.topAngle) {
-    await db.collection('matches_v2').doc(matchId).set({
-      recap: null,
-      recapAngle: null,
-      recapScore: angleRes.highestScore,
-      recapModel: null,
-      recapGeneratedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    // Step 2: Silence Threshold - if no angle cleared threshold, store null recap
+    if (angleRes.isSilent || !angleRes.topAngle) {
+      await db.collection('matches_v2').doc(matchId).set({
+        recap: null,
+        recapAngle: null,
+        recapScore: angleRes.highestScore,
+        recapModel: null,
+        recapGeneratedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
 
-    return {
-      ok: true,
-      recap: null,
-      angle: null,
-      score: angleRes.highestScore,
-      isSilent: true,
-      reason: angleRes.silenceReason
-    };
-  }
+      return {
+        ok: true,
+        recap: null,
+        angle: null,
+        score: angleRes.highestScore,
+        isSilent: true,
+        reason: angleRes.silenceReason
+      };
+    }
 
-  const topAngle = angleRes.topAngle;
-  const teamAName = (targetMatch.teams && targetMatch.teams[0] && targetMatch.teams[0].teamName) || 'Team A';
-  const teamBName = (targetMatch.teams && targetMatch.teams[1] && targetMatch.teams[1].teamName) || 'Team B';
+    const topAngle = angleRes.topAngle;
+    const teamAName = (targetMatch.teams && targetMatch.teams[0] && targetMatch.teams[0].teamName) || 'Team A';
+    const teamBName = (targetMatch.teams && targetMatch.teams[1] && targetMatch.teams[1].teamName) || 'Team B';
 
-  // Step 3: Minimal 1-Sentence Prompt
-  const prompt = `You are the official match reporter for the Elderly Support recreational football league in Amsterdam.
+    // Step 3: Minimal 1-Sentence Prompt
+    const prompt = `You are the official match reporter for the Elderly Support recreational football league in Amsterdam.
 Write a single, compelling ONE-SENTENCE match recap highlighting the specific angle and verified facts below.
 
 TEAM NAMES (playful group in-jokes):
@@ -1016,42 +1030,49 @@ STRICT FACTUAL RULES:
 {"recap": "Single sentence recap text."}
 `;
 
-  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
-  let recapText = '';
-  try {
-    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-    const parsed = JSON.parse(cleaned);
-    recapText = parsed.recap || cleaned;
-  } catch (e) {
-    recapText = geminiRes.text.replace(/[{}"]/g, '').trim();
-  }
-
-  // Enforce strict 1-sentence cap
-  if (recapText) {
-    const sentenceMatch = recapText.match(/^.*?[.!?](?:\s|$)/);
-    if (sentenceMatch && sentenceMatch[0] && sentenceMatch[0].trim().length > 10) {
-      recapText = sentenceMatch[0].trim();
+    const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+    let recapText = '';
+    try {
+      const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(cleaned);
+      recapText = parsed.recap || cleaned;
+    } catch (e) {
+      recapText = geminiRes.text.replace(/[{}"]/g, '').trim();
     }
+
+    // Enforce strict 1-sentence cap
+    if (recapText) {
+      const sentenceMatch = recapText.match(/^.*?[.!?](?:\s|$)/);
+      if (sentenceMatch && sentenceMatch[0] && sentenceMatch[0].trim().length > 10) {
+        recapText = sentenceMatch[0].trim();
+      }
+    }
+
+    // Store cached recap, angle, score, model on match document
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    await db.collection('matches_v2').doc(matchId).set({
+      recap: recapText,
+      recapAngle: topAngle.type,
+      recapScore: topAngle.score,
+      recapModel: geminiRes.modelUsed,
+      recapGeneratedAt: now
+    }, { merge: true });
+
+    return {
+      ok: true,
+      recap: recapText,
+      angle: topAngle.type,
+      score: topAngle.score,
+      modelUsed: geminiRes.modelUsed,
+      fellBackFrom: geminiRes.fellBackFrom || null
+    };
+  } catch (err) {
+    console.error('generateMatchRecap error:', err);
+    if (err instanceof functions.https.HttpsError) {
+      throw err;
+    }
+    throw new functions.https.HttpsError('internal', err.message || 'Failed to generate recap.');
   }
-
-  // Store cached recap, angle, score, model on match document
-  const now = admin.firestore.FieldValue.serverTimestamp();
-  await db.collection('matches_v2').doc(matchId).set({
-    recap: recapText,
-    recapAngle: topAngle.type,
-    recapScore: topAngle.score,
-    recapModel: geminiRes.modelUsed,
-    recapGeneratedAt: now
-  }, { merge: true });
-
-  return {
-    ok: true,
-    recap: recapText,
-    angle: topAngle.type,
-    score: topAngle.score,
-    modelUsed: geminiRes.modelUsed,
-    fellBackFrom: geminiRes.fellBackFrom || null
-  };
 });
 
 /** 6. Item 34: Natural Language Stats Query */

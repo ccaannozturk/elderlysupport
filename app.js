@@ -2122,9 +2122,8 @@ function renderMatchesList(filtered) {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
     const isMonthFiltered = (fMonth && fMonth.value !== 'all');
-    const isYearFiltered = (fYear && fYear.value !== 'all');
-    const isAllTime = (!isMonthFiltered && !isYearFiltered);
-    const activeQualifier = minAppearancesForPeriod(filtered.length, isAllTime);
+    const isAllTime = !isMonthFiltered;
+    const activeQualifier = isAllTime ? MIN_APPEARANCES_PPG : minAppearancesForPeriod(filtered.length, false);
 
     let startEloRatings = {};
     let endEloRatings = {};

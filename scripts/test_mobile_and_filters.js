@@ -103,9 +103,9 @@ assert(appSrc.includes('data-player-id="${esc(pId)}">${esc(name)}</span>'), 'Pil
 console.log("✓ Names with apostrophes (e.g. Liam O'Brien) work safely without breaking inline JS handlers.\n");
 
 // ----------------------------------------------------------------------
-// [Test 4] Qualifier Scaling: minAppearancesForPeriod
+// [Test 4] Qualifier Scaling & All-Months 10-Game Qualifier Rule
 // ----------------------------------------------------------------------
-console.log('[Test 4] Period Qualifier Threshold Function:');
+console.log('[Test 4] Period Qualifier Threshold Function & All-Months Rule:');
 
 const allTimeQualifier = minAppearancesForPeriod(65, true);
 const fiveMatchMonthQualifier = minAppearancesForPeriod(5, false);
@@ -125,7 +125,23 @@ assert.strictEqual(fourMatchMonthQualifier, 2, '4-match month qualifier must be 
 assert.strictEqual(eightMatchQualifier, 4, '8-match period qualifier must be 4');
 assert.strictEqual(singleMatchQualifier, 2, 'Qualifier must never be below 2');
 
-console.log('✓ minAppearancesForPeriod mathematically verified across all scenarios.\n');
+assert(appSrc.includes('const isAllTime = !isMonthFiltered;'), 'All months selected must set isAllTime to true');
+assert(appSrc.includes('const activeQualifier = isAllTime ? MIN_APPEARANCES_PPG : minAppearancesForPeriod(filtered.length, false);'), 'activeQualifier must be 10 for all months');
+assert(!appSrc.includes('appearence'), 'Codebase must use correct spelling "appearances"');
+
+console.log('✓ minAppearancesForPeriod & All-Months 10-game qualifier verified.\n');
+
+// ----------------------------------------------------------------------
+// [Test 4B] Sticky Left Column for Mobile Chemistry Map
+// ----------------------------------------------------------------------
+console.log('[Test 4B] Sticky Left Column in Chemistry Matrix:');
+
+assert(indexSrc.includes('.heatmap-table th:first-child'), 'index.html must include sticky th:first-child for heatmap');
+assert(indexSrc.includes('.heatmap-table td:first-child'), 'index.html must include sticky td:first-child for heatmap');
+assert(indexSrc.includes('position: sticky;'), 'Heatmap column must use position: sticky');
+assert(indexSrc.includes('left: 0;'), 'Heatmap column must be pinned to left: 0');
+
+console.log('✓ Sticky left column on vertical axis verified: player names stay pinned while swiping right.\n');
 
 // ----------------------------------------------------------------------
 // [Test 5] Monthly Elo Delta Computation from Chronological Chain

@@ -198,9 +198,11 @@
             border: 1px solid var(--border);
             border-radius: 8px;
             background: #0d1117;
+            -webkit-overflow-scrolling: touch;
         }
         .heatmap-table {
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 0;
             font-size: 0.72rem;
             width: 100%;
             min-width: 600px;
@@ -208,13 +210,32 @@
         .heatmap-table th, .heatmap-table td {
             padding: 6px 8px;
             text-align: center;
-            border: 1px solid #21262d;
+            border-right: 1px solid #21262d;
+            border-bottom: 1px solid #21262d;
             white-space: nowrap;
         }
         .heatmap-table th {
             background: #161b22;
             color: var(--text-muted);
             font-weight: 700;
+        }
+        /* Sticky Left Column for Player Names on Mobile / Desktop */
+        .heatmap-table th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background: #161b22;
+            box-shadow: 2px 0 6px rgba(0, 0, 0, 0.6);
+        }
+        .heatmap-table td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            background: #161b22 !important;
+            box-shadow: 2px 0 6px rgba(0, 0, 0, 0.6);
+            font-weight: bold;
+            text-align: left;
+            padding-left: 10px;
         }
         .heatmap-cell-good { background: rgba(46, 160, 67, 0.25); color: #3fb950; font-weight: 700; }
         .heatmap-cell-avg { background: rgba(210, 153, 34, 0.25); color: #f0883e; font-weight: 700; }
