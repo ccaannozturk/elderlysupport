@@ -1957,6 +1957,23 @@ function processTeamStats(stats, playerArr, gf, ga, pts, isStandard = false) {
     });
 }
 
+function minAppearancesForPeriod(matchesInPeriod, isAllTime = false) {
+    if (isAllTime) return MIN_APPEARANCES_PPG; // 10
+    return Math.max(2, Math.ceil(matchesInPeriod * 0.4));
+}
+
+function updateFilterVisibility() {
+    const filterContainer = document.getElementById('dateFilterContainer');
+    if (!filterContainer) return;
+    const activeTab = document.querySelector('#myTab .nav-link.active');
+    const target = activeTab ? activeTab.getAttribute('data-bs-target') : '#matches';
+    if (target === '#matches' || target === '#leaderboard') {
+        filterContainer.classList.remove('d-none');
+    } else {
+        filterContainer.classList.add('d-none');
+    }
+}
+
 function renderData() {
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
@@ -1968,6 +1985,10 @@ function renderData() {
     // Recompute All-Time Elo Ratings from scratch
     computeEloRatings(allMatches);
 
+    renderMatchesList(filtered);
+}
+
+function renderMatchesList(filtered) {
     const list = document.getElementById('match-history-list');
     if(list) {
         list.innerHTML = "";
@@ -1975,6 +1996,14 @@ function renderData() {
         if(filtered.length === 0) {
             list.innerHTML = "<div class='text-center py-5 text-muted small'>No matches found.</div>";
         } else {
+            const renderPlayerPills = (playerIds) => {
+                if (!playerIds || playerIds.length === 0) return '';
+                return playerIds.map(pId => {
+                    const name = getPlayerDisplayName(pId);
+                    return `<span class="player-pill" data-player-id="${esc(pId)}">${esc(name)}</span>`;
+                }).join(', ');
+            };
+
             filtered.forEach(m => {
                 const dateStr = formatDate(m.date.toDate());
                 let adminBtns = "";
@@ -2000,11 +2029,11 @@ function renderData() {
                     const cA=m.colors?.[0]||'blue', cB=m.colors?.[1]||'red';
                     const winA = tA.score > tB.score ? 'text-white' : 't-loser';
                     const winB = tB.score > tA.score ? 'text-white' : 't-loser';
-                    const pA = esc((tA.players||[]).map(p => getPlayerDisplayName(p)).join(', '));
-                    const pB = esc((tB.players||[]).map(p => getPlayerDisplayName(p)).join(', '));
+                    const pA = renderPlayerPills(tA.players);
+                    const pB = renderPlayerPills(tB.players);
 
                     html = `
-                    <div class="match-card" id="match-${m.id}" onclick="openPlayerStats('${(tA.players||[])[0] || ''}')">
+                    <div class="match-card" id="match-${m.id}">
                         <div class="card-top d-flex justify-content-between align-items-center">
                             <span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> 
                             <div class="d-flex align-items-center">${ytLink}${shareBtn}</div>
@@ -2040,15 +2069,15 @@ function renderData() {
                     const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
 
                     html = `
-                    <div class="match-card" id="match-${m.id}" onclick="openPlayerStats('${(r1.players||[])[0] || ''}')" style="border-left: 3px solid #ffea00;">
+                    <div class="match-card" id="match-${m.id}" style="border-left: 3px solid #ffea00;">
                         <div class="card-top d-flex justify-content-between align-items-center">
                             <span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> 
                             <div class="d-flex align-items-center">${ytLink}${shareBtn}</div>
                         </div>
                         <div class="p-3 bg-card">
-                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${esc(r1.teamName)} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${esc((r1.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
-                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${esc(r2.teamName)} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${esc((r2.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
-                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${esc(r3.teamName)} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${esc((r3.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${esc(r1.teamName)} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${renderPlayerPills(r1.players)}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${esc(r2.teamName)} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${renderPlayerPills(r2.players)}</div></div>
+                            <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted opacity-50"><span class="rank-badge bg-secondary">3</span> <span class="dot bg-${getCol(r3)}"></span> ${esc(r3.teamName)} <span class="text-muted opacity-50 ms-1" style="font-size:0.75rem">${pts3}</span></span></div><div style="font-size:0.75rem; color:#555; margin-left:32px">${renderPlayerPills(r3.players)}</div></div>
                         </div>
                         ${recapHtml}
                         ${adminBtns}
@@ -2056,6 +2085,19 @@ function renderData() {
                 }
                 list.innerHTML += html;
             });
+
+            // Delegated click listener for player pills
+            if (!list.dataset.delegatedBound) {
+                list.dataset.delegatedBound = 'true';
+                list.addEventListener('click', (e) => {
+                    const pill = e.target.closest('[data-player-id]');
+                    if (pill) {
+                        e.stopPropagation();
+                        const pId = pill.getAttribute('data-player-id');
+                        if (pId) openPlayerStats(pId);
+                    }
+                });
+            }
         }
     }
 
@@ -2077,18 +2119,92 @@ function renderData() {
         }
     });
 
+    const fYear = document.getElementById('filterYear');
+    const fMonth = document.getElementById('filterMonth');
+    const isMonthFiltered = (fMonth && fMonth.value !== 'all');
+    const isYearFiltered = (fYear && fYear.value !== 'all');
+    const isAllTime = (!isMonthFiltered && !isYearFiltered);
+    const activeQualifier = minAppearancesForPeriod(filtered.length, isAllTime);
+
+    let startEloRatings = {};
+    let endEloRatings = {};
+    let endEloMatchCounts = {};
+
+    if (isMonthFiltered && filtered.length > 0) {
+        const selectedYear = fYear && fYear.value !== 'all' ? parseInt(fYear.value) : 2026;
+        const selectedMonth = parseInt(fMonth.value);
+
+        // Matches strictly before this month
+        const matchesBeforeMonth = allMatches.filter(m => {
+            const d = m.date && m.date.toDate ? m.date.toDate() : new Date(m.date);
+            const y = d.getFullYear();
+            const mo = d.getMonth();
+            if (y < selectedYear) return true;
+            if (y === selectedYear && mo < selectedMonth) return true;
+            return false;
+        });
+
+        // Matches up to and including this month
+        const matchesUpToMonthEnd = allMatches.filter(m => {
+            const d = m.date && m.date.toDate ? m.date.toDate() : new Date(m.date);
+            const y = d.getFullYear();
+            const mo = d.getMonth();
+            if (y < selectedYear) return true;
+            if (y === selectedYear && mo <= selectedMonth) return true;
+            return false;
+        });
+
+        const startEloData = computeEloRatings(matchesBeforeMonth);
+        const endEloData = computeEloRatings(matchesUpToMonthEnd);
+        startEloRatings = startEloData.ratings || {};
+        endEloRatings = endEloData.ratings || {};
+        endEloMatchCounts = endEloData.matchCounts || {};
+    }
+
     const tbody = document.getElementById('leaderboard-body');
     if(tbody) {
         tbody.innerHTML = "";
         
         const players = Object.values(stats).map(p => {
-            const eloObj = latestEloMap.get(p.id);
+            let displayElo = STARTING_ELO;
+            let rawEloVal = STARTING_ELO;
+            let eloBadge = '';
+
+            if (isMonthFiltered) {
+                const endR = Math.round(endEloRatings[p.id] !== undefined ? endEloRatings[p.id] : STARTING_ELO);
+                const startR = Math.round(startEloRatings[p.id] !== undefined ? startEloRatings[p.id] : STARTING_ELO);
+                const delta = endR - startR;
+                const careerCapsAtEnd = endEloMatchCounts[p.id] || 0;
+                const isProv = careerCapsAtEnd < MIN_GAMES_RANKED_ELO;
+
+                displayElo = endR;
+                rawEloVal = endR;
+
+                let deltaBadge = '';
+                if (delta > 0) {
+                    deltaBadge = `<span class="badge bg-success bg-opacity-25 text-success ms-1 fw-bold" style="font-size:0.72rem">+${delta}</span>`;
+                } else if (delta < 0) {
+                    deltaBadge = `<span class="badge bg-danger bg-opacity-25 text-danger ms-1 fw-bold" style="font-size:0.72rem">${delta}</span>`;
+                } else {
+                    deltaBadge = `<span class="badge bg-secondary bg-opacity-25 text-muted ms-1" style="font-size:0.72rem">0</span>`;
+                }
+
+                const provTag = isProv ? `<span class="badge-provisional ms-1" title="Provisional — ${careerCapsAtEnd}/${MIN_GAMES_RANKED_ELO} career games">?</span>` : '';
+                eloBadge = `${deltaBadge}${provTag}`;
+            } else {
+                const eloObj = latestEloMap.get(p.id);
+                displayElo = eloObj ? eloObj.rating : STARTING_ELO;
+                rawEloVal = eloObj ? eloObj.rawRating : STARTING_ELO;
+                const isProv = eloObj ? eloObj.isProvisional : (p.played < MIN_GAMES_RANKED_ELO);
+                const provTag = isProv ? `<span class="badge-provisional ms-1" title="Provisional — ${(eloObj ? eloObj.matches : p.played)} of ${MIN_GAMES_RANKED_ELO} games">?</span>` : '';
+                eloBadge = provTag;
+            }
+
             return {
                 ...p,
-                elo: eloObj ? eloObj.rating : STARTING_ELO,
-                rawElo: eloObj ? eloObj.rawRating : STARTING_ELO,
-                isProvisional: eloObj ? eloObj.isProvisional : true,
-                eloMatches: eloObj ? eloObj.matches : p.played
+                elo: displayElo,
+                rawElo: rawEloVal,
+                eloBadge
             };
         }).sort((a,b) => {
             let valA = a[currentSortCol];
@@ -2104,40 +2220,47 @@ function renderData() {
             return isSortDesc ? valB - valA : valA - valB;
         });
 
-        if(players.length === 0) tbody.innerHTML = "<tr><td colspan='9' class='text-center py-4 text-muted small'>No stats available.</td></tr>";
+        if(players.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='9' class='text-center py-4 text-muted small'>No stats available for this period.</td></tr>";
+        } else {
+            const qualified = players.filter(p => p.played >= activeQualifier);
+            const unqualified = players.filter(p => p.played < activeQualifier);
 
-        const qualified = players.filter(p => p.played >= MIN_APPEARANCES_PPG);
-        const unqualified = players.filter(p => p.played < MIN_APPEARANCES_PPG);
+            const rowHtml = (p, rankLabel, i, greyed) => {
+                const ppg = (p.points / p.played).toFixed(2);
+                const rowClass = (greyed ? 'text-muted opacity-50 ' : '') + (i%2===0 ? "" : "bg-white bg-opacity-5");
+                const isGoldRank = !greyed && i===0 && currentSortCol==='points' && isSortDesc;
 
-        const rowHtml = (p, rankLabel, i, greyed) => {
-            const ppg = (p.points / p.played).toFixed(2);
-            const rowClass = (greyed ? 'text-muted opacity-50 ' : '') + (i%2===0 ? "" : "bg-white bg-opacity-5");
-            const isGoldRank = !greyed && i===0 && currentSortCol==='points' && isSortDesc;
-            const eloBadge = p.isProvisional ? `<span class="badge-provisional ms-1" title="Provisional — ${p.eloMatches} of ${MIN_GAMES_RANKED_ELO} games">?</span>` : '';
+                return `<tr data-player="${esc(p.id || p.name)}" style="cursor:pointer" class="${rowClass}">
+                    <td class="ps-3 fw-bold text-start"><span class="rank-circle ${isGoldRank?'r-1':''}">${rankLabel}</span></td>
+                    <td class="fw-bold text-start ${greyed ? '' : 'text-light'}">${esc(p.name)}</td>
+                    <td>${p.played}</td>
+                    <td>${p.won}</td>
+                    <td>${p.drawn}</td>
+                    <td>${p.lost}</td>
+                    <td class="${greyed ? '' : 'fw-bold text-white'}">${p.points}</td>
+                    <td class="${greyed ? '' : 'fw-bold text-warning'}">${p.elo}${p.eloBadge}</td>
+                    <td class="pe-3 ${greyed ? '' : 'fw-bold text-info'}">${ppg}</td>
+                </tr>`;
+            };
 
-            return `<tr data-player="${esc(p.id || p.name)}" style="cursor:pointer" class="${rowClass}">
-                <td class="ps-3 fw-bold text-start"><span class="rank-circle ${isGoldRank?'r-1':''}">${rankLabel}</span></td>
-                <td class="fw-bold text-start ${greyed ? '' : 'text-light'}">${esc(p.name)}</td>
-                <td>${p.played}</td>
-                <td>${p.won}</td>
-                <td>${p.drawn}</td>
-                <td>${p.lost}</td>
-                <td class="${greyed ? '' : 'fw-bold text-white'}">${p.points}</td>
-                <td class="${greyed ? '' : 'fw-bold text-warning'}">${p.elo}${eloBadge}</td>
-                <td class="pe-3 ${greyed ? '' : 'fw-bold text-info'}">${ppg}</td>
-            </tr>`;
-        };
+            if(qualified.length === 0 && unqualified.length > 0) {
+                tbody.innerHTML += `<tr><td colspan="9" class="text-center text-muted small py-3 border-bottom border-secondary">No players met the qualification threshold (${activeQualifier}+ appearances) for this period.</td></tr>`;
+            }
 
-        qualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, i + 1, i, false); });
+            qualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, i + 1, i, false); });
 
-        if(unqualified.length) {
-            tbody.innerHTML += `<tr><td colspan="9" class="text-center text-muted small py-2 border-top border-secondary" style="letter-spacing:1px">FEWER THAN ${MIN_APPEARANCES_PPG} APPEARANCES</td></tr>`;
-            unqualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, '-', i, true); });
+            if(unqualified.length) {
+                const dividerLabel = isAllTime ? `FEWER THAN 10 APPEARANCES (ALL-TIME)` : `FEWER THAN ${activeQualifier} APPEARANCES THIS MONTH`;
+                tbody.innerHTML += `<tr><td colspan="9" class="text-center text-muted small py-2 border-top border-secondary" style="letter-spacing:1px">${dividerLabel}</td></tr>`;
+                unqualified.forEach((p, i) => { tbody.innerHTML += rowHtml(p, '-', i, true); });
+            }
         }
     }
 
-    generateInsights(filtered);
+    generateInsights(allMatches);
     renderCommunityTab(allMatches);
+    updateFilterVisibility();
 }
 
 function generateInsights(matches) {
@@ -2154,8 +2277,8 @@ function generateInsights(matches) {
     const eloData = computeEloRatings(allMatches); // All-time chronological
     const lineupData = computeOptimalLineupAndCurse(allMatches, latestEloMap);
 
-    // 2. Chemistry & Duos (Item 19)
-    const chemData = computeChemistryMatrix(matches);
+    // 2. Chemistry & Duos (Item 19) - All-time dataset
+    const chemData = computeChemistryMatrix(allMatches);
 
     // 3. Streaks, Form & Most Improved (Item 18)
     const improvedData = computeMostImproved(allMatches, year, month);
@@ -2169,7 +2292,7 @@ function generateInsights(matches) {
     let highestScoring = null;
     let draws = 0;
 
-    matches.forEach(m => {
+    allMatches.forEach(m => {
         if (!m.teams || m.teams.length < 2) return;
         if (m.type === 'Standard') {
             const tA = m.teams[0], tB = m.teams[1];
@@ -2228,21 +2351,26 @@ function generateInsights(matches) {
         </tr>`;
     }).join('');
 
-    // C. Duo Leaderboard Tables
+    // C. Duo Leaderboard Tables (Responsive Stacked Layout for 320px+)
     const renderDuoList = (list) => {
         if (!list || list.length === 0) return `<div class="small text-muted p-3 text-center">Needs at least ${MIN_GAMES_PAIR} games together</div>`;
         return list.map((d, i) => {
-            const smallSampleBadge = (d.played >= 3 && d.played <= 4) ? `<span class="badge-small-sample ms-2">3–4 games</span>` : '';
+            const smallSampleBadge = (d.played >= 3 && d.played <= 4) ? `<span class="badge-small-sample ms-1" style="font-size:0.65rem; padding: 1px 4px; display:inline-block; vertical-align:middle;">3–4 games</span>` : '';
             return `
-            <div class="d-flex justify-content-between align-items-center py-2 border-bottom border-secondary border-opacity-50">
-                <div class="text-truncate me-2">
-                    <span class="text-muted small me-2 font-monospace">#${i + 1}</span>
-                    <span class="fw-bold text-white small">${esc(d.names)}</span>
-                    ${smallSampleBadge}
+            <div class="py-2 border-bottom border-secondary border-opacity-50">
+                <div class="d-flex justify-content-between align-items-start gap-2">
+                    <div class="flex-grow-1" style="min-width:0; word-break:break-word;">
+                        <span class="text-muted small me-1 font-monospace">#${i + 1}</span>
+                        <span class="fw-bold text-white small">${esc(d.names)}</span>
+                        ${smallSampleBadge}
+                    </div>
+                    <div class="text-end text-nowrap flex-shrink-0">
+                        <span class="fw-bold fs-6 ${d.wr >= 60 ? 'text-success' : (d.wr <= 35 ? 'text-danger' : 'text-white')}">${Math.round(d.wr)}%</span>
+                    </div>
                 </div>
-                <div class="text-end text-nowrap">
-                    <span class="fw-bold fs-6 ${d.wr >= 60 ? 'text-success' : (d.wr <= 35 ? 'text-danger' : 'text-white')}">${Math.round(d.wr)}%</span>
-                    <span class="text-muted small ms-2 font-monospace">(${d.played} games together)</span>
+                <div class="d-flex justify-content-between align-items-center mt-1 text-muted small font-monospace" style="font-size:0.72rem; padding-left:18px;">
+                    <span>${d.played} games together</span>
+                    <span>${d.won}W – ${d.played - d.won}L</span>
                 </div>
             </div>`;
         }).join('');
@@ -4184,10 +4312,16 @@ window.generateAwardCitation = async (year, month, recipientName, metricValue) =
     }
 };
 
-// Listen for deep links
+// Listen for deep links & tab visibility
 if (typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
         handleDeepLinks();
+        updateFilterVisibility();
+        document.querySelectorAll('#myTab button[data-bs-toggle="tab"]').forEach(tabBtn => {
+            tabBtn.addEventListener('shown.bs.tab', () => {
+                updateFilterVisibility();
+            });
+        });
     });
 }
 if (typeof window !== 'undefined') {
@@ -4208,6 +4342,7 @@ if (typeof module !== 'undefined' && module.exports) {
         MIN_GAMES_PAIR,
         MIN_GAMES_IMPROVED,
         MILESTONE_INTERVAL,
+        minAppearancesForPeriod,
         computeWeeklyPowerRankings,
         computeMilestoneWatch,
         computeMonthlyAwards,

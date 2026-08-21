@@ -84,6 +84,10 @@
         .color-label { width: 24px; height: 24px; border-radius: 50%; display: inline-block; cursor: pointer; border: 2px solid transparent; opacity: 0.4; }
         .color-opt:checked + .color-label { opacity: 1; border-color: white; transform: scale(1.1); }
         
+        /* PLAYER PILLS IN MATCH CARDS */
+        .player-pill { display: inline; cursor: pointer; color: var(--text-muted); transition: color 0.15s ease, text-decoration 0.15s ease; border-radius: 4px; padding: 1px 2px; }
+        .player-pill:hover { color: #58a6ff; text-decoration: underline; background: rgba(88, 166, 255, 0.1); }
+
         /* PLAYER CHIPS & RESOLVER */
         .player-tag { font-size:0.8rem; background:#21262d; border:1px solid #30363d; color: var(--text-main); padding:4px 10px; border-radius: 20px; margin:3px; display:inline-flex; align-items: center; transition: all 0.15s ease; user-select: none; }
         .player-tag i { margin-left: 6px; cursor: pointer; }
@@ -233,7 +237,7 @@
         </div>
     </div>
 
-    <div class="container py-4 text-center">
+    <div class="container py-4 text-center" id="dateFilterContainer">
         <div class="d-inline-flex gap-2">
             <select id="filterYear" class="filter-select"><option value="" selected>Loading...</option></select>
             <select id="filterMonth" class="filter-select"><option value="all">All Months</option><option value="0">January</option><option value="1">February</option><option value="2">March</option><option value="3">April</option><option value="4">May</option><option value="5">June</option><option value="6">July</option><option value="7">August</option><option value="8">September</option><option value="9">October</option><option value="10">November</option><option value="11">December</option></select>
