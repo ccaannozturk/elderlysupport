@@ -2361,8 +2361,8 @@ function generateInsights(matches) {
     const optimalLineupHtml = lineupData.optimal5.length >= 5 ? `
     <div class="col-12 mb-4">
         <div class="lineup-hero">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <div style="min-width:0">
                     <h6 class="fw-bold text-white mb-0"><i class="fas fa-crown text-warning me-2"></i>OPTIMAL 5-PLAYER LINEUP</h6>
                     <small class="text-muted">Highest-rated buildable 5-player squad (Min ${MIN_GAMES_RANKED_ELO} appearances)</small>
                 </div>
@@ -2370,14 +2370,14 @@ function generateInsights(matches) {
                     <span class="badge bg-primary fs-6 px-3 py-2">Avg Elo: ${lineupData.avgElo}</span>
                 </div>
             </div>
-            <div class="row g-2">
+            <div class="lineup-grid">
                 ${lineupData.optimal5.map((p, idx) => `
-                    <div class="col">
-                        <div class="bg-dark p-2 rounded border border-secondary text-center" style="cursor:pointer" onclick="openPlayerStats('${p.id}')">
-                            <span class="badge bg-secondary mb-1">#${idx + 1}</span>
-                            <div class="fw-bold text-white small text-truncate">${esc(p.name)}</div>
-                            <div class="text-warning fw-bold fs-6 mt-1">${p.rating}</div>
-                            <small class="text-muted" style="font-size:0.65rem">${p.matches} Matches</small>
+                    <div class="lineup-tile${idx === 0 ? ' is-top' : ''}">
+                        <div class="lineup-tile-inner" onclick="openPlayerStats('${esc(p.id)}')">
+                            <span class="badge bg-secondary">#${idx + 1}</span>
+                            <div class="lineup-name text-truncate">${esc(p.name)}</div>
+                            <div class="lineup-rating">${p.rating}</div>
+                            <div class="lineup-caps">${p.matches} Matches</div>
                         </div>
                     </div>
                 `).join('')}
@@ -2562,7 +2562,10 @@ function generateInsights(matches) {
     // H. Venue Cards
     let venueCards = Object.entries(venueGoals).map(([v, d]) => {
         const avg = (d.goals / d.games).toFixed(1);
-        return `<div class="col-6 col-md-3 mb-2"><div class="bg-dark border border-secondary rounded p-2 text-center"><div class="text-white small fw-bold text-truncate">${esc(v)}</div><div class="fs-5 fw-bold text-info my-1">${avg}</div><small class="text-muted" style="font-size:0.65rem">${d.goals} Goals / ${d.games} Games</small></div></div>`;
+        // Venue names are longer than a half-width mobile card, so text-truncate
+        // ate three of the five. Wrap instead — there is vertical room, and h-100
+        // keeps the cards in a row level with each other.
+        return `<div class="col-6 col-md-3 mb-2"><div class="bg-dark border border-secondary rounded p-2 text-center h-100"><div class="text-white small fw-bold" style="line-height:1.25">${esc(v)}</div><div class="fs-5 fw-bold text-info my-1">${avg}</div><small class="text-muted" style="font-size:0.65rem">${d.goals} Goals / ${d.games} Games</small></div></div>`;
     }).join('');
 
     // --- FINAL DASHBOARD ASSEMBLY ---

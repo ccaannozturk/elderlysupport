@@ -58,8 +58,16 @@
         .match-card:hover { transform: translateY(-2px); border-color: #555; }
         .card-top { background: #21262d; padding: 8px 16px; font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
         .card-body-strip { padding: 16px; display: flex; align-items: center; }
-        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .t-name { font-weight: 700; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+        /* Flex items default to min-width:auto, so a team name with no spaces
+           ("MalazIsShitAtFreeKicksButIPickedHimAnyway") refuses to shrink, blows
+           the strip past the card, and .match-card's overflow:hidden then clips
+           that team's players out of sight with no way to scroll to them.
+           min-width:0 lets the block shrink; overflow-wrap:anywhere lets an
+           unbroken name break rather than setting the floor. */
+        .team-block { min-width: 0; }
+        .team-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; }
+        .t-name { font-weight: 700; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+        .team-players { overflow-wrap: anywhere; }
         .t-score { font-weight: 800; font-size: 1.2rem; color: var(--text-main); }
         .t-loser { opacity: 0.4; font-weight: 500; }
         .match-meta { width: 50px; text-align: center; border-left: 1px solid var(--border); margin-left: 12px; display: flex; align-items: center; justify-content: center; }
@@ -182,6 +190,70 @@
             border-radius: 12px;
             padding: 16px;
         }
+        /* Optimal-5 lineup tiles.
+           Bootstrap's .col is `flex: 1 0 0%` with auto min-width, so five tiles
+           whose content floors at ~70px cannot share a 360px row: the line
+           overflowed, the row wrapped, and the 5th tile landed alone stretched
+           edge to edge. An explicit grid removes the guesswork — #1 is a
+           full-width hero on phones with the rest in a 2x2 beneath it, and the
+           original five-across returns as soon as there is room for it. */
+        .lineup-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .lineup-tile {
+            min-width: 0;   /* without this, text-truncate never engages */
+        }
+        .lineup-tile-inner {
+            background-color: var(--bg-body);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            height: 100%;
+            min-width: 0;
+        }
+        .lineup-tile-inner:hover { border-color: #555; }
+        .lineup-name {
+            font-weight: 700;
+            color: var(--text-main);
+            font-size: 0.8rem;
+            min-width: 0;
+        }
+        .lineup-rating {
+            font-weight: 700;
+            color: var(--accent-yellow);
+            font-size: 1rem;
+        }
+        .lineup-caps {
+            color: var(--text-muted);
+            font-size: 0.65rem;
+        }
+        /* #1 spans the full width on phones and lays out as a banner. */
+        .lineup-tile.is-top { grid-column: 1 / -1; }
+        .lineup-tile.is-top .lineup-tile-inner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 12px;
+        }
+        .lineup-tile.is-top .lineup-name { font-size: 0.95rem; }
+        .lineup-tile.is-top .lineup-rating { font-size: 1.15rem; }
+
+        @media (min-width: 576px) {
+            .lineup-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+            .lineup-tile.is-top { grid-column: auto; }
+            .lineup-tile.is-top .lineup-tile-inner {
+                display: block;
+                padding: 8px;
+            }
+            .lineup-tile.is-top .lineup-name { font-size: 0.8rem; }
+            .lineup-tile.is-top .lineup-rating { font-size: 1rem; }
+        }
+
         .stat-card-custom {
             background-color: var(--bg-card);
             border: 1px solid var(--border);

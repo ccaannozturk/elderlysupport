@@ -70,9 +70,9 @@ All six are bugs, not features. Items 1 and 2 together are the entire cause of
 
 ---
 
-## Phase 2 — Mobile layout
+## Phase 2 — Mobile layout  ✅ complete
 
-- [ ] **7. Optimal 5-player lineup grid**
+- [x] **7. Optimal 5-player lineup grid**
   - Five tiles render as `<div class="col">` in a `.row`. Bootstrap's `.col` is
     `flex: 1 0 0%` with auto min-width, so tile content (rank badge, 4-digit Elo,
     caps line) sets a ~70px floor. On a 360px Android viewport the line overflows,
@@ -82,9 +82,26 @@ All six are bugs, not features. Items 1 and 2 together are the entire cause of
     actually engages.
   - Note: `index.html` currently contains **no `@media` queries at all**.
 
-- [ ] **8. Sweep for the same overflow pattern**
-  - Audit the other Community and Stats cards for bare `.col` children that will
-    wrap the same way at 360px.
+- [x] **8. Sweep for the same overflow pattern**
+  - Audited every tab at 360px for orphan-wrapped rows, elements painted outside
+    the viewport, and clipped truncated text. The lineup was the only orphan-row
+    instance; page-level horizontal overflow was already zero everywhere.
+  - Found and fixed two real defects:
+    - **Match cards could hide a whole team.** `.card-body-strip` is a flex row
+      and `.team-block` had the default `min-width: auto`, so a team name with no
+      spaces ("MalazIsShitAtFreeKicksButIPickedHimAnyway") refused to shrink,
+      pushed the strip 197px past the card, and `.match-card { overflow: hidden }`
+      clipped that team's name and all seven players into unreachable space. One
+      of 65 cards was affected today, and any future long name would do the same
+      silently. Fixed with `min-width: 0` plus `overflow-wrap: anywhere`.
+    - **Venue cards truncated three of five names** ("Sporthal ROC Europaboul…").
+      They now wrap, with `h-100` keeping a row level.
+  - Known false positive to ignore on re-runs: the leaderboard table reports ~313
+    elements past the viewport. It sits in `.card.overflow-auto` and scrolls
+    horizontally by design; verified by walking its ancestor chain.
+  - Cost of the match-card fix, measured: 9 team names that previously fit on one
+    line now take two (109 of 114 wrap, versus 100 before). Worst case is
+    unchanged at 4 lines, and nothing is hidden any more. See item 14.
 
 ---
 
@@ -118,6 +135,23 @@ tooltips that do not exist on touch. Everything below derives from
 
 - [ ] **12. Tap-a-cell detail sheet**
   - Bottom sheet with the pair's full record and the list of shared matches.
+
+---
+
+## Phase 2b — Proposed, NOT agreed
+
+- [ ] **14. Stack the match card vertically on phones** *(needs a decision)*
+  - At 360px the two-team layout leaves each team roughly 120px, so **109 of 114
+    team names wrap onto two or more lines** and long ones reach four. This is not
+    caused by item 8 — it is what the two-column card does at phone width, and
+    this group's team names are long and emoji-heavy by habit
+    ("Maarteta's Marvellous Machetes 🔪", "My brain says Bert, my heart says…").
+  - The fix that actually addresses it is stacking the card below ~430px: team A
+    row, score divider, team B row, each on full width. That is a visible
+    redesign of the primary tab, so it is written down rather than done.
+  - Cheaper alternatives if a redesign is unwanted: clamp names to two lines with
+    an ellipsis, or trim the strip's 16px padding and 50px score gutter on narrow
+    screens to buy back roughly 40px.
 
 ---
 
