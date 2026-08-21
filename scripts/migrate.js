@@ -406,7 +406,45 @@ function resolvePlayerName(rawName, matchContext, rawMap) {
     return;
   }
 
+  let idToken = null;
+  if (!isEmulator) {
+    const email = (argv.find(a => a.startsWith('--email=')) || '').split('=')[1] || process.env.ADMIN_EMAIL || 'can.ozturk1907@gmail.com';
+    let password = (argv.find(a => a.startsWith('--password=')) || '').split('=')[1] || process.env.ADMIN_PASSWORD;
+
+    if (!password) {
+      const readline = require('readline');
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      password = await new Promise(resolve => {
+        rl.question(`Enter Firebase admin password for ${email}: `, answer => {
+          rl.close();
+          resolve(answer.trim());
+        });
+      });
+    }
+
+    if (!password) {
+      throw new Error(`Admin password is required to write to production Firestore.`);
+    }
+
+    process.stdout.write(`[Auth] Authenticating as ${email} ... `);
+    const authRes = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true })
+    });
+    if (!authRes.ok) {
+      const errText = await authRes.text();
+      throw new Error(`Admin authentication failed (${authRes.status}): ${errText}`);
+    }
+    const authData = await authRes.json();
+    idToken = authData.idToken;
+    console.log('✓ Authenticated successfully.');
+  }
+
   console.log('\nWriting to Firestore...');
+  const defaultHeaders = { 'Content-Type': 'application/json' };
+  if (idToken) defaultHeaders['Authorization'] = `Bearer ${idToken}`;
+
   // Write players_v2 documents
   console.log(`Writing ${playersV2Docs.length} players_v2 documents...`);
   for (const p of playersV2Docs) {
@@ -416,7 +454,7 @@ function resolvePlayerName(rawName, matchContext, rawMap) {
 
     const res = await fetch(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: defaultHeaders,
       body
     });
     if (!res.ok) {
@@ -435,7 +473,7 @@ function resolvePlayerName(rawName, matchContext, rawMap) {
 
     const res = await fetch(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: defaultHeaders,
       body
     });
     if (!res.ok) {
