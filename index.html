@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <title>Elderly Support League</title>
@@ -21,6 +21,8 @@
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); padding-bottom: 80px; }
         
+        .bg-body { background-color: #0d1117 !important; color: #ffffff !important; }
+        .bg-card { background-color: #161b22 !important; color: #ffffff !important; }
         .text-muted { color: var(--text-muted) !important; }
         .text-white { color: #ffffff !important; }
         .fw-bold { font-weight: 700 !important; }
@@ -309,7 +311,7 @@
                         <span class="badge bg-dark border border-secondary text-muted" style="cursor:pointer" onclick="setQueryPrompt('Who is the most cursed player?')">The Curse Stat</span>
                         <span class="badge bg-dark border border-secondary text-muted" style="cursor:pointer" onclick="setQueryPrompt('Who has the highest Elo rating?')">Top Elo</span>
                     </div>
-                    <div id="statsQueryResponse" class="p-2 rounded bg-body border border-secondary small d-none"></div>
+                    <div id="statsQueryResponse" class="p-3 rounded bg-dark border border-secondary small d-none text-white"></div>
                 </div>
                 
                 <!-- MAGIC PASTE (AI + REGEX FALLBACK) -->

@@ -3376,14 +3376,22 @@ window.executeStatsQuery = async () => {
         const data = res.data;
 
         if (data && data.ok) {
+            let cleanAnswer = data.answer || '';
+            try {
+                if (typeof cleanAnswer === 'string' && cleanAnswer.trim().startsWith('{') && cleanAnswer.trim().endsWith('}')) {
+                    const parsed = JSON.parse(cleanAnswer.trim());
+                    cleanAnswer = parsed.answer || parsed.response || parsed.text || cleanAnswer;
+                }
+            } catch (e) {}
+
             if (resBox) {
                 resBox.classList.remove('d-none');
                 resBox.innerHTML = `
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="text-info fw-bold"><i class="fas fa-robot me-1"></i>Answer:</span>
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-50">
+                        <span class="text-info fw-bold"><i class="fas fa-robot me-1"></i>AI Assistant</span>
                         <span class="badge bg-secondary font-monospace" style="font-size:0.7rem">${esc(data.modelUsed)}</span>
                     </div>
-                    <div class="text-light" style="line-height:1.5;">${esc(data.answer)}</div>
+                    <div class="text-white" style="line-height:1.6; font-size:0.9rem;">${esc(cleanAnswer)}</div>
                 `;
             }
         }

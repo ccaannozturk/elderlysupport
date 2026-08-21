@@ -570,31 +570,93 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
     playersRegistry.set(d.id, { id: d.id, displayName: p.displayName || d.id, aliases: p.aliases || [] });
   });
 
-  const getName = (id) => nameMap.get(id) || id;
+  // 1. Sort matches chronologically for Elo and Streaks
+  const allMatchesList = [];
+  matchesSnap.forEach(doc => {
+    const d = doc.data();
+    if (d.teams && d.teams.length >= 2) {
+      allMatchesList.push({ id: doc.id, ...d });
+    }
+  });
 
-  // Compute all-time stats
+  allMatchesList.sort((a, b) => {
+    const tA = a.date ? (a.date.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime()) : 0;
+    const tB = b.date ? (b.date.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime()) : 0;
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  // 2. Compute Elo Ratings, H2H, Streaks, and Duos
   const playerStats = {};
   const duos = {};
+  const h2h = {}; // h2h[p1][p2] = { against: 0, wonAgainst: 0, lostTo: 0, drawn: 0 }
+  const streaks = {}; // streaks[pId] = { current: { type: 'W'|'L'|'D', count: 0 }, maxW: 0, maxUnbeaten: 0, maxL: 0, currentUnbeaten: 0 }
+  const eloMap = {}; // eloMap[pId] = { rating: 1200, matches: 0 }
   const stdMatches = [];
   let totalStdGoals = 0;
+  const venuesStats = {};
 
-  matchesSnap.forEach(doc => {
-    const m = doc.data();
-    if (!m.teams || m.teams.length < 2) return;
+  const initPlayer = (pId) => {
+    if (!playerStats[pId]) {
+      playerStats[pId] = { id: pId, name: getName(pId), played: 0, won: 0, drawn: 0, lost: 0, pts: 0, gf: 0, ga: 0, stdPlayed: 0 };
+    }
+    if (!eloMap[pId]) {
+      eloMap[pId] = { rating: 1200, matches: 0 };
+    }
+    if (!streaks[pId]) {
+      streaks[pId] = { currentType: '', currentCount: 0, maxW: 0, maxUnbeaten: 0, maxL: 0, curW: 0, curUnbeaten: 0, curL: 0 };
+    }
+    if (!h2h[pId]) {
+      h2h[pId] = {};
+    }
+  };
+
+  allMatchesList.forEach(m => {
+    const loc = m.location || 'Unknown';
+    if (!venuesStats[loc]) venuesStats[loc] = { matches: 0, stdMatches: 0, totalGoals: 0 };
+    venuesStats[loc].matches++;
 
     if (m.type === 'Standard') {
       stdMatches.push(m);
       const tA = m.teams[0], tB = m.teams[1];
       const sA = tA.score || 0, sB = tB.score || 0;
       totalStdGoals += sA + sB;
+      venuesStats[loc].stdMatches++;
+      venuesStats[loc].totalGoals += sA + sB;
 
-      [tA, tB].forEach((t, idx) => {
-        const opp = idx === 0 ? tB : tA;
-        const myS = t.score || 0, opS = opp.score || 0;
+      const pA = tA.players || [];
+      const pB = tB.players || [];
+
+      pA.forEach(initPlayer);
+      pB.forEach(initPlayer);
+
+      // Elo update
+      const avgA = pA.length ? (pA.reduce((s, p) => s + eloMap[p].rating, 0) / pA.length) : 1200;
+      const avgB = pB.length ? (pB.reduce((s, p) => s + eloMap[p].rating, 0) / pB.length) : 1200;
+      const expA = 1 / (1 + Math.pow(10, (avgB - avgA) / 400));
+      const expB = 1 - expA;
+      const actA = sA > sB ? 1.0 : (sA === sB ? 0.5 : 0.0);
+      const actB = 1.0 - actA;
+
+      pA.forEach(p => {
+        const k = eloMap[p].matches < 5 ? 48 : 32;
+        eloMap[p].rating += k * (actA - expA);
+        eloMap[p].matches++;
+      });
+      pB.forEach(p => {
+        const k = eloMap[p].matches < 5 ? 48 : 32;
+        eloMap[p].rating += k * (actB - expB);
+        eloMap[p].matches++;
+      });
+
+      // Basic stats & streaks
+      [ { team: tA, opp: tB, myS: sA, opS: sB, myP: pA, opP: pB },
+        { team: tB, opp: tA, myS: sB, opS: sA, myP: pB, opP: pA }
+      ].forEach(({ myS, opS, myP, opP }) => {
         const pts = myS > opS ? 3 : (myS === opS ? 1 : 0);
+        const res = myS > opS ? 'W' : (myS === opS ? 'D' : 'L');
 
-        (t.players || []).forEach(p => {
-          if (!playerStats[p]) playerStats[p] = { id: p, name: getName(p), played: 0, won: 0, drawn: 0, lost: 0, pts: 0, gf: 0, ga: 0, stdPlayed: 0 };
+        myP.forEach(p => {
           playerStats[p].played++;
           playerStats[p].stdPlayed++;
           playerStats[p].pts += pts;
@@ -603,28 +665,79 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
           if (pts === 3) playerStats[p].won++;
           else if (pts === 1) playerStats[p].drawn++;
           else playerStats[p].lost++;
+
+          // Streaks
+          const st = streaks[p];
+          if (res === 'W') {
+            st.curW++;
+            st.curUnbeaten++;
+            st.curL = 0;
+            if (st.curW > st.maxW) st.maxW = st.curW;
+            if (st.curUnbeaten > st.maxUnbeaten) st.maxUnbeaten = st.curUnbeaten;
+          } else if (res === 'D') {
+            st.curW = 0;
+            st.curUnbeaten++;
+            st.curL = 0;
+            if (st.curUnbeaten > st.maxUnbeaten) st.maxUnbeaten = st.curUnbeaten;
+          } else {
+            st.curW = 0;
+            st.curUnbeaten = 0;
+            st.curL++;
+            if (st.curL > st.maxL) st.maxL = st.curL;
+          }
+          if (st.currentType === res) st.currentCount++;
+          else { st.currentType = res; st.currentCount = 1; }
+
+          // Head-to-head vs Opponents
+          opP.forEach(op => {
+            if (!h2h[p][op]) h2h[p][op] = { against: 0, wonAgainst: 0, lostTo: 0, drawn: 0 };
+            h2h[p][op].against++;
+            if (pts === 3) h2h[p][op].wonAgainst++;
+            else if (pts === 0) h2h[p][op].lostTo++;
+            else h2h[p][op].drawn++;
+          });
         });
 
-        const pList = (t.players || []).sort();
-        for (let i = 0; i < pList.length; i++) {
-          for (let j = i + 1; j < pList.length; j++) {
-            const key = `${pList[i]}__${pList[j]}`;
-            if (!duos[key]) duos[key] = { p1: getName(pList[i]), p2: getName(pList[j]), played: 0, won: 0 };
+        // Duos
+        const sortedP = [...myP].sort();
+        for (let i = 0; i < sortedP.length; i++) {
+          for (let j = i + 1; j < sortedP.length; j++) {
+            const key = `${sortedP[i]}__${sortedP[j]}`;
+            if (!duos[key]) duos[key] = { p1: getName(sortedP[i]), p2: getName(sortedP[j]), played: 0, won: 0 };
             duos[key].played++;
             if (pts === 3) duos[key].won++;
           }
         }
       });
     } else {
-      (m.teams || []).forEach(t => {
+      // Tournament format
+      const teams = m.teams || [];
+      teams.forEach(t => (t.players || []).forEach(initPlayer));
+
+      teams.forEach((t, i) => {
         const pts = t.points !== undefined ? t.points : (t.rank === 1 ? 3 : (t.rank === 2 ? 1 : 0));
+        const rank = t.rank || (i + 1);
+        const res = rank === 1 ? 'W' : (rank === 2 ? 'D' : 'L');
+
         (t.players || []).forEach(p => {
-          if (!playerStats[p]) playerStats[p] = { id: p, name: getName(p), played: 0, won: 0, drawn: 0, lost: 0, pts: 0, gf: 0, ga: 0, stdPlayed: 0 };
           playerStats[p].played++;
           playerStats[p].pts += pts;
-          if (pts >= 3) playerStats[p].won++;
-          else if (pts === 1) playerStats[p].drawn++;
+          if (rank === 1) playerStats[p].won++;
+          else if (rank === 2) playerStats[p].drawn++;
           else playerStats[p].lost++;
+
+          // H2H against other tournament teams
+          teams.forEach((otherT, otherIdx) => {
+            if (otherIdx === i) return;
+            const otherRank = otherT.rank || (otherIdx + 1);
+            (otherT.players || []).forEach(op => {
+              if (!h2h[p][op]) h2h[p][op] = { against: 0, wonAgainst: 0, lostTo: 0, drawn: 0 };
+              h2h[p][op].against++;
+              if (rank < otherRank) h2h[p][op].wonAgainst++;
+              else if (rank > otherRank) h2h[p][op].lostTo++;
+              else h2h[p][op].drawn++;
+            });
+          });
         });
       });
     }
@@ -637,6 +750,24 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
     const wr = p.played > 0 ? Math.round((p.won / p.played) * 100) : 0;
     const avgGF = p.stdPlayed > 0 ? (p.gf / p.stdPlayed).toFixed(2) : '0.00';
     const deltaGF = (Number(avgGF) - leagueAvgGF).toFixed(2);
+    const elo = eloMap[p.id] ? Math.round(eloMap[p.id].rating) : 1200;
+    const isProvisional = eloMap[p.id] ? eloMap[p.id].matches < 5 : true;
+    const st = streaks[p.id] || { maxW: 0, maxUnbeaten: 0, currentType: 'W', currentCount: 0 };
+
+    // Find top nemesis (opponent lost to most often, min 2 games against)
+    const opponents = Object.entries(h2h[p.id] || {})
+      .map(([opId, rec]) => ({
+        opponent: getName(opId),
+        playedAgainst: rec.against,
+        lostTo: rec.lostTo,
+        wonAgainst: rec.wonAgainst,
+        drawn: rec.drawn,
+        lossRate: rec.against > 0 ? Math.round((rec.lostTo / rec.against) * 100) : 0
+      }))
+      .sort((a, b) => (b.lostTo !== a.lostTo ? b.lostTo - a.lostTo : b.lossRate - a.lossRate));
+
+    const topNemesis = opponents.length > 0 ? opponents[0] : null;
+
     return {
       name: p.name,
       played: p.played,
@@ -646,9 +777,15 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
       points: p.pts,
       ppg,
       winRate: `${wr}%`,
-      stdPlayed: p.stdPlayed,
+      eloRating: elo,
+      isProvisionalElo: isProvisional,
+      currentStreak: `${st.currentCount} ${st.currentType}`,
+      longestWinStreak: st.maxW,
+      longestUnbeatenStreak: st.maxUnbeaten,
       goalsForPerGame: avgGF,
-      curseImpactDeltaGF: deltaGF
+      curseImpactDeltaGF: deltaGF,
+      topNemesis: topNemesis ? `${topNemesis.opponent} (Lost ${topNemesis.lostTo} of ${topNemesis.playedAgainst} games opposed)` : 'None',
+      detailedHeadToHeadVsOpponents: opponents.slice(0, 8)
     };
   }).sort((a, b) => b.points - a.points);
 
@@ -661,14 +798,26 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
       winRate: `${Math.round((d.won / d.played) * 100)}%`
     })).sort((a, b) => b.played - a.played);
 
+  // Curse Stat ranking (players with >= 5 standard matches)
+  const curseRankings = [...playerList]
+    .filter(p => p.played >= 5)
+    .sort((a, b) => Number(a.curseImpactDeltaGF) - Number(b.curseImpactDeltaGF));
+
+  const mostCursedPlayer = curseRankings.length > 0 ? curseRankings[0] : null;
+  const mostBlessedPlayer = curseRankings.length > 0 ? curseRankings[curseRankings.length - 1] : null;
+
   const statsContext = {
     totalMatchesRecorded: matchesSnap.size,
     standardMatches: stdMatches.length,
     leagueAverageGoalsPerTeamMatch: leagueAvgGF.toFixed(2),
-    playersSummary: playerList.slice(0, 30),
+    mostCursedPlayer: mostCursedPlayer ? `${mostCursedPlayer.name} (${mostCursedPlayer.curseImpactDeltaGF} team GF/game vs league avg)` : null,
+    mostBlessedPlayer: mostBlessedPlayer ? `${mostBlessedPlayer.name} (+${mostBlessedPlayer.curseImpactDeltaGF} team GF/game vs league avg)` : null,
+    eloLeaderboard: [...playerList].filter(p => !p.isProvisionalElo).sort((a, b) => b.eloRating - a.eloRating).slice(0, 10).map(p => `${p.name}: ${p.eloRating} Elo (${p.played} games)`),
+    playersSummary: playerList,
     topDuosByGamesTogether: duoList.slice(0, 15),
     bestDuosByWinRate: [...duoList].sort((a, b) => parseInt(b.winRate) - parseInt(a.winRate)).slice(0, 10),
-    worstDuosByWinRate: [...duoList].sort((a, b) => parseInt(a.winRate) - parseInt(b.winRate)).slice(0, 10)
+    worstDuosByWinRate: [...duoList].sort((a, b) => parseInt(a.winRate) - parseInt(b.winRate)).slice(0, 10),
+    venues: Object.entries(venuesStats).map(([v, s]) => ({ venue: v, matches: s.matches, avgGoals: s.stdMatches > 0 ? (s.totalGoals / s.stdMatches).toFixed(1) : 'N/A' }))
   };
 
   const prompt = `You are the stats assistant for the Elderly Support recreational football league in Amsterdam.
@@ -681,18 +830,28 @@ STRICT RULES:
 1. Answer ONLY using facts and figures explicitly present in the data above.
 2. Quote exact numbers, win rates, and records verbatim.
 3. Do NOT invent, assume, extrapolate, or calculate unprovided metrics.
-4. If the data does not contain the answer (e.g. height, age, player positions, weather, unrecorded matches), state clearly that the official league data does not track that information.
+4. If the data does not contain the answer (e.g. height, age, player positions, weather), state clearly that the official league data does not track that information.
 5. Keep your response concise (2-4 sentences max), friendly, and direct.
+6. Output strict JSON with key "answer":
+{"answer": "Your direct response here."}
 
 USER QUESTION:
 """${question}"""
 `;
 
   const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
+  let answerText = geminiRes.text;
+  try {
+    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
+    const parsed = JSON.parse(cleaned);
+    answerText = parsed.answer || parsed.response || parsed.text || cleaned;
+  } catch (e) {
+    answerText = geminiRes.text.replace(/^\{.*"answer":\s*"(.*)"\s*\}$/s, '$1').trim();
+  }
 
   return {
     ok: true,
-    answer: geminiRes.text.trim(),
+    answer: answerText,
     modelUsed: geminiRes.modelUsed,
     fellBackFrom: geminiRes.fellBackFrom || null
   };
