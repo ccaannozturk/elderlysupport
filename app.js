@@ -442,8 +442,8 @@ function getPlacedTeamForPlayer(playerId) {
 
 function resolvePlayerInput(rawInput, teamKey) {
     if (!rawInput) return null;
-    // Strip role annotations: (Ref), (Referee), (GK), (c), etc.
-    let clean = rawInput.replace(/\s*\((?:ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
+    // Strip role annotations: (R), (Ref), (Referee), (GK), (c), etc.
+    let clean = rawInput.replace(/\s*\((?:r|ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
     if (!clean) clean = rawInput.trim();
     if (!clean) return null;
     const lower = clean.toLowerCase();
@@ -2777,6 +2777,11 @@ function fetchPlayerNames() {
             const id = doc.id;
             const displayName = data.displayName || id;
             const aliases = Array.isArray(data.aliases) ? data.aliases : [displayName.toLowerCase(), id.toLowerCase()];
+            if (id === 'javi_bernardo') {
+                ['javi garcia', 'javi garcia bernardo', 'garcia bernardo'].forEach(a => {
+                    if (!aliases.includes(a)) aliases.push(a);
+                });
+            }
             playersRegistry.set(id, {
                 id,
                 displayName,
@@ -4373,6 +4378,23 @@ function computeRoastAngles(allMatches, playersList, optOutIds = []) {
     }
   });
 
+  // Angle 7: Wildcard / Rookie Debutant (0 or 1 caps)
+  playersList.forEach(p => {
+    if (optOutIds.includes(p.id)) return;
+    const count = caps[p.id] || 0;
+    if (count <= 1) {
+      const score = count === 0 ? 0.78 : 0.72;
+      candidates.push({
+        angleType: 'wildcard_rookie',
+        targetPlayerId: p.id,
+        targetPlayerName: p.displayName || p.id,
+        score,
+        facts: `${p.displayName || p.id} is an unproven wildcard newcomer with ${count} career appearances. Stepping into the Elderly Support league with zero verified track record.`,
+        rawMetric: count === 0 ? 'Unproven Debutant (0 caps)' : 'Rookie (1 cap)'
+      });
+    }
+  });
+
   candidates.sort((a, b) => b.score - a.score);
   return candidates.map(c => ({
     ...c,
@@ -4721,33 +4743,50 @@ async function processFixturePaste(text) {
         if (dInput && !dInput.value) dInput.value = parsed.date;
     }
 
-    let hasUnresolved = false;
     const teamKeys = ['A', 'B', 'C', 'D'];
-    const parsedSquads = parsed.teams.map((t, sIdx) => {
+    currentParsedFixtureSquads = parsed.teams.map((t, sIdx) => {
         const tKey = teamKeys[sIdx] || `T${sIdx+1}`;
-        const chips = [];
-        const playerIds = [];
         const rawPlayers = t.players || [];
 
-        rawPlayers.forEach(p => {
-            let res = null;
+        const playerItems = rawPlayers.map(p => {
+            const rawToken = (p.rawName || p.playerId || '').trim();
             if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
-                res = {
+                return {
                     status: 'resolved',
                     id: p.playerId,
-                    displayName: playersRegistry.get(p.playerId).displayName
+                    displayName: playersRegistry.get(p.playerId).displayName,
+                    rawInput: rawToken || playersRegistry.get(p.playerId).displayName
+                };
+            }
+            const res = resolvePlayerInput(rawToken, tKey);
+            if (res && res.status === 'resolved') {
+                return {
+                    status: 'resolved',
+                    id: res.id,
+                    displayName: res.displayName,
+                    rawInput: rawToken
+                };
+            } else if (res && res.status === 'amber') {
+                return {
+                    status: 'amber',
+                    rawInput: rawToken,
+                    candidate: res.candidate,
+                    candidates: res.candidates || (res.candidate ? [res.candidate] : []),
+                    top3: res.top3 || []
+                };
+            } else if (res && res.status === 'red') {
+                return {
+                    status: 'red',
+                    rawInput: rawToken,
+                    candidates: res.candidates || res.top3 || [],
+                    top3: res.top3 || []
                 };
             } else {
-                res = resolvePlayerInput(p.rawName || p.playerId, tKey);
-            }
-
-            if (res && res.status === 'resolved') {
-                chips.push(`<span class="badge bg-success bg-opacity-25 text-success me-1 mb-1">✓ ${esc(res.displayName)}</span>`);
-                playerIds.push(res.id);
-            } else {
-                hasUnresolved = true;
-                const unName = p.rawName || p.playerId || 'Unknown';
-                chips.push(`<span class="badge bg-danger bg-opacity-25 text-danger me-1 mb-1">✗ ${esc(unName)} (Unresolved)</span>`);
+                return {
+                    status: 'new',
+                    rawInput: rawToken,
+                    top3: res?.top3 || []
+                };
             }
         });
 
@@ -4755,42 +4794,118 @@ async function processFixturePaste(text) {
         return {
             name: t.name || defaultName,
             color: t.color || null,
-            chips,
-            players: playerIds,
-            rawCount: rawPlayers.length
+            playerItems,
+            players: [],
+            unparsed: parsed.unparsed || []
         };
     });
 
-    const is3Squads = parsedSquads.length >= 3;
+    renderParsedFixtureSquads();
+}
+
+function renderParsedFixtureSquads() {
+    if (!currentParsedFixtureSquads) return;
+    const previewBox = document.getElementById('fixtureSquadsPreview');
+    const h2hStrip = document.getElementById('fixtureH2HStrip');
+    const btnGen = document.getElementById('btnGenFixturePreview');
+    if (!previewBox) return;
+
+    let unresolvedCount = 0;
+    const is3Squads = currentParsedFixtureSquads.length >= 3;
     const colClass = is3Squads ? 'col-12 col-md-4' : 'col-6';
 
-    if (previewBox) {
-        previewBox.innerHTML = `
-            <div class="row g-2">
-                ${parsedSquads.map((sq) => `
-                    <div class="${colClass}">
-                        <div class="fw-bold text-white small mb-1">${esc(sq.name)} (${sq.players.length} resolved):</div>
-                        <div class="d-flex flex-wrap">${sq.chips.join('') || '<span class="text-muted">Empty</span>'}</div>
-                    </div>
-                `).join('')}
-            </div>
-            ${parsed.unparsed && parsed.unparsed.length > 0 ? `
-                <div class="text-muted small mt-2 pt-1 border-top border-secondary border-opacity-25">
-                    <i class="fas fa-info-circle me-1"></i>Unparsed lines: ${parsed.unparsed.map(esc).join(' | ')}
-                </div>
-            ` : ''}
-            ${hasUnresolved ? '<div class="alert alert-danger py-1 px-2 mt-2 mb-0 small"><i class="fas fa-exclamation-triangle me-1"></i>Unresolved names detected! Hard gate: All players must map to existing roster.</div>' : ''}
-        `;
-    }
+    const squadsHtml = currentParsedFixtureSquads.map((sq, sIdx) => {
+        const resolvedCount = sq.playerItems.filter(p => p.status === 'resolved').length;
+        const chipsHtml = sq.playerItems.map((p, pIdx) => {
+            if (p.status === 'resolved') {
+                const isNewBadge = p.isNew ? '<span class="badge bg-info text-dark ms-1" style="font-size:0.6rem">NEW</span>' : '';
+                return `<span class="badge bg-success bg-opacity-25 text-success me-1 mb-1 border border-success border-opacity-25" style="font-size:0.75rem">✓ ${esc(p.displayName)}${isNewBadge}</span>`;
+            }
+            unresolvedCount++;
 
-    const allSquadsHavePlayers = parsedSquads.every(sq => sq.players.length > 0);
-    const isValid = !hasUnresolved && allSquadsHavePlayers && parsedSquads.length >= 2;
+            if (p.status === 'amber' && p.candidate) {
+                return `
+                <div class="btn-group btn-group-sm me-1 mb-1">
+                    <button type="button" class="btn btn-sm btn-warning py-0 px-2 fw-bold" style="font-size:0.75rem" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, '${p.candidate.id}')" title="Tap to accept candidate ${esc(p.candidate.displayName)}">
+                        ? ${esc(p.rawInput)} → <b>${esc(p.candidate.displayName)}</b> <i class="fas fa-check ms-1"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning dropdown-toggle dropdown-toggle-split py-0 px-1" data-bs-toggle="dropdown"></button>
+                    <ul class="dropdown-menu dropdown-menu-dark shadow" style="z-index: 1060;">
+                        <li><h6 class="dropdown-header">Match Candidates</h6></li>
+                        <li><button type="button" class="dropdown-item small" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, '${p.candidate.id}')"><i class="fas fa-user-check me-2 text-warning"></i>${esc(p.candidate.displayName)}</button></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-search me-2"></i>🔍 Search Roster...</button></li>
+                        <li><button type="button" class="dropdown-item small text-success" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-user-plus me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
+                    </ul>
+                </div>`;
+            }
+
+            if (p.candidates && p.candidates.length > 1) {
+                // Ambiguous e.g. "Which Javi?"
+                return `
+                <div class="btn-group btn-group-sm me-1 mb-1">
+                    <button type="button" class="btn btn-sm btn-warning dropdown-toggle py-0 px-2 fw-bold" data-bs-toggle="dropdown" style="font-size:0.75rem">
+                        <i class="fas fa-question-circle me-1"></i>Which ${esc(p.rawInput)}?
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark shadow" style="z-index: 1060;">
+                        <li><h6 class="dropdown-header">Select Which Player</h6></li>
+                        ${p.candidates.map(c => `
+                            <li><button type="button" class="dropdown-item small" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, '${c.id}')"><i class="fas fa-user me-2 text-warning"></i>${esc(c.displayName)} <small class="text-muted">(${esc(c.id)})</small></button></li>
+                        `).join('')}
+                        <li><hr class="dropdown-divider"></li>
+                        <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-search me-2"></i>🔍 Search Roster...</button></li>
+                        <li><button type="button" class="dropdown-item small text-success" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-user-plus me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
+                    </ul>
+                </div>`;
+            }
+
+            // New / Unmatched (e.g. Tjeerd, Jory, Mark Jr)
+            return `
+            <div class="btn-group btn-group-sm me-1 mb-1">
+                <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle py-0 px-2 fw-bold" data-bs-toggle="dropdown" style="font-size:0.75rem">
+                    <i class="fas fa-user-plus me-1"></i>New? "${esc(p.rawInput)}"
+                </button>
+                <ul class="dropdown-menu dropdown-menu-dark shadow" style="z-index: 1060;">
+                    <li><h6 class="dropdown-header">Unmatched Player</h6></li>
+                    <li><button type="button" class="dropdown-item small text-success fw-bold" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-check me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
+                    <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-search me-2"></i>🔍 Manually Match from Roster</button></li>
+                </ul>
+            </div>`;
+        }).join('');
+
+        return `
+        <div class="${colClass}">
+            <div class="fw-bold text-white small mb-1">${esc(sq.name)} (${resolvedCount}/${sq.playerItems.length} resolved):</div>
+            <div class="d-flex flex-wrap">${chipsHtml || '<span class="text-muted">Empty</span>'}</div>
+        </div>`;
+    }).join('');
+
+    previewBox.innerHTML = `
+        <div class="row g-2">
+            ${squadsHtml}
+        </div>
+        ${unresolvedCount > 0 ? `
+            <div class="alert alert-warning py-2 px-3 mt-3 mb-0 small d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div><i class="fas fa-exclamation-circle me-1"></i><b>${unresolvedCount} player(s)</b> need resolution (debutants / ambiguous names).</div>
+                <button type="button" class="btn btn-sm btn-success fw-bold py-1 px-2" onclick="acceptAllUnresolvedFixturePlayers()">
+                    <i class="fas fa-user-plus me-1"></i>+ Accept All as New Players
+                </button>
+            </div>
+        ` : ''}
+    `;
+
+    const allSquadsHavePlayers = currentParsedFixtureSquads.every(sq => sq.playerItems.length > 0);
+    const isValid = unresolvedCount === 0 && allSquadsHavePlayers && currentParsedFixtureSquads.length >= 2;
     if (btnGen) btnGen.disabled = !isValid;
 
     if (isValid) {
-        currentParsedFixtureSquads = parsedSquads;
+        // Sync players array with IDs for preview generation
+        currentParsedFixtureSquads.forEach(sq => {
+            sq.players = sq.playerItems.map(p => p.id);
+        });
+
         const eloData = computeEloRatings(allMatches).ratings || {};
-        const avgElos = parsedSquads.map(sq => {
+        const avgElos = currentParsedFixtureSquads.map(sq => {
             return sq.players.length > 0
                 ? Math.round(sq.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq.players.length)
                 : STARTING_ELO;
@@ -4798,10 +4913,10 @@ async function processFixturePaste(text) {
 
         if (h2hStrip) {
             h2hStrip.classList.remove('d-none');
-            if (parsedSquads.length >= 3) {
+            if (currentParsedFixtureSquads.length >= 3) {
                 h2hStrip.innerHTML = `
                     <div class="d-flex flex-wrap justify-content-around align-items-center gap-2">
-                        ${parsedSquads.map((sq, idx) => `
+                        ${currentParsedFixtureSquads.map((sq, idx) => `
                             <div><b>${esc(sq.name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[idx]}</span></div>
                         `).join('<span class="text-muted">vs</span>')}
                     </div>
@@ -4809,9 +4924,9 @@ async function processFixturePaste(text) {
             } else {
                 h2hStrip.innerHTML = `
                     <div class="d-flex justify-content-between align-items-center">
-                        <div><b>${esc(parsedSquads[0].name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[0]}</span></div>
+                        <div><b>${esc(currentParsedFixtureSquads[0].name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[0]}</span></div>
                         <span class="badge bg-secondary">H2H PREVIEW</span>
-                        <div><b>${esc(parsedSquads[1].name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[1]}</span></div>
+                        <div><b>${esc(currentParsedFixtureSquads[1].name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[1]}</span></div>
                     </div>
                 `;
             }
@@ -4820,6 +4935,131 @@ async function processFixturePaste(text) {
         if (h2hStrip) h2hStrip.classList.add('d-none');
     }
 }
+
+window.resolveFixtureCandidate = (sIdx, pIdx, playerId) => {
+    if (!currentParsedFixtureSquads || !currentParsedFixtureSquads[sIdx]) return;
+    const item = currentParsedFixtureSquads[sIdx].playerItems[pIdx];
+    if (!item) return;
+    const player = playersRegistry.get(playerId);
+    if (!player) return;
+
+    item.status = 'resolved';
+    item.id = player.id;
+    item.displayName = player.displayName;
+    renderParsedFixtureSquads();
+};
+
+window.acceptFixtureNewPlayer = (sIdx, pIdx, rawName) => {
+    if (!currentParsedFixtureSquads || !currentParsedFixtureSquads[sIdx]) return;
+    const item = currentParsedFixtureSquads[sIdx].playerItems[pIdx];
+    if (!item) return;
+
+    const cleanName = (rawName || item.rawInput || '').trim();
+    if (!cleanName) return;
+
+    const slug = cleanName.toLowerCase()
+        .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    const newPlayerId = slug || `player_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+
+    const newPlayer = {
+        id: newPlayerId,
+        displayName: cleanName,
+        aliases: [cleanName.toLowerCase()],
+        active: true,
+        isNew: true
+    };
+    playersRegistry.set(newPlayerId, newPlayer);
+
+    item.status = 'resolved';
+    item.id = newPlayerId;
+    item.displayName = cleanName;
+    item.isNew = true;
+
+    renderParsedFixtureSquads();
+};
+
+window.acceptAllUnresolvedFixturePlayers = () => {
+    if (!currentParsedFixtureSquads) return;
+    currentParsedFixtureSquads.forEach((sq, sIdx) => {
+        sq.playerItems.forEach((p, pIdx) => {
+            if (p.status !== 'resolved') {
+                if (p.status === 'amber' && p.candidate) {
+                    p.status = 'resolved';
+                    p.id = p.candidate.id;
+                    p.displayName = p.candidate.displayName;
+                } else {
+                    const targetName = (p.candidates && p.candidates[0]) ? p.candidates[0].displayName : (p.rawInput || 'New Player');
+                    acceptFixtureNewPlayer(sIdx, pIdx, targetName);
+                }
+            }
+        });
+    });
+    renderParsedFixtureSquads();
+};
+
+let fixtureSearchContext = null; // { sIdx, pIdx, rawName }
+
+window.openFixtureManualSearch = (sIdx, pIdx, rawName) => {
+    fixtureSearchContext = { sIdx, pIdx, rawName };
+    safeText('disambiguatePrompt', `Match "${rawName}" to an existing roster player:`);
+
+    const container = document.getElementById('disambiguateCandidates');
+    if (container) {
+        const allPlayers = Array.from(playersRegistry.values()).filter(p => p.active !== false);
+        allPlayers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+        container.innerHTML = `
+            <input type="text" class="form-control form-control-sm mb-2" id="fixtureSearchRosterFilter" placeholder="Type player name..." style="font-size:16px;" oninput="filterFixtureRosterSearch(this.value)">
+            <div id="fixtureRosterSearchResults" class="d-grid gap-1" style="max-height: 240px; overflow-y: auto;">
+                ${allPlayers.map(p => `
+                    <button type="button" class="btn btn-outline-light text-start py-1 px-2 small fw-bold" onclick="selectFixtureManualMatch('${p.id}')">
+                        <i class="fas fa-user me-2 text-info"></i>${esc(p.displayName)} <small class="text-muted">(${esc(p.id)})</small>
+                    </button>
+                `).join('')}
+            </div>
+        `;
+        setTimeout(() => document.getElementById('fixtureSearchRosterFilter')?.focus(), 300);
+    }
+
+    const createNewBtn = document.getElementById('disambiguateCreateNewBtn');
+    if (createNewBtn) {
+        createNewBtn.onclick = () => {
+            const modalEl = document.getElementById('disambiguateModal');
+            if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+            acceptFixtureNewPlayer(sIdx, pIdx, rawName);
+        };
+    }
+
+    const modalEl = document.getElementById('disambiguateModal');
+    if (modalEl) new bootstrap.Modal(modalEl).show();
+};
+
+window.filterFixtureRosterSearch = (query) => {
+    const list = document.getElementById('fixtureRosterSearchResults');
+    if (!list) return;
+    const q = (query || '').toLowerCase().trim();
+    const allPlayers = Array.from(playersRegistry.values()).filter(p => p.active !== false);
+    const filtered = allPlayers.filter(p => {
+        const aliases = (p.aliases || []).join(' ').toLowerCase();
+        return p.displayName.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || aliases.includes(q);
+    });
+    list.innerHTML = filtered.map(p => `
+        <button type="button" class="btn btn-outline-light text-start py-1 px-2 small fw-bold" onclick="selectFixtureManualMatch('${p.id}')">
+            <i class="fas fa-user me-2 text-info"></i>${esc(p.displayName)} <small class="text-muted">(${esc(p.id)})</small>
+        </button>
+    `).join('');
+};
+
+window.selectFixtureManualMatch = (playerId) => {
+    if (!fixtureSearchContext) return;
+    const { sIdx, pIdx } = fixtureSearchContext;
+    resolveFixtureCandidate(sIdx, pIdx, playerId);
+    fixtureSearchContext = null;
+    const modalEl = document.getElementById('disambiguateModal');
+    if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+};
 
 let currentDraftPreviewData = null;
 window.executeGenerateFixturePreview = async () => {
@@ -4870,6 +5110,31 @@ window.publishCurrentFixture = async () => {
     if (!currentDraftPreviewData) return;
 
     try {
+        // Permanently register any newly added debutant players to Firestore players_v2
+        if (currentDraftPreviewData.squads) {
+            const batch = db.batch();
+            let newPlayerCount = 0;
+            currentDraftPreviewData.squads.forEach(sq => {
+                (sq.players || []).forEach(pId => {
+                    const pDoc = playersRegistry.get(pId);
+                    if (pDoc && pDoc.isNew) {
+                        newPlayerCount++;
+                        batch.set(db.collection(DB_CONFIG.collections.players).doc(pId), {
+                            displayName: pDoc.displayName,
+                            aliases: pDoc.aliases || [pDoc.displayName.toLowerCase()],
+                            active: true,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true });
+                        delete pDoc.isNew;
+                    }
+                });
+            });
+            if (newPlayerCount > 0) {
+                await batch.commit();
+                fetchPlayerNames();
+            }
+        }
+
         const saveFn = functions.httpsCallable('saveFixture');
         await saveFn({
             status: 'scheduled',

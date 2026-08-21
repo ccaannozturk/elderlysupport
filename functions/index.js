@@ -383,7 +383,7 @@ PARSING INSTRUCTIONS & EXAMPLES:
    - "Dani G" or "Daniel G" -> daniel_gomez
    - "Dani M" or "Daniel M" -> daniel_muller
    - "Javi F" -> javi_farres
-   - "Javi B" -> javi_bernardo
+   - "Javi B" / "Javi Garcia" / "Javi Garcia Bernardo" -> javi_bernardo
    - "Anderson B" -> anderson_brazil
    - "Alex Chavista" / "Alex Venezuela" -> alex_chavista
    - "Gui" / "Guillermo" -> guille
@@ -2037,6 +2037,23 @@ function computeRoastAngles(allMatches, playersList, optOutIds = []) {
     }
   });
 
+  // Angle 7: Wildcard / Rookie Debutant (0 or 1 caps)
+  playersList.forEach(p => {
+    if (optOutIds.includes(p.id)) return;
+    const count = caps[p.id] || 0;
+    if (count <= 1) {
+      const score = count === 0 ? 0.78 : 0.72;
+      candidates.push({
+        angleType: 'wildcard_rookie',
+        targetPlayerId: p.id,
+        targetPlayerName: p.displayName || p.id,
+        score,
+        facts: `${p.displayName || p.id} is an unproven wildcard newcomer with ${count} career appearances. Stepping into the Elderly Support league with zero verified track record.`,
+        rawMetric: count === 0 ? 'Unproven Debutant (0 caps)' : 'Rookie (1 cap)'
+      });
+    }
+  });
+
   candidates.sort((a, b) => b.score - a.score);
   return candidates.map(c => ({
     ...c,
@@ -2118,7 +2135,7 @@ ${intensityGuide}
 
 CONTENT & PROFANITY RULES:
 1. ${profanityRule}
-2. CITE THE EXACT NUMBERS in the facts above (e.g. loss count, days absent, win rate, or Elo drop). Do NOT invent fake stats or outside storylines.
+2. CITE THE FACTS in the record above (e.g. rookie debut, 0 caps, loss count, days absent, win rate, or Elo drop). If this is a wildcard rookie with no verified history, mock their rookie status, mystery skill level, and the harsh league initiation awaiting them. Do NOT invent fake stats.
 3. Keep each roast variant concise (1 to 2 punchy sentences maximum).
 4. Tone: clever, witty, memorable, banter-heavy.
 5. Return strictly JSON in this schema:
