@@ -189,16 +189,22 @@ PARSING INSTRUCTIONS & EXAMPLES:
      - "playerId": exact matching "id" from the Authoritative Player Registry if confident, otherwise null. NEVER invent player IDs.
      - "confidence": number from 0.0 to 1.0 (1.0 = exact hit in registry/aliases, 0.95 = clear initial/nickname match, 0.0 = unknown).
 5. PLAYER NICKNAME & INITIAL RULES:
+   - "Antra" -> antraniek
+   - "Gus" -> gustavo
    - "Dani G" or "Daniel G" -> daniel_gomez
    - "Dani M" or "Daniel M" -> daniel_muller
    - "Javi F" -> javi_farres
    - "Javi B" -> javi_bernardo
    - "Anderson B" -> anderson_brazil
    - "Alex Chavista" / "Alex Venezuela" -> alex_chavista
+   - "Gui" / "Guillermo" -> guille
+   - "Pat" -> patrick
    - Suffixes like "(Ref)", "(Referee)", "(GK)", "(Keeper)", "(c)", "(Captain)" are roles and MUST be removed from rawName.
-6. SCORE & OUTCOME RULES:
+6. SEPARATORS & VS LINES:
+   - Standalone lines containing "Vs", "VS", "vs.", "versus", or "/" are team separators and NOT team names or players.
+7. SCORE & OUTCOME RULES:
    - Natural language outcomes like "red team won 3-2" or "Fifantinos won 3-2" mean the red/winning team scored 3 goals, and the other team scored 2 goals. Assign scores to respective teams accordingly.
-7. "unparsed": Array of raw lines from the input that could not be parsed as team headers, scores, or players.
+8. "unparsed": Array of raw lines from the input that could not be parsed as team headers, scores, or players.
 
 RAW INPUT:
 """

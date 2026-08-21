@@ -344,7 +344,24 @@ function resolvePlayerInput(rawInput, teamKey) {
         }
     }
 
-    // 3. Fuzzy match against available players
+    // 3. Prefix matching (e.g. "Antra" -> "Antraniek", "Gus" -> "Gustavo")
+    if (lower.length >= 3) {
+        const prefixMatches = availablePlayers.filter(p => {
+            const pDisp = p.displayName.toLowerCase();
+            const pId = p.id.toLowerCase();
+            return pDisp.startsWith(lower) || pId.startsWith(lower);
+        });
+        if (prefixMatches.length === 1) {
+            return {
+                status: 'resolved',
+                id: prefixMatches[0].id,
+                displayName: prefixMatches[0].displayName,
+                rawInput: clean
+            };
+        }
+    }
+
+    // 4. Fuzzy match against available players
     const candidateDistances = [];
     for (const p of availablePlayers) {
         let minDist = Infinity;
@@ -850,7 +867,9 @@ window.parseMagicPaste = async () => {
 };
 
 function fallbackLocalParser(text) {
-    const rawLines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const rawLines = text.split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !/^(?:vs\.?|v|against|\/)$/i.test(l));
 
     const extractColor = (str) => {
         if (/🔴|🟥|\bred\b/i.test(str)) return 'red';
