@@ -276,20 +276,28 @@ grouped here.
 
 ---
 
-## Phase 7 — Handed over, NOT started
+## Phase 7 — Elo/tournament consolidation, citation removal, export freshness  ✅ complete
 
-Full diagnosis and step-by-step plan: `docs/HANDOVER-PHASE-7.md`. Written as a
-standalone handover doc since it's meant to be picked up by an agent with no
-memory of the session that diagnosed it.
+- [x] **20. Elo & tournament consolidation in `queryStats`**
+  - `queryStats` previously had an inline Elo loop that ran only for Standard matches,
+    silently dropping Tournament matches and causing Elo ratings to diverge for 64 of 68
+    players when asked via the AI stats tool.
+  - Replaced the inline Elo loop with a call to `computeEloRatings(allMatchesList)`.
+  - Added `computePlayerStreaksAndForm` and `computeNemesisAndRivalry` to `functions/index.js`,
+    matching `stats-core.js` and expanding `tests/elo-parity.test.js` to ensure 100% agreement
+    across Elo, streaks, and nemesis.
+  - Updated `queryStats` tournament branch to update streaks and duos consistently.
 
-Three items: (17) `queryStats`'s AI answers use a third, untested Elo/streak
-implementation that silently drops tournament matches — while the site,
-`generateMatchRecap`, and every other stat already handle tournaments
-correctly; (18) remove the award-citation feature end to end (maintainer
-doesn't want it); (19) `public-data/league.json` currently refreshes on a
-6-hour cron — decide with the maintainer whether "always current" means an
-event-driven Firestore trigger or a shorter cron interval before building
-either.
+- [x] **21. Remove award citations completely**
+  - Removed citation reading, citation UI banner and generation button from `app.js`.
+  - Removed `exports.generateAwardsCopy` from `functions/index.js`.
+  - Removed `match /awards/{awardId}` rule from `firestore.rules` (falls to default deny).
+  - Updated rules unit tests in `tests/firestore-rules.test.js`.
+
+- [x] **22. Event-driven public data export freshness (Option A)**
+  - Added 1st-gen `onMatchWritten` Firestore trigger on `matches_v2/{matchId}` in `functions/index.js`,
+    dispatching a `match-changed` event to GitHub via repository dispatch using `GITHUB_DISPATCH_TOKEN`.
+  - Added `repository_dispatch` trigger to `.github/workflows/refresh-public-data.yml`.
 
 ---
 

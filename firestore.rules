@@ -89,12 +89,6 @@ service cloud.firestore {
       allow update, delete: if isOwner();      // a rename rewrites every stat
     }
 
-    /* ========== AWARDS (Stage E) ========== */
-    match /awards/{awardId} {
-      allow read: if true;
-      allow write: if isOrganizer();
-    }
-
     /* ========== LOCATIONS ========== */
     match /locations/{locId} {
       allow read: if true;

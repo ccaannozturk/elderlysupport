@@ -63,9 +63,9 @@ const ORGANIZER = 'elderly.group.futsal@gmail.com';
   await t('locations',  'admin write',              admin.collection('locations').doc('l2').set({ name: 'New' }), 'allow');
   await t('locations',  'non-admin write',          rando.collection('locations').doc('l3').set({ name: 'New' }), 'deny');
 
-  await t('awards',     'public read',              anon.collection('awards').doc('2026-7').get(), 'allow');
-  await t('awards',     'admin write',              admin.collection('awards').doc('2026-8').set({ citation: 'y' }), 'allow');
-  await t('awards',     'non-admin write',          rando.collection('awards').doc('2026-8').set({ citation: 'y' }), 'deny');
+  await t('awards',     'public read denied (retired)', anon.collection('awards').doc('2026-7').get(), 'deny');
+  await t('awards',     'admin write denied (retired)',  admin.collection('awards').doc('2026-8').set({ citation: 'y' }), 'deny');
+  await t('awards',     'non-admin write denied',       rando.collection('awards').doc('2026-8').set({ citation: 'y' }), 'deny');
 
   await t('fixtures',   'public where(scheduled)',  anon.collection('fixtures').where('status','==','scheduled').get(), 'allow');
   await t('fixtures',   'public unconstrained',     anon.collection('fixtures').get(), 'deny');
@@ -102,7 +102,6 @@ const ORGANIZER = 'elderly.group.futsal@gmail.com';
   await t('tier:players',  'ORGANIZER cannot rename',     org.collection('players_v2').doc('can').set({ displayName: 'Renamed' }), 'deny');
   await t('tier:players',  'ORGANIZER cannot delete',     org.collection('players_v2').doc('can').delete(), 'deny');
   await t('tier:locations','ORGANIZER add venue',         org.collection('locations').doc('lo1').set({ name: 'New Hall' }), 'allow');
-  await t('tier:awards',   'ORGANIZER write citation',    org.collection('awards').doc('2026-9').set({ citation: 'z' }), 'allow');
   await t('tier:fixtures', 'ORGANIZER create fixture',    org.collection('fixtures').doc('of1').set({ status: 'scheduled' }), 'allow');
   await t('tier:fixtures', 'ORGANIZER sees drafts',       org.collection('fixtures').get(), 'allow');
   await t('tier:fixtures', 'ORGANIZER cannot delete',     org.collection('fixtures').doc('of1').delete(), 'deny');

@@ -5382,15 +5382,6 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         return `<option value="${mo}" ${isSel}>${monthNames[mo]} ${curYear}</option>`;
     }).join('');
 
-    let cachedCitation = '';
-    const awardDocId = `${curYear}-${activeMonth}`;
-    try {
-        const aDoc = await db.collection('awards').doc(awardDocId).get();
-        if (aDoc.exists && aDoc.data().citation) {
-            cachedCitation = aDoc.data().citation;
-        }
-    } catch (e) {}
-
     /* Item 9: a card whose winner came from a lowered threshold says so, rather
        than presenting a thin-month result with the same confidence as a full one. */
     const tierBadge = (award) => (award && award.tier && award.tier !== 'qualified')
@@ -5462,24 +5453,6 @@ async function renderCommunityTab(matches, forcedMonth = null) {
             ` : emptyAward(`Every player on record turned out for ${awardsData.totalMonthMatches === 1 ? 'the one match' : `all ${awardsData.totalMonthMatches} matches`} in ${awardsData.monthName}.`)}
         </div>
     </div>`;
-
-    let citationBanner = '';
-    const adminCitationBtn = (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase() && awardsData.potm)
-        ? `<button class="btn btn-sm btn-outline-info ms-2" onclick="generateAwardCitation('${curYear}', '${activeMonth}', '${esc(awardsData.potm.name)}', '${awardsData.potm.ppg} PPG in ${awardsData.monthName}')"><i class="fas fa-wand-magic-sparkles me-1"></i>↺ Generate Citation</button>`
-        : '';
-
-    if (cachedCitation) {
-        citationBanner = `
-        <div class="p-3 mb-3 rounded bg-black bg-opacity-40 border border-info border-opacity-50">
-            <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="text-info fw-bold small"><i class="fas fa-quote-left me-1"></i>Official Award Citation:</span>
-                ${adminCitationBtn}
-            </div>
-            <div class="text-light fst-italic" style="font-size:0.9rem; line-height:1.5;">"${esc(cachedCitation)}"</div>
-        </div>`;
-    } else if (adminCitationBtn) {
-        citationBanner = `<div class="mb-3 text-end">${adminCitationBtn}</div>`;
-    }
 
     // A handful of matches cannot support a confident award whatever the
     // per-card tier says, so state the sample size once at the top.
@@ -5573,7 +5546,6 @@ async function renderCommunityTab(matches, forcedMonth = null) {
             </div>
             <div class="collapse${awardsOpen ? ' show' : ''}" id="awardsCollapse">
                 ${sampleBanner}
-                ${citationBanner}
                 <div class="row">
                     ${potmCard}
                     ${improvedCard}
@@ -5594,33 +5566,6 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         if (monthSelect) monthSelect.focus({ preventScroll: true });
     }
 }
-
-window.generateAwardCitation = async (year, month, recipientName, metricValue) => {
-    if (!isOrganizer(currentUser)) return alert("Organizer access required.");
-    try {
-        const genFn = functions.httpsCallable('generateAwardsCopy');
-        const res = await genFn({
-            awardType: 'Player of the Month',
-            recipientName,
-            metricValue,
-            period: `${month}/${year}`
-        });
-        if (res.data && res.data.ok && res.data.citation) {
-            await db.collection('awards').doc(`${year}-${month}`).set({
-                awardType: 'Player of the Month',
-                recipient: recipientName,
-                metric: metricValue,
-                citation: res.data.citation,
-                generatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                modelUsed: res.data.modelUsed
-            }, { merge: true });
-            showToast('Award citation generated and cached!');
-            renderCommunityTab(allMatches);
-        }
-    } catch (err) {
-        alert("Failed to generate citation: " + err.message);
-    }
-};
 
 // Listen for deep links & tab visibility
 if (typeof document !== 'undefined') {

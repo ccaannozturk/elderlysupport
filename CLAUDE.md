@@ -91,8 +91,8 @@ aliases      string[]   lowercased, matched case-insensitively
 active       boolean
 ```
 
-Other collections: `locations` (venue names), `awards` (cached monthly award
-citations), `fixtures` / `roasts` (Community tab, see item 42 in
+Other collections: `locations` (venue names),
+`fixtures` / `roasts` (Community tab, see item 42 in
 `docs/PLAN.md`), `config/gemini` (API key, unreadable by every client — see
 `firestore.rules`), `config/gemini_meta`, `config/roast_settings`.
 

@@ -461,6 +461,7 @@ const K_STANDARD_NEW = 48;
 const K_TOURN_REG = 16;
 const K_TOURN_NEW = 24;
 const MIN_GAMES_RANKED_ELO = 5;
+const MIN_GAMES_PAIR = 3;
 const RECAP_SILENCE_THRESHOLD = 65;
 
 function getMatchTime(m) {
@@ -572,6 +573,218 @@ function computeEloRatings(matchList) {
   }
 
   return { ratings, matchCounts };
+}
+
+function computePlayerStreaksAndForm(matches, targetIdOrName, playersRegistry = new Map()) {
+  const sorted = [...matches].sort((a, b) => {
+    const tA = getMatchTime(a);
+    const tB = getMatchTime(b);
+    if (tA !== tB) return tA - tB;
+    return (a.id || '').localeCompare(b.id || '');
+  });
+
+  const isMatchPlayer = (p) => {
+    if (!p) return false;
+    if (p === targetIdOrName) return true;
+    if (playersRegistry && typeof playersRegistry.has === 'function' && playersRegistry.has(targetIdOrName)) {
+      const reg = playersRegistry.get(targetIdOrName);
+      if (p === reg.id || p.toLowerCase() === (reg.displayName || '').toLowerCase()) return true;
+      if ((reg.aliases || []).map(a => a.toLowerCase()).includes(p.toLowerCase())) return true;
+    }
+    return p.toLowerCase() === targetIdOrName.toLowerCase();
+  };
+
+  let curW = 0, maxW = 0;
+  let curL = 0, maxL = 0;
+  let curU = 0, maxU = 0;
+  const history = [];
+
+  for (const m of sorted) {
+    let participated = false;
+    let result = 'L';
+    let pts = 0;
+
+    if (m.type === 'Standard') {
+      const tA = m.teams[0], tB = m.teams[1];
+      const inA = (tA.players || []).some(isMatchPlayer);
+      const inB = (tB.players || []).some(isMatchPlayer);
+      if (inA || inB) {
+        participated = true;
+        const myS = inA ? tA.score : tB.score;
+        const opS = inA ? tB.score : tA.score;
+        if (myS > opS) { result = 'W'; pts = 3; }
+        else if (myS === opS) { result = 'D'; pts = 1; }
+        else { result = 'L'; pts = 0; }
+      }
+    } else if (m.type === 'Tournament') {
+      const myTeam = (m.teams || []).find(t => (t.players || []).some(isMatchPlayer));
+      if (myTeam) {
+        participated = true;
+        pts = myTeam.points !== undefined ? myTeam.points : (myTeam.rank === 1 ? 3 : (myTeam.rank === 2 ? 1 : 0));
+        if (pts >= 3) result = 'W';
+        else if (pts === 1) result = 'D';
+        else result = 'L';
+      }
+    }
+
+    if (participated) {
+      history.push({ result, pts, date: m.date, matchId: m.id });
+
+      if (result === 'W') { curW++; if (curW > maxW) maxW = curW; }
+      else { curW = 0; }
+
+      if (result === 'L') { curL++; if (curL > maxL) maxL = curL; }
+      else { curL = 0; }
+
+      if (result === 'W' || result === 'D') { curU++; if (curU > maxU) maxU = curU; }
+      else { curU = 0; }
+    }
+  }
+
+  const rollingPpgHistory = [];
+  for (let i = 0; i < history.length; i++) {
+    const windowStart = Math.max(0, i - 4);
+    const windowSlice = history.slice(windowStart, i + 1);
+    const sumPts = windowSlice.reduce((sum, h) => sum + h.pts, 0);
+    const ppg = sumPts / windowSlice.length;
+    const dObj = history[i].date ? (history[i].date.toDate ? history[i].date.toDate() : new Date(history[i].date)) : null;
+    const dateStr = dObj ? `${dObj.getDate()}/${dObj.getMonth() + 1}` : `Match ${i + 1}`;
+    rollingPpgHistory.push({ index: i + 1, ppg, dateStr });
+  }
+
+  const form5 = history.slice(-5).map(h => h.result);
+
+  return {
+    curW, maxW,
+    curL, maxL,
+    curU, maxU,
+    form5,
+    rollingPpgHistory,
+    history
+  };
+}
+
+function computeNemesisAndRivalry(matches, targetIdOrName, playersRegistry = new Map(), nameResolver = id => id) {
+  const isMatchPlayer = (p) => {
+    if (!p) return false;
+    if (p === targetIdOrName) return true;
+    if (playersRegistry && typeof playersRegistry.has === 'function' && playersRegistry.has(targetIdOrName)) {
+      const reg = playersRegistry.get(targetIdOrName);
+      if (p === reg.id || p.toLowerCase() === (reg.displayName || '').toLowerCase()) return true;
+      if ((reg.aliases || []).map(a => a.toLowerCase()).includes(p.toLowerCase())) return true;
+    }
+    return p.toLowerCase() === targetIdOrName.toLowerCase();
+  };
+
+  const opposed = {};
+  const teammates = {};
+
+  for (const m of matches) {
+    if (m.type === 'Standard') {
+      const tA = m.teams[0], tB = m.teams[1];
+      const inA = (tA.players || []).some(isMatchPlayer);
+      const inB = (tB.players || []).some(isMatchPlayer);
+      if (!inA && !inB) continue;
+
+      const myTeam = inA ? tA : tB;
+      const oppTeam = inA ? tB : tA;
+      const isWin = myTeam.score > oppTeam.score;
+      const isDraw = myTeam.score === oppTeam.score;
+      const isLoss = myTeam.score < oppTeam.score;
+
+      (myTeam.players || []).forEach(p => {
+        if (!isMatchPlayer(p)) {
+          if (!teammates[p]) teammates[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+          teammates[p].played++;
+          if (isWin) teammates[p].won++;
+          else if (isDraw) teammates[p].drawn++;
+          else teammates[p].lost++;
+        }
+      });
+
+      (oppTeam.players || []).forEach(p => {
+        if (!opposed[p]) opposed[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+        opposed[p].played++;
+        if (isWin) opposed[p].won++;
+        else if (isDraw) opposed[p].drawn++;
+        else opposed[p].lost++;
+      });
+    } else if (m.type === 'Tournament') {
+      const myTeam = (m.teams || []).find(t => (t.players || []).some(isMatchPlayer));
+      if (!myTeam) continue;
+
+      const myRank = myTeam.rank !== undefined ? myTeam.rank : 2;
+
+      (myTeam.players || []).forEach(p => {
+        if (!isMatchPlayer(p)) {
+          if (!teammates[p]) teammates[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+          teammates[p].played++;
+          if (myRank === 1) teammates[p].won++;
+          else if (myRank === 2) teammates[p].drawn++;
+          else teammates[p].lost++;
+        }
+      });
+
+      (m.teams || []).forEach(otherTeam => {
+        if (otherTeam === myTeam) return;
+        const oppRank = otherTeam.rank !== undefined ? otherTeam.rank : 2;
+        const isWin = myRank < oppRank;
+        const isDraw = myRank === oppRank;
+        const isLoss = myRank > oppRank;
+
+        (otherTeam.players || []).forEach(p => {
+          if (!opposed[p]) opposed[p] = { played: 0, won: 0, drawn: 0, lost: 0 };
+          opposed[p].played++;
+          if (isWin) opposed[p].won++;
+          else if (isDraw) opposed[p].drawn++;
+          else opposed[p].lost++;
+        });
+      });
+    }
+  }
+
+  let nemesis = null;
+  Object.entries(opposed).forEach(([oppId, rec]) => {
+    if (rec.played >= MIN_GAMES_PAIR) {
+      if (!nemesis || rec.lost > nemesis.lost || (rec.lost === nemesis.lost && rec.played > nemesis.played)) {
+        nemesis = {
+          id: oppId,
+          name: nameResolver(oppId),
+          ...rec
+        };
+      }
+    }
+  });
+
+  const allRivals = new Set([...Object.keys(teammates), ...Object.keys(opposed)]);
+  const duoSplits = [];
+  allRivals.forEach(id => {
+    const t = teammates[id] || { played: 0, won: 0, drawn: 0, lost: 0 };
+    const o = opposed[id] || { played: 0, won: 0, drawn: 0, lost: 0 };
+    const showTogether = t.played >= MIN_GAMES_PAIR;
+    const showOpposed = o.played >= MIN_GAMES_PAIR;
+
+    if (showTogether || showOpposed) {
+      duoSplits.push({
+        id,
+        name: nameResolver(id),
+        together: {
+          ...t,
+          winRate: t.played > 0 ? Math.round((t.won / t.played) * 100) : 0,
+          ppg: t.played > 0 ? ((t.won * 3 + t.drawn) / t.played).toFixed(2) : '0.00'
+        },
+        opposed: {
+          ...o,
+          winRate: o.played > 0 ? Math.round((o.won / o.played) * 100) : 0,
+          lossRate: o.played > 0 ? Math.round((o.lost / o.played) * 100) : 0
+        }
+      });
+    }
+  });
+
+  duoSplits.sort((a, b) => (b.together.played + b.opposed.played) - (a.together.played + a.opposed.played));
+
+  return { nemesis, duoSplits, opposed, teammates };
 }
 
 function computeMatchAngles(allMatches, targetMatchId, nameResolver = (id) => id) {
@@ -1155,11 +1368,11 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
   });
 
   // 2. Compute Elo Ratings, H2H, Streaks, and Duos
+  const eloData = computeEloRatings(allMatchesList);
   const playerStats = {};
   const duos = {};
   const h2h = {}; // h2h[p1][p2] = { against: 0, wonAgainst: 0, lostTo: 0, drawn: 0 }
   const streaks = {}; // streaks[pId] = { current: { type: 'W'|'L'|'D', count: 0 }, maxW: 0, maxUnbeaten: 0, maxL: 0, currentUnbeaten: 0 }
-  const eloMap = {}; // eloMap[pId] = { rating: 1200, matches: 0 }
   const stdMatches = [];
   let totalStdGoals = 0;
   const venuesStats = {};
@@ -1167,9 +1380,6 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
   const initPlayer = (pId) => {
     if (!playerStats[pId]) {
       playerStats[pId] = { id: pId, name: getName(pId), played: 0, won: 0, drawn: 0, lost: 0, pts: 0, gf: 0, ga: 0, stdPlayed: 0 };
-    }
-    if (!eloMap[pId]) {
-      eloMap[pId] = { rating: 1200, matches: 0 };
     }
     if (!streaks[pId]) {
       streaks[pId] = { currentType: '', currentCount: 0, maxW: 0, maxUnbeaten: 0, maxL: 0, curW: 0, curUnbeaten: 0, curL: 0 };
@@ -1197,25 +1407,6 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
 
       pA.forEach(initPlayer);
       pB.forEach(initPlayer);
-
-      // Elo update
-      const avgA = pA.length ? (pA.reduce((s, p) => s + eloMap[p].rating, 0) / pA.length) : 1200;
-      const avgB = pB.length ? (pB.reduce((s, p) => s + eloMap[p].rating, 0) / pB.length) : 1200;
-      const expA = 1 / (1 + Math.pow(10, (avgB - avgA) / 400));
-      const expB = 1 - expA;
-      const actA = sA > sB ? 1.0 : (sA === sB ? 0.5 : 0.0);
-      const actB = 1.0 - actA;
-
-      pA.forEach(p => {
-        const k = eloMap[p].matches < 5 ? 48 : 32;
-        eloMap[p].rating += k * (actA - expA);
-        eloMap[p].matches++;
-      });
-      pB.forEach(p => {
-        const k = eloMap[p].matches < 5 ? 48 : 32;
-        eloMap[p].rating += k * (actB - expB);
-        eloMap[p].matches++;
-      });
 
       // Basic stats & streaks
       [ { team: tA, opp: tB, myS: sA, opS: sB, myP: pA, opP: pB },
@@ -1294,6 +1485,28 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
           else if (rank === 2) playerStats[p].drawn++;
           else playerStats[p].lost++;
 
+          // Streaks
+          const st = streaks[p];
+          if (res === 'W') {
+            st.curW++;
+            st.curUnbeaten++;
+            st.curL = 0;
+            if (st.curW > st.maxW) st.maxW = st.curW;
+            if (st.curUnbeaten > st.maxUnbeaten) st.maxUnbeaten = st.curUnbeaten;
+          } else if (res === 'D') {
+            st.curW = 0;
+            st.curUnbeaten++;
+            st.curL = 0;
+            if (st.curUnbeaten > st.maxUnbeaten) st.maxUnbeaten = st.curUnbeaten;
+          } else {
+            st.curW = 0;
+            st.curUnbeaten = 0;
+            st.curL++;
+            if (st.curL > st.maxL) st.maxL = st.curL;
+          }
+          if (st.currentType === res) st.currentCount++;
+          else { st.currentType = res; st.currentCount = 1; }
+
           // H2H against other tournament teams
           teams.forEach((otherT, otherIdx) => {
             if (otherIdx === i) return;
@@ -1307,6 +1520,17 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
             });
           });
         });
+
+        // Duos
+        const sortedP = [...(t.players || [])].sort();
+        for (let i = 0; i < sortedP.length; i++) {
+          for (let j = i + 1; j < sortedP.length; j++) {
+            const key = `${sortedP[i]}__${sortedP[j]}`;
+            if (!duos[key]) duos[key] = { p1: getName(sortedP[i]), p2: getName(sortedP[j]), played: 0, won: 0 };
+            duos[key].played++;
+            if (res === 'W') duos[key].won++;
+          }
+        }
       });
     }
   });
@@ -1318,8 +1542,9 @@ exports.queryStats = functions.https.onCall(async (data, context) => {
     const wr = p.played > 0 ? Math.round((p.won / p.played) * 100) : 0;
     const avgGF = p.stdPlayed > 0 ? (p.gf / p.stdPlayed).toFixed(2) : '0.00';
     const deltaGF = (Number(avgGF) - leagueAvgGF).toFixed(2);
-    const elo = eloMap[p.id] ? Math.round(eloMap[p.id].rating) : 1200;
-    const isProvisional = eloMap[p.id] ? eloMap[p.id].matches < 5 : true;
+    const elo = Math.round((eloData.ratings && eloData.ratings[p.id] !== undefined) ? eloData.ratings[p.id] : STARTING_ELO);
+    const eloMatches = (eloData.matchCounts && eloData.matchCounts[p.id] !== undefined) ? eloData.matchCounts[p.id] : 0;
+    const isProvisional = eloMatches < MIN_GAMES_RANKED_ELO;
     const st = streaks[p.id] || { maxW: 0, maxUnbeaten: 0, currentType: 'W', currentCount: 0 };
 
     // Find top nemesis (opponent lost to most often, min 2 games against)
@@ -1425,56 +1650,6 @@ USER QUESTION:
     answer: answerText,
     modelUsed: geminiRes.modelUsed,
     fellBackFrom: geminiRes.fellBackFrom || null
-  };
-});
-
-/** 7. Item 35: Award & Milestone Citation Copy */
-exports.generateAwardsCopy = functions.https.onCall(async (data, context) => {
-  assertOrganizer(context);
-
-  const awardType = data && data.awardType ? String(data.awardType).trim() : 'Player of the Month';
-  const recipient = data && data.recipientName ? String(data.recipientName).trim() : 'Player';
-  const metric = data && data.metricValue ? String(data.metricValue).trim() : '';
-  const period = data && data.period ? String(data.period).trim() : '';
-
-  const keyDoc = await db.collection('config').doc('gemini').get();
-  if (!keyDoc.exists || !keyDoc.data().apiKey) {
-    throw new functions.https.HttpsError('failed-precondition', 'Gemini API key is not configured.');
-  }
-  const apiKey = keyDoc.data().apiKey;
-
-  const metaDoc = await db.collection('config').doc('gemini_meta').get();
-  const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
-
-  const prompt = `Write a warm, engaging, ONE-SENTENCE award citation for a recreational football league player.
-
-AWARD DETAILS:
-- Award: ${awardType}
-- Recipient: ${recipient}
-- Metric: ${metric}
-- Period: ${period}
-
-RULES:
-1. Exactly ONE sentence.
-2. Factual, appreciative, warm tone.
-3. Quote the metric accurately.
-4. Return JSON: {"citation": "Sentence here."}
-`;
-
-  const geminiRes = await callGeminiWithFallback(apiKey, prompt, selectedModel);
-  let citation = '';
-  try {
-    const cleaned = geminiRes.text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-    const parsed = JSON.parse(cleaned);
-    citation = parsed.citation || cleaned;
-  } catch (e) {
-    citation = geminiRes.text.replace(/[{}"]/g, '').trim();
-  }
-
-  return {
-    ok: true,
-    citation,
-    modelUsed: geminiRes.modelUsed
   };
 });
 
@@ -2282,4 +2457,47 @@ exports.saveRoastSettings = functions.https.onCall(async (data, context) => {
 
   return { ok: true };
 });
+
+/** 16. Phase 7: Event-driven public league data refresh */
+exports.onMatchWritten = functions.firestore
+  .document('matches_v2/{matchId}')
+  .onWrite(async (change, context) => {
+    // Fire-and-forget GitHub repository_dispatch event to refresh public-data/league.json
+    try {
+      const token = process.env.GITHUB_DISPATCH_TOKEN || (functions.config().github && functions.config().github.dispatch_token);
+      if (!token) {
+        console.warn('onMatchWritten: GITHUB_DISPATCH_TOKEN / github.dispatch_token not configured; skipping repository dispatch.');
+        return;
+      }
+      const repoOwner = 'ccaannozturk';
+      const repoName = 'elderlysupport';
+      const url = `https://api.github.com/repos/${repoOwner}/${repoName}/dispatches`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${token}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'ElderlySupport-CloudFunction'
+        },
+        body: JSON.stringify({
+          event_type: 'match-changed',
+          client_payload: {
+            matchId: context.params.matchId,
+            timestamp: new Date().toISOString()
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`onMatchWritten: GitHub dispatch failed with HTTP ${response.status}: ${errText}`);
+      } else {
+        console.log(`onMatchWritten: GitHub dispatch successfully sent for match ${context.params.matchId}`);
+      }
+    } catch (err) {
+      console.error('onMatchWritten: error sending GitHub dispatch', err);
+    }
+  });
 

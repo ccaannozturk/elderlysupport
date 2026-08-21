@@ -28,11 +28,20 @@ const grab = (name) => {
   if (!m) throw new Error('functions/index.js is missing ' + name);
   return m.group === undefined ? m[0] : m[0];
 };
-const consts = fnSrc.match(/const STARTING_ELO[\s\S]*?const MIN_GAMES_RANKED_ELO\s*=\s*\d+;/);
+const consts = fnSrc.match(/const STARTING_ELO[\s\S]*?const MIN_GAMES_PAIR\s*=\s*\d+;/);
 if (!consts) throw new Error('functions/index.js: Elo constants not found');
 eval(consts[0].replace(/^const\s+(\w+)\s*=/gm, 'globalThis.$1 ='));
-eval([grab('getMatchTime'), grab('computeExpectedScore'), grab('computeEloRatings')]
-  .join('\n').replace('function computeEloRatings', 'function computeEloRatingsFN'));
+eval([
+  grab('getMatchTime'),
+  grab('computeExpectedScore'),
+  grab('computeEloRatings'),
+  grab('computePlayerStreaksAndForm'),
+  grab('computeNemesisAndRivalry')
+].join('\n')
+  .replace('function computeEloRatings', 'function computeEloRatingsFN')
+  .replace('function computePlayerStreaksAndForm', 'function computePlayerStreaksAndFormFN')
+  .replace('function computeNemesisAndRivalry', 'function computeNemesisAndRivalryFN')
+);
 
 // Constants must agree before the outputs can be trusted.
 const constMismatches = [
@@ -41,7 +50,8 @@ const constMismatches = [
   ['K_STANDARD_NEW', core.K_STANDARD_NEW, globalThis.K_STANDARD_NEW],
   ['K_TOURN_REG', core.K_TOURN_REG, globalThis.K_TOURN_REG],
   ['K_TOURN_NEW', core.K_TOURN_NEW, globalThis.K_TOURN_NEW],
-  ['MIN_GAMES_RANKED_ELO', core.MIN_GAMES_RANKED_ELO, globalThis.MIN_GAMES_RANKED_ELO]
+  ['MIN_GAMES_RANKED_ELO', core.MIN_GAMES_RANKED_ELO, globalThis.MIN_GAMES_RANKED_ELO],
+  ['MIN_GAMES_PAIR', core.MIN_GAMES_PAIR, globalThis.MIN_GAMES_PAIR]
 ].filter(([, a, b]) => a !== b);
 
 // Newest backup as the dataset, reshaped into v2 form (player ids).
@@ -74,8 +84,29 @@ if (diffs.length) {
   diffs.slice(0, 15).forEach(([k, x, y]) => console.log(`  ${k.padEnd(22)} site=${x}  functions=${y}  (${y - x > 0 ? '+' : ''}${y - x})`));
 }
 
-const failed = diffs.length > 0 || constMismatches.length > 0;
+// Check streaks & nemesis parity across all players
+let streakFails = 0;
+let nemesisFails = 0;
+keys.forEach(playerId => {
+  const sCore = core.computePlayerStreaksAndForm(matches, playerId);
+  const sFn = computePlayerStreaksAndFormFN(matches, playerId);
+  if (sCore.curW !== sFn.curW || sCore.maxW !== sFn.maxW || sCore.curU !== sFn.curU || sCore.maxU !== sFn.maxU || sCore.curL !== sFn.curL || sCore.maxL !== sFn.maxL) {
+    streakFails++;
+    console.log(`  STREAK MISMATCH for ${playerId}: core=${JSON.stringify(sCore)} fn=${JSON.stringify(sFn)}`);
+  }
+
+  const nCore = core.computeNemesisAndRivalry(matches, playerId);
+  const nFn = computeNemesisAndRivalryFN(matches, playerId);
+  const nemCoreId = nCore.nemesis ? nCore.nemesis.id : null;
+  const nemFnId = nFn.nemesis ? nFn.nemesis.id : null;
+  if (nemCoreId !== nemFnId) {
+    nemesisFails++;
+    console.log(`  NEMESIS MISMATCH for ${playerId}: core=${nemCoreId} fn=${nemFnId}`);
+  }
+});
+
+const failed = diffs.length > 0 || constMismatches.length > 0 || streakFails > 0 || nemesisFails > 0;
 console.log(failed
-  ? '\nFAIL: the two Elo engines have drifted. Make functions/index.js match stats-core.js.'
-  : '\nPASS: stats-core.js and functions/index.js agree on every rating.');
+  ? '\nFAIL: engines have drifted. Make functions/index.js match stats-core.js.'
+  : '\nPASS: stats-core.js and functions/index.js agree on every rating, streak, and nemesis.');
 process.exit(failed ? 1 : 0);

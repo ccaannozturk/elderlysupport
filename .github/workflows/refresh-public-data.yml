@@ -11,6 +11,8 @@ on:
   schedule:
     - cron: '0 */6 * * *'    # every 6 hours, UTC
   workflow_dispatch:          # the "Run workflow" button
+  repository_dispatch:
+    types: [match-changed]   # triggered on match save in Firestore
 
 permissions:
   contents: write

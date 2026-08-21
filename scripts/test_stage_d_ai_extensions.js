@@ -19,7 +19,6 @@ const {
   isPaidModel,
   generateMatchRecap,
   queryStats,
-  generateAwardsCopy,
   suggestAliases,
   auditDataHealth
 } = functionsModule;
@@ -28,10 +27,9 @@ const {
 console.log('\n[Test 1] Verifying callable Cloud Function exports:');
 assert(typeof generateMatchRecap === 'function', 'generateMatchRecap must be exported');
 assert(typeof queryStats === 'function', 'queryStats must be exported');
-assert(typeof generateAwardsCopy === 'function', 'generateAwardsCopy must be exported');
 assert(typeof suggestAliases === 'function', 'suggestAliases must be exported');
 assert(typeof auditDataHealth === 'function', 'auditDataHealth must be exported');
-console.log('✓ All 5 new Stage D+ Cloud Functions are properly exported.');
+console.log('✓ All Stage D+ Cloud Functions are properly exported.');
 
 // Test 2: Shared Model Resolver & No Hardcoded Models
 console.log('\n[Test 2] Auditing for hardcoded models or forbidden parameters:');
