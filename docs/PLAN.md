@@ -2,236 +2,133 @@
 
 Status key: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
-26 agreed items across five stages. Stages are ordered by dependency. Within a
-stage, items can be done in any order unless noted.
+**This plan supersedes the original 26-item / five-stage plan (Stages A–E).** That
+plan is complete and its history is in git. Everything below is the current agreed
+scope, agreed 2026-08-21 after a review of the Community tab, the chemistry matrix,
+the optimal-lineup layout and the Roast Studio.
+
+### Note on the old "out of scope" list
+
+The previous plan listed "AI roast / hype generator" as considered and declined.
+A full Roast Studio and fixture/prediction lifecycle shipped anyway in commit
+`eebfc29` (Item 42). The declined-list entry is therefore withdrawn — the roast
+feature is in the product and is maintained like any other. The remaining declined
+items still stand: canvas recap cards, prediction league, YouTube auto-embed,
+fantasy draft, Team Name Hall of Fame, second Firestore database, soft delete,
+per-tournament goal capture.
 
 ---
 
-## Stage A — Independent fixes (no dependencies, start here)
+## Phase 1 — Blockers  ✅ complete
 
-Branch: `stage-a-fixes`
+All six are bugs, not features. Items 1 and 2 together are the entire cause of
+"Community month selector never populates names".
 
-- [x] **3. Escaping + roster writes**
-  - Add `esc()` (HTML-escape) and `safeUrl()` (scheme allowlist: http/https only)
-    helpers. Apply to every interpolated value in every `innerHTML` template.
-  - `renderList()` currently emits `onclick="removePlayer('${k}','${p}')"`. A name
-    containing an apostrophe (`O'Brien`, `D'Angelo`) breaks the handler today. Move
-    to `data-` attributes plus one delegated listener on the container.
-  - Same treatment for `openPlayerStats('${p.name}')` in the leaderboard rows.
-  - Make match save write any new player names to the `players` collection. Nothing
-    currently does, which is why autocomplete goes stale.
+- [x] **1. `matchesFilter` year type coercion**
+  - `matchesFilter()` compares `d.getFullYear() === year` strictly. `renderData()`
+    passes a number; `renderCommunityTab()` passes a string (`fYear.value`), so
+    `2026 === '2026'` is false and **every** month of awards computes over zero
+    matches and renders "No fixtures played in this month."
+  - Coerce inside `matchesFilter` so both call styles work. Audit all three call
+    sites. Guard against a missing/malformed `m.date` while there — the function
+    calls `.toDate()` unguarded.
 
-- [x] **8. Timestamp sort bug**
-  - `openPlayerStats()` sorts with `b.date - a.date` on Firestore `Timestamp`
-    objects, which produces `NaN`. It only appears to work because `allMatches`
-    arrives pre-sorted from the query. Use `.toMillis()`.
-  - Audit for the same pattern elsewhere.
+- [x] **2. Preserve awards collapse state across re-render**
+  - The month `<select>`'s `onchange` re-renders the whole community container,
+    re-emitting the awards body as `class="collapse"` (closed). Selecting a month
+    therefore snaps the panel shut even once item 1 is fixed.
+  - Keep the panel open across re-render and return focus to the select.
 
-- [x] **11. Filter consistency**
-  - Leaderboard and Stats respect year + month. `openPlayerStats()` respects year
-    only, so a player modal opened under a month filter shows numbers that don't
-    reconcile with the table. Make it respect both.
+- [x] **3. Derive `curYear` from data**
+  - `renderCommunityTab()` hardcodes `'2026'` when the year filter is "All Time".
+    Take the latest year present in the match data instead, so this keeps working
+    as seasons accumulate.
 
-- [x] **12. Defensive render**
-  - `renderData()` calls `m.date.toDate()` unguarded — a single document with a
-    missing or malformed date takes down the entire page. Filter invalid documents
-    out early and log a warning.
+- [x] **4. Roast / fixture listeners are denied for the public**
+  - `firestore.rules` gates `roasts` and `fixtures` per document
+    (`resource.data.status == 'published'` / `!= 'draft'`). Firestore rules are not
+    filters: an **unconstrained** collection listen cannot be proven safe and is
+    rejected outright for every non-admin visitor. `fetchRoasts()` and
+    `fetchFixtures()` both listen unconstrained, and swallow the resulting
+    `permission-denied` into `console.warn` — so the Roast and Next Game cards are
+    silently invisible to everyone except the admin.
+  - Public listener: constrained query. Admin listener: unconstrained, opened only
+    after auth resolves (both are currently started at `DOMContentLoaded`, before
+    `onAuthStateChanged` fires).
+  - Surface a real error state instead of only warning to the console.
+  - **May require a `firestore.rules` change. Edit only — the maintainer deploys.**
 
-- [x] **13. PPG minimum-appearance qualifier**
-  - Minimum **10 appearances** to rank. Unqualified players render greyed out below
-    a separator line, still visible, not sorted into the main ranking.
+- [x] **5. Roast publish button breaks on apostrophes**
+  - `publishRoastVariant('${esc(v.text)}', this)` — `esc()` escapes HTML, not JS
+    string delimiters. Any roast containing `'` (i.e. most of them) produces a
+    broken `onclick` and the Publish button silently does nothing.
+  - Same fix as Stage A item 3: `data-` attributes plus a delegated listener.
 
-- [x] **15. "All Time" filter option**
-  - Add to the year dropdown. Must work indefinitely as seasons accumulate — derive
-    from the data, don't hardcode years. Currently career totals are unviewable.
-
-- [x] **21. Venue and match-level stats**
-  - Goals per game by venue (indoor Sporthallen Zuid vs. outdoor Zeeburgereiland
-    are expected to differ materially).
-  - Biggest blowout, highest-scoring match, most draws.
-  - Per-player win rate by venue.
-  - Standard matches only for anything goal-based.
-
----
-
-## Stage B — Identity layer (the core)
-
-Branch: `stage-b-identity`
-**Blocked until the maintainer supplies the reviewed roster mapping at
-`data/roster-mapping.csv`.**
-
-Context: player names are currently free-text strings used directly as statistic
-keys, so one keystroke creates a permanent phantom player. The 2026 dataset needed
-both **merges** (`Anderson Müller` → `Anderson`, `Guillermo` → `Guille`) and a
-**split** (`Javi` was two different people, now `Javi Farres` and `Javi Bernardo`).
-Fuzzy matching alone cannot handle this — the registry must be authoritative.
-
-- [x] **1. Canonical player registry**
-  - `players_v2/{playerId}` where `playerId` is a stable slug:
-    ```
-    { displayName: "Anderson Brazil",
-      aliases: ["anderson brazil", "anderson b", "andersonbr"],
-      active: true,
-      createdAt: Timestamp }
-    ```
-  - `matches_v2` stores player **IDs**, not display names.
-  - Renaming a player then updates all history instantly.
-  - **All alias matching is case-insensitive.** `Jp`, `JP`, and `jp` must resolve
-    to the same player regardless of how it's typed. Store aliases lowercased and
-    lowercase the input before comparing — don't rely on the maintainer typing
-    consistently, that's the exact failure mode this registry exists to remove.
-  - Note the trap: `Anderson`, `Anderson Brazil` and `Anderson Müller` coexisted.
-    "Anderson" is both a standalone identity and a prefix of others. Never
-    auto-snap a longer name to a shorter one.
-
-- [x] **2. Migration script** (`scripts/migrate.js`)
-  - Reads `data/roster-mapping.csv` (maintainer-approved), rewrites all matches
-    into `matches_v2` with resolved IDs, builds `players_v2`.
-  - **Defaults to `--dry-run`.** Prints a full diff and a reconciliation report
-    (per-player appearance counts before vs. after) and writes nothing without an
-    explicit `--commit` flag.
-  - Original `matches` and `players` collections are never modified.
-  - Fails loudly on any name not present in the mapping file.
-  - Look up `raw_name` case-insensitively against `data/roster-mapping.csv` — same
-    reasoning as above, don't require exact-case matches against the mapping file.
-  - Known special cases already resolved in the current mapping file, worth
-    understanding before touching it again:
-    - `Anderson Müller` and `Guillermo` are merges (same person as `Anderson` and
-      `Guille` respectively). The `Guillermo` merge restores him to the
-      16/05/2026 match, where the manual data review had accidentally dropped him
-      instead of renaming him.
-    - `Javi` is a **split** — two different people were both recorded as "Javi".
-      Resolved by match date, not by name: 01/08/2026 → Javi Farres,
-      11/07/2026 → Javi Bernardo. Name-only lookup cannot disambiguate this; the
-      script needs a per-match override for this one raw name.
-
-- [x] **4. Resolver with hard gate**
-  - Every entered name resolves against the registry before save is possible:
-    - exact alias hit → green chip, auto-accepted
-    - single fuzzy candidate above threshold → amber chip, one tap to confirm
-    - multiple candidates → red chip, forced selection, **no default**
-    - no hit → "create new player?" dialog showing the three closest existing
-      names first
-  - "Exact alias hit" means case-insensitive exact match. `jp`, `Jp`, `JP` are all
-    the same alias — don't send `JP` down the fuzzy-match path just because the
-    casing differs from what's stored.
-  - **SAVE button disabled while any chip is amber or red.** This single constraint
-    is what eliminates the error class — a mistake becomes unsaveable.
-  - UI must be chips and bottom sheets, not desktop dropdowns. See item 7.
-
-- [x] **5. Context constraints**
-  - A player cannot appear on two teams in the same match. Exclude already-placed
-    players from candidate lists — this auto-resolves the Anderson ambiguity most
-    of the time.
-  - Loud warning on any name appearing for the first time ever (genuinely new
-    players are rare; typos are common).
-  - Flag team-size imbalance for confirmation (5v7 is legal but worth a prompt).
+- [x] **6. Latest roast by `publishedAt`**
+  - "Roast of the Week" picks `publishedRoasts[length - 1]`, which is the last
+    document in **ID order**, not the newest. Sort by `publishedAt` descending.
 
 ---
 
-## Stage C — Entry experience
+## Phase 2 — Mobile layout
 
-Branch: `stage-c-entry`
+- [ ] **7. Optimal 5-player lineup grid**
+  - Five tiles render as `<div class="col">` in a `.row`. Bootstrap's `.col` is
+    `flex: 1 0 0%` with auto min-width, so tile content (rank badge, 4-digit Elo,
+    caps line) sets a ~70px floor. On a 360px Android viewport the line overflows,
+    the row wraps, and the 5th tile lands alone stretched edge-to-edge.
+  - Replace with a CSS grid: phones get #1 as a full-width hero and #2–#5 as 2×2;
+    ≥576px returns to five equal columns. Add `min-width: 0` so `text-truncate`
+    actually engages.
+  - Note: `index.html` currently contains **no `@media` queries at all**.
 
-- [x] **7. Mobile-first entry (Android)**
-  - **Replace the `<input list="playerList">` datalist.** Android Chrome handles
-    datalists poorly — inconsistent dropdown, multiple taps, unreliable filtering.
-    This is a likely root cause of the maintainer typing full names by hand and
-    therefore of the typos themselves.
-  - Roster grid: ~25 regulars as tappable chips, tap to add, tap to remove.
-    Typing becomes the exception. Search box above it for the ~40 occasional players.
-  - `inputmode="numeric"` on score fields.
-  - Minimum 16px font on inputs (prevents Android zoom-on-focus jump).
-  - Sticky save button.
-  - Duplicate-match guard: warn if a match already exists on that date + venue.
-
-- [x] **9. Tournament rank buttons**
-  - Replace free-number points entry with three buttons: 1st / 2nd / 3rd.
-    Points auto-assigned 3/1/0. Less typing than now, and structurally prevents
-    invalid values.
-  - Background: `processTeamStats()` treats `pts >= 3` as a win and `pts === 1` as
-    a draw, so a stray value of `2` currently registers as played but as neither
-    W, D, nor L — silently breaking `P = W + D + L`.
-
-- [x] **10. Goals: exclude tournaments explicitly**
-  - Tournament matches record no goals and currently pass `gf: 0, ga: 0` into the
-    aggregate, diluting everyone's totals.
-  - Exclude them from all goal-based statistics and label the stat
-    "Goals (standard matches only)" so the number is honest.
-
-- [x] **14. Better delete confirmation**
-  - Plain hard delete retained (no archive collection, no soft-delete flag — the
-    maintainer wants Firestore kept clean).
-  - Replace `confirm("Delete?")` with a dialog showing date, both team names, and
-    the score. Deletion happens on a phone; mis-taps are the real risk.
-
-- [x] **6. AI Magic Paste** *(do last in this stage)*
-  - Paste the raw WhatsApp lineup message unmodified — no strict format required.
-  - Cloud Function proxy → Gemini (Google AI Studio free-tier key). The key lives
-    in Firebase Functions config and **must never appear in client JS**.
-  - Returns strict JSON: teams, scores/ranks, resolved player IDs, and a
-    per-name confidence score.
-  - Anything below high confidence drops into the amber/red resolver state from
-    item 4 — the model never silently commits a name.
-  - Rate-limit / queue calls; free tier limits are per-minute, not per-month.
+- [ ] **8. Sweep for the same overflow pattern**
+  - Audit the other Community and Stats cards for bare `.col` children that will
+    wrap the same way at 360px.
 
 ---
 
-## Stage D — Statistics engine
+## Phase 3 — Awards honesty
 
-Branch: `stage-d-stats`
-
-- [x] **16. Elo / power ranking** *(do first — 22 and 25 depend on it)*
-  - Player rating updates from team-average rating vs. opponent-team-average.
-    Fairer than PPG when team allocation is uneven.
-  - Handle tournaments as a three-way comparison, not two.
-  - Expose the rating so it can feed team-balancing later.
-
-- [x] **17. Nemesis and rivalry**
-  - Most-lost-to opponent per player, with record.
-  - Duo split analysis: record together vs. record opposed.
-
-- [x] **18. Streaks and form**
-  - Current and all-time longest win / loss / unbeaten runs.
-  - Rolling 5-game PPG line chart per player.
-  - Most improved: current month vs. season average.
-
-- [x] **19. Chemistry matrix**
-  - Heatmap of every pair's win rate together. Apply a minimum-games threshold or
-    it will be noise.
-
-- [x] **20. Appearances and attendance**
-  - Milestone badges (50 / 100 / 200).
-  - Attendance rate, longest consecutive-appearance run, debut tracker,
-    one-cap-wonders list (14 players had a single appearance in 2026).
-
-- [x] **22. Optimal lineup and curse stat**
-  - Highest-rated lineup buildable from the pool (needs item 16).
-  - "Curse": the player whose presence most lowers his team's average score,
-    independent of result.
+- [ ] **9. Provisional / low-sample tier**
+  - `computeMonthlyAwards()` already has resilient fallback tiers (relaxed
+    qualifier, then best-available-unqualified). They were simply never reached
+    because of Phase 1 item 1.
+  - Add an explicit tier below them so a thin month shows an approximation with a
+    labelled caveat ("3 matches in June — below qualifier, showing best available")
+    and a `PROVISIONAL` badge, rather than a blank card. No month should ever
+    render empty if any match exists in it.
 
 ---
 
-## Stage E — Community layer
+## Phase 4 — Chemistry matrix interactivity
 
-Branch: `stage-e-community`
+Today: a static 26×26 all-time table, fixed min-3-games threshold, `title=`
+tooltips that do not exist on touch. Everything below derives from
+`chemData.allDuos`, which is already computed — no new data entry, no new reads.
 
-- [ ] **32. PWA + deep links** *(do first — 25, 28, 29 all point at these URLs)*
-  - `manifest.json` + service worker: add-to-homescreen, fullscreen launch,
-    cached reads, offline viewing.
-  - Deep links: `?player=Sam` and `?match=<id>` open directly on that view, so a
-    link dropped in the group chat lands where intended.
+- [ ] **10. Min-games slider and metric toggle**
+  - Threshold 1 / 3 / 5 / 10 to trade noise against coverage.
+  - Metric toggle: Win % · PPG · games together.
 
-- [ ] **25. Weekly power rankings**
-  - Monday view with movement arrows vs. last week. Requires item 16.
+- [ ] **11. Row sort and focus-on-player mode**
+  - Sort rows by name / Elo / average chemistry / most games.
+  - Tap a player name to collapse the matrix to that player's row as a sorted
+    list — the only form a 360px screen can really display.
 
-- [ ] **28. Milestone notices**
-  - "Sam plays his 40th tonight", "Hector needs 2 wins for 50". Requires item 20.
+- [ ] **12. Tap-a-cell detail sheet**
+  - Bottom sheet with the pair's full record and the list of shared matches.
 
-- [ ] **29. Monthly awards**
-  - Player of the Month, Most Improved, Iron Man, Worst Duo, Ghost of the Month
-    (lowest attendance among active players). Mostly assembly of stats from
-    Stage D.
+---
+
+## Phase 5 — Fixture and roast lifecycle
+
+- [ ] **13. Expiry and selection**
+  - "Roast of the Week" and "NEXT GAME" never expire: a stale roast sits
+    indefinitely and a past fixture stays pinned with a negative countdown until
+    manually marked played. Add auto-expiry.
+  - `allFixtures.find(f => f.status === 'scheduled')` picks an arbitrary match when
+    several are scheduled. Pick the soonest.
 
 ---
 
@@ -241,7 +138,6 @@ Considered and explicitly declined:
 
 - Canvas-rendered shareable recap cards
 - Prediction league
-- AI roast / hype generator
 - YouTube auto-embed and highlight prompts
 - Fantasy draft
 - Team Name Hall of Fame (may return later as a separate design discussion)

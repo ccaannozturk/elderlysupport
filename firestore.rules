@@ -87,13 +87,21 @@ service cloud.firestore {
     }
 
     /* ========== FIXTURES & ROASTS (Item 42) ========== */
+    // Rules are not filters. A listener that does not carry a query constraint
+    // matching the condition below is rejected outright — it is not silently
+    // narrowed to the readable documents. The client therefore listens with
+    // .where('status','==','scheduled') / .where('status','==','published') when
+    // signed out, and unconstrained only as admin. Keep the conditions below and
+    // those queries identical: an inequality here (status != 'draft') does NOT
+    // reliably admit an equality query, which is what broke the public Roast and
+    // Next Game cards.
     match /fixtures/{fixtureId} {
-      allow read: if (resource != null && resource.data.status != 'draft') || isAdmin();
+      allow read: if isAdmin() || (resource != null && resource.data.status == 'scheduled');
       allow write: if isAdmin();
     }
 
     match /roasts/{roastId} {
-      allow read: if (resource != null && resource.data.status == 'published') || isAdmin();
+      allow read: if isAdmin() || (resource != null && resource.data.status == 'published');
       allow write: if isAdmin();
     }
 

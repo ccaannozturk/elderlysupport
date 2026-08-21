@@ -59,6 +59,10 @@ let activeRoastCandidates = [];
 let activeSelectedRoastAngle = null;
 let currentParsedFixtureSquads = null;
 let roastSettingsState = { intensity: 3, allowProfanity: false, optedOutPlayerIds: [] };
+let unsubFixtures = null;
+let unsubRoasts = null;
+let communityListenersMode = null; // 'public' | 'admin' — resubscribed on auth change
+let communityFeedErrors = { fixtures: null, roasts: null };
 
 let playersRegistry = new Map(); // playerId -> { id, displayName, aliases, active }
 let currentModalContext = null; // { teamKey, index, rawInput, candidates, top3 }
@@ -174,8 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPlayerNames();
     fetchMatches();
     fetchLocations();
-    fetchFixtures();
-    fetchRoasts();
+    // Opens the public (rules-compatible) listeners now; updateAuthUI swaps them
+    // for the unconstrained admin listeners once auth resolves.
+    subscribeCommunityCollections();
     
     const dDate = document.getElementById('matchDate');
     if(dDate) dDate.valueAsDate = new Date();
@@ -183,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEnterKeys();
     setupRosterSearch();
     setupGeminiKeyForm();
+    setupRoastVariantHandlers();
 
     const lb = document.getElementById('leaderboard-body');
     if(lb) lb.addEventListener('click', (e) => {
@@ -280,6 +286,7 @@ function updateAuthUI() {
         document.getElementById('loginForm').classList.remove('d-none');
         document.getElementById('userInfo').classList.add('d-none');
     }
+    subscribeCommunityCollections();
     renderData(); 
 }
 
@@ -312,11 +319,27 @@ function fetchMatches() {
     });
 }
 
+// Callers pass `year` as a number (renderData) or as a raw select value string
+// (renderCommunityTab). Compare numerically so '2026' and 2026 behave the same.
 function matchesFilter(m, year, month) {
-    const d = m.date.toDate();
-    const yMatch = year === 'all' || d.getFullYear() === year;
-    const mMatch = month === 'all' || d.getMonth() === parseInt(month);
+    const d = m && m.date && m.date.toDate ? m.date.toDate() : null;
+    if (!d || isNaN(d.getTime())) return false;
+    const yMatch = year === 'all' || year === undefined || year === null || d.getFullYear() === parseInt(year, 10);
+    const mMatch = month === 'all' || month === undefined || month === null || d.getMonth() === parseInt(month, 10);
     return yMatch && mMatch;
+}
+
+// Most recent season present in the data, as a string. Falls back to the current
+// calendar year when there is nothing to read.
+function latestYearInMatches(matches) {
+    let latest = null;
+    (matches || []).forEach(m => {
+        const d = m && m.date ? (m.date.toDate ? m.date.toDate() : new Date(m.date)) : null;
+        if (!d || isNaN(d.getTime())) return;
+        const y = d.getFullYear();
+        if (latest === null || y > latest) latest = y;
+    });
+    return String(latest !== null ? latest : new Date().getFullYear());
 }
 
 function formatDate(dateObj) {
@@ -4005,11 +4028,11 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
             }
         });
         activeMonths.sort((a, b) => b - a);
-        targetMonth = activeMonths.length > 0 ? String(activeMonths[0]) : '7';
+        targetMonth = activeMonths.length > 0 ? String(activeMonths[0]) : String(new Date().getMonth());
     }
 
     const monthNum = parseInt(targetMonth);
-    const monthName = (!isNaN(monthNum) && monthNames[monthNum]) ? monthNames[monthNum] : 'August';
+    const monthName = (!isNaN(monthNum) && monthNames[monthNum]) ? monthNames[monthNum] : monthNames[new Date().getMonth()];
     const monthMatches = matches.filter(m => matchesFilter(m, year, targetMonth));
 
     if (monthMatches.length === 0) {
@@ -4441,9 +4464,49 @@ function computeRoastAngles(allMatches, playersList, optOutIds = []) {
   }));
 }
 
-function fetchFixtures() {
+/*
+ * Firestore security rules are NOT filters. `fixtures` and `roasts` are gated per
+ * document (status == 'scheduled' / status == 'published'), so an UNCONSTRAINED
+ * collection listen cannot be proven safe and is rejected outright for every
+ * non-admin visitor — which silently hid the Next Game and Roast cards from the
+ * whole group. Public listeners must therefore carry a query constraint that
+ * mirrors the rule exactly. The admin needs drafts and played fixtures for the
+ * studio, so the admin listener stays unconstrained and is opened only once auth
+ * has actually resolved.
+ */
+function isSuperAdmin(user) {
+    return !!(user && user.email && user.email.toLowerCase() === SUPER_ADMIN.toLowerCase());
+}
+
+function noteCommunityFeedError(feed, err) {
+    const denied = err && (err.code === 'permission-denied' || err.code === 'missing-or-insufficient-permissions');
+    communityFeedErrors[feed] = denied
+        ? `${feed === 'roasts' ? 'Roasts' : 'Fixtures'} could not be loaded — the reader is not permitted to see this collection. Check firestore.rules.`
+        : `${feed === 'roasts' ? 'Roasts' : 'Fixtures'} could not be loaded: ${err && err.message ? err.message : 'unknown error'}`;
+    console.warn(`${feed} snapshot error:`, err && err.message);
+    renderCommunityTab(allMatches);
+}
+
+function subscribeCommunityCollections() {
+    const mode = isSuperAdmin(currentUser) ? 'admin' : 'public';
+    if (communityListenersMode === mode) return;
+    communityListenersMode = mode;
+
+    if (unsubFixtures) { try { unsubFixtures(); } catch (e) {} unsubFixtures = null; }
+    if (unsubRoasts) { try { unsubRoasts(); } catch (e) {} unsubRoasts = null; }
+
+    fetchFixtures(mode);
+    fetchRoasts(mode);
+}
+
+function fetchFixtures(mode = 'public') {
     try {
-        db.collection('fixtures').onSnapshot(snap => {
+        const query = mode === 'admin'
+            ? db.collection('fixtures')
+            : db.collection('fixtures').where('status', '==', 'scheduled');
+
+        unsubFixtures = query.onSnapshot(snap => {
+            communityFeedErrors.fixtures = null;
             allFixtures = [];
             snap.forEach(doc => {
                 allFixtures.push({ id: doc.id, ...doc.data() });
@@ -4451,24 +4514,29 @@ function fetchFixtures() {
             updateCommissionerStatsUI();
             renderExistingFixturesList();
             renderCommunityTab(allMatches);
-        }, err => {
-            console.warn('Fixtures snapshot notice:', err.message);
-        });
-    } catch (e) {}
+        }, err => noteCommunityFeedError('fixtures', err));
+    } catch (e) {
+        noteCommunityFeedError('fixtures', e);
+    }
 }
 
-function fetchRoasts() {
+function fetchRoasts(mode = 'public') {
     try {
-        db.collection('roasts').onSnapshot(snap => {
+        const query = mode === 'admin'
+            ? db.collection('roasts')
+            : db.collection('roasts').where('status', '==', 'published');
+
+        unsubRoasts = query.onSnapshot(snap => {
+            communityFeedErrors.roasts = null;
             allRoasts = [];
             snap.forEach(doc => {
                 allRoasts.push({ id: doc.id, ...doc.data() });
             });
             renderCommunityTab(allMatches);
-        }, err => {
-            console.warn('Roasts snapshot notice:', err.message);
-        });
-    } catch (e) {}
+        }, err => noteCommunityFeedError('roasts', err));
+    } catch (e) {
+        noteCommunityFeedError('roasts', e);
+    }
 }
 
 window.openRoastStudio = async () => {
@@ -4587,13 +4655,13 @@ window.executeGenerateRoastVariants = async () => {
         if (data && data.ok && data.variants) {
             if (list) {
                 list.innerHTML = data.variants.map(v => `
-                    <div class="p-3 rounded bg-dark border border-secondary">
+                    <div class="p-3 rounded bg-dark border border-secondary js-roast-variant">
                         <div class="text-light fst-italic mb-2" style="font-size:0.95rem; line-height:1.5;">"${esc(v.text)}"</div>
                         <div class="d-flex justify-content-between align-items-center pt-2 border-top border-secondary border-opacity-50">
                             <small class="text-muted"><i class="fas fa-check-circle text-info me-1"></i>Facts checkable: ${esc(activeSelectedRoastAngle.facts)}</small>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-success fw-bold px-3" onclick="publishRoastVariant('${esc(v.text)}', this)"><i class="fas fa-paper-plane me-1"></i>Publish</button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="discardRoastVariant(this)">Discard</button>
+                                <button class="btn btn-sm btn-success fw-bold px-3 js-publish-roast" data-roast-text="${esc(v.text)}"><i class="fas fa-paper-plane me-1"></i>Publish</button>
+                                <button class="btn btn-sm btn-outline-secondary js-discard-roast">Discard</button>
                             </div>
                         </div>
                     </div>
@@ -4608,6 +4676,23 @@ window.executeGenerateRoastVariants = async () => {
         if (btn) btn.disabled = false;
     }
 };
+
+// Delegated so a roast containing an apostrophe cannot break the handler — an
+// inline onclick="publish('${esc(text)}')" is unparseable the moment the text
+// contains a quote, and esc() escapes HTML, not JS string delimiters.
+function setupRoastVariantHandlers() {
+    const list = document.getElementById('roastVariantsList');
+    if (!list) return;
+    list.addEventListener('click', (e) => {
+        const publishBtn = e.target.closest('.js-publish-roast');
+        if (publishBtn) {
+            publishRoastVariant(publishBtn.dataset.roastText || '', publishBtn);
+            return;
+        }
+        const discardBtn = e.target.closest('.js-discard-roast');
+        if (discardBtn) discardRoastVariant(discardBtn);
+    });
+}
 
 window.publishRoastVariant = async (roastText, btnEl) => {
     if (!activeSelectedRoastAngle) return;
@@ -4637,7 +4722,7 @@ window.publishRoastVariant = async (roastText, btnEl) => {
 };
 
 window.discardRoastVariant = (btnEl) => {
-    const card = btnEl ? btnEl.closest('.p-3') : null;
+    const card = btnEl ? btnEl.closest('.js-roast-variant') : null;
     if (card) card.remove();
 };
 
@@ -5082,9 +5167,20 @@ async function renderCommunityTab(matches, forcedMonth = null) {
 
     // 2. CARD 2: ROAST OF THE WEEK (Item 42)
     let roastHtml = '';
-    const publishedRoasts = allRoasts.filter(r => r.status === 'published');
+    // Sort explicitly: an unordered snapshot arrives in document-ID order, so
+    // taking the last element gave an arbitrary roast rather than the newest.
+    const roastMillis = (r) => {
+        const t = r.publishedAt || r.createdAt;
+        if (!t) return 0;
+        if (t.toMillis) return t.toMillis();
+        const d = t.toDate ? t.toDate() : new Date(t);
+        return isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+    const publishedRoasts = allRoasts
+        .filter(r => r.status === 'published')
+        .sort((a, b) => roastMillis(b) - roastMillis(a));
     if (publishedRoasts.length > 0) {
-        const latestRoast = publishedRoasts[publishedRoasts.length - 1];
+        const latestRoast = publishedRoasts[0];
         roastHtml = `
         <div class="card bg-dark border-danger p-3 mb-4 shadow-sm" id="roastOfTheWeekCard">
             <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary border-opacity-50">
@@ -5164,8 +5260,11 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     }
 
     // 5. CARD 5: MONTHLY AWARDS (Item 29) - Collapsed by default
+    // Under "All Time" the awards still need one concrete season: use the most
+    // recent year present in the data, never a hardcoded year.
     const fYear = document.getElementById('filterYear');
-    const curYear = fYear ? (fYear.value === 'all' ? '2026' : fYear.value) : '2026';
+    const latestYear = latestYearInMatches(matches);
+    const curYear = (fYear && fYear.value !== 'all') ? fYear.value : latestYear;
 
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
     const monthsWithMatches = [];
@@ -5180,8 +5279,12 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     });
     monthsWithMatches.sort((a, b) => b - a);
 
-    const defaultMonth = monthsWithMatches.length > 0 ? String(monthsWithMatches[0]) : '7';
-    const activeMonth = forcedMonth !== null ? String(forcedMonth) : (window.selectedCommunityAwardsMonth !== null ? String(window.selectedCommunityAwardsMonth) : defaultMonth);
+    const defaultMonth = monthsWithMatches.length > 0 ? String(monthsWithMatches[0]) : String(new Date().getMonth());
+    let activeMonth = forcedMonth !== null ? String(forcedMonth) : (window.selectedCommunityAwardsMonth !== null ? String(window.selectedCommunityAwardsMonth) : defaultMonth);
+    // A month remembered from a previous year filter may not exist in this one.
+    if (monthsWithMatches.length > 0 && !monthsWithMatches.includes(parseInt(activeMonth, 10))) {
+        activeMonth = defaultMonth;
+    }
 
     const awardsData = computeMonthlyAwards(matches, curYear, activeMonth);
 
@@ -5274,7 +5377,28 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         citationBanner = `<div class="mb-3 text-end">${adminCitationBtn}</div>`;
     }
 
+    // Bootstrap collapse state lives in the DOM, so it is lost when this container
+    // is rebuilt. Capture it first — otherwise picking an awards month re-renders
+    // the panel closed and reads as "nothing happened". Changing the month always
+    // reopens the awards panel, since that is what the maintainer just asked to see.
+    const wasOpen = (id) => {
+        const el = document.getElementById(id);
+        return !!(el && el.classList.contains('show'));
+    };
+    const awardsOpen = forcedMonth !== null || wasOpen('awardsCollapse');
+    const milestoneOpen = wasOpen('milestoneWatchCollapse');
+
+    // A denied or failed feed used to vanish into console.warn, leaving the cards
+    // silently absent. Say so on the page instead.
+    const feedErrorHtml = Object.values(communityFeedErrors).filter(Boolean).map(msg => `
+        <div class="alert alert-warning bg-dark border-warning text-warning py-2 px-3 mb-3 small" role="alert">
+            <i class="fas fa-triangle-exclamation me-2"></i>${esc(msg)}
+        </div>
+    `).join('');
+
     container.innerHTML = `
+        ${feedErrorHtml}
+
         <!-- 1. NEXT GAME SCHEDULED (ITEM 42) -->
         ${nextGameHtml}
 
@@ -5310,11 +5434,11 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         <div class="card bg-dark border-secondary p-3 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <h6 class="fw-bold text-white small m-0"><i class="fas fa-flag-checkered text-warning me-2"></i>MILESTONE WATCH (25-CAP INTERVALS)</h6>
-                <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#milestoneWatchCollapse" aria-expanded="false">
+                <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#milestoneWatchCollapse" aria-expanded="${milestoneOpen}">
                     Toggle View
                 </button>
             </div>
-            <div class="collapse" id="milestoneWatchCollapse">
+            <div class="collapse${milestoneOpen ? ' show' : ''}" id="milestoneWatchCollapse">
                 ${milestoneWatchHtml}
             </div>
         </div>
@@ -5330,12 +5454,12 @@ async function renderCommunityTab(matches, forcedMonth = null) {
                     <select id="communityAwardsMonth" class="form-select form-select-sm bg-dark text-white border-secondary" style="width: auto; font-size: 0.8rem;" onchange="renderCommunityTabWithMonth(this.value)">
                         ${monthOptionsHtml}
                     </select>
-                    <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#awardsCollapse" aria-expanded="false">
+                    <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#awardsCollapse" aria-expanded="${awardsOpen}">
                         Toggle View
                     </button>
                 </div>
             </div>
-            <div class="collapse" id="awardsCollapse">
+            <div class="collapse${awardsOpen ? ' show' : ''}" id="awardsCollapse">
                 ${citationBanner}
                 <div class="row">
                     ${potmCard}
@@ -5349,6 +5473,13 @@ async function renderCommunityTab(matches, forcedMonth = null) {
             </div>
         </div>
     `;
+
+    // The select was destroyed with the old markup; hand focus back so the next
+    // month is one tap away.
+    if (forcedMonth !== null) {
+        const monthSelect = document.getElementById('communityAwardsMonth');
+        if (monthSelect) monthSelect.focus({ preventScroll: true });
+    }
 }
 
 window.generateAwardCitation = async (year, month, recipientName, metricValue) => {
