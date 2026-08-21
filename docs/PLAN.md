@@ -105,16 +105,31 @@ All six are bugs, not features. Items 1 and 2 together are the entire cause of
 
 ---
 
-## Phase 3 — Awards honesty
+## Phase 3 — Awards honesty  ✅ complete
 
-- [ ] **9. Provisional / low-sample tier**
+- [x] **9. Provisional / low-sample tier**
   - `computeMonthlyAwards()` already has resilient fallback tiers (relaxed
     qualifier, then best-available-unqualified). They were simply never reached
     because of Phase 1 item 1.
-  - Add an explicit tier below them so a thin month shows an approximation with a
-    labelled caveat ("3 matches in June — below qualifier, showing best available")
-    and a `PROVISIONAL` badge, rather than a blank card. No month should ever
-    render empty if any match exists in it.
+  - Replaced the ad-hoc two-step fallbacks with an explicit tiered selector.
+    Each award now reports which threshold produced it:
+    `qualified` (intended threshold met, no caveat) · `relaxed` (threshold
+    lowered to fit a short month) · `best` (no threshold left, showing the best
+    available). The first non-empty tier wins.
+  - A card from a lowered tier carries a `PROVISIONAL` badge and a one-line
+    caveat naming the threshold that moved ("Nobody reached 3 appearances in
+    August — qualifier lowered to 1"). A month under 4 matches also gets one
+    banner stating the sample size.
+  - Most Improved no longer dresses a decline up as improvement: when nobody beat
+    their career rate it says so and relabels the card "Closest to their career
+    baseline this month".
+  - The genuinely empty cases now explain themselves instead of going blank
+    ("Every player on record turned out for the one match in August").
+  - Verified: all 8 months of 2026 select at `qualified` with **zero** badges or
+    notes, so healthy months gain no noise; forced 1-, 2- and 3-match months
+    degrade through the tiers with correct caveats and never render an empty
+    POTM or Iron Men card.
+  - Also fixed "Attended all 1 matches" / "0 wins in 1 games" pluralisation.
 
 ---
 
@@ -138,20 +153,15 @@ tooltips that do not exist on touch. Everything below derives from
 
 ---
 
-## Phase 2b — Proposed, NOT agreed
+## Phase 2b — Declined
 
-- [ ] **14. Stack the match card vertically on phones** *(needs a decision)*
-  - At 360px the two-team layout leaves each team roughly 120px, so **109 of 114
-    team names wrap onto two or more lines** and long ones reach four. This is not
-    caused by item 8 — it is what the two-column card does at phone width, and
-    this group's team names are long and emoji-heavy by habit
-    ("Maarteta's Marvellous Machetes 🔪", "My brain says Bert, my heart says…").
-  - The fix that actually addresses it is stacking the card below ~430px: team A
-    row, score divider, team B row, each on full width. That is a visible
-    redesign of the primary tab, so it is written down rather than done.
-  - Cheaper alternatives if a redesign is unwanted: clamp names to two lines with
-    an ellipsis, or trim the strip's 16px padding and 50px score gutter on narrow
-    screens to buy back roughly 40px.
+- **14. Stack the match card vertically on phones — DECLINED 2026-08-21.**
+  At 360px, 109 of 114 team names wrap onto two or more lines and long ones reach
+  four, because a two-column card leaves each team about 120px and this group's
+  team names are long and emoji-heavy by habit. Stacking the card below ~430px
+  would fix it, but the maintainer's call is that exceptional team names can live
+  as they are — it does not matter much. Do not re-propose; nothing is hidden
+  (see item 8), it is only tall.
 
 ---
 

@@ -4115,74 +4115,99 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         });
     });
 
-    // 1. POTM: Resilient qualification
-    const minPOTMGames = Math.max(1, Math.min(MIN_GAMES_IMPROVED, Math.ceil(monthMatches.length * 0.35)));
-    let eligiblePOTM = Object.values(monthPlayerStats)
-        .filter(p => p.played >= minPOTMGames)
-        .map(p => ({
-            ...p,
-            ppg: (p.pts / p.played).toFixed(2),
-            rawPPG: p.pts / p.played
-        }))
+    /* Item 9: tiered qualification.
+       Every award records WHICH threshold produced it, so a thin month can be
+       labelled honestly instead of rendering an empty card. The tiers run
+       strictest first and the first non-empty one wins:
+         'qualified' — met the intended threshold, no caveat
+         'relaxed'   — threshold lowered to fit a short month
+         'best'      — no threshold left; showing the best available
+       If a month contains any match at all, every award that can have a winner
+       gets one. */
+    const pickTier = (tiers) => {
+        for (const t of tiers) {
+            const list = t.list();
+            if (list.length > 0) {
+                return { ...list[0], tier: t.tier, note: t.note(list[0], list.length), poolSize: list.length };
+            }
+        }
+        return null;
+    };
+
+    const monthPlayers = Object.values(monthPlayerStats);
+    const adaptiveMin = Math.max(1, Math.min(MIN_GAMES_IMPROVED, Math.ceil(monthMatches.length * 0.35)));
+
+    // 1. Player of the Month
+    const mapPOTM = (arr) => arr
+        .map(p => ({ ...p, ppg: (p.pts / p.played).toFixed(2), rawPPG: p.pts / p.played }))
         .sort((a, b) => b.rawPPG - a.rawPPG || b.won - a.won || b.played - a.played || b.pts - a.pts);
 
-    if (eligiblePOTM.length === 0) {
-        eligiblePOTM = Object.values(monthPlayerStats)
-            .map(p => ({
-                ...p,
-                ppg: (p.pts / p.played).toFixed(2),
-                rawPPG: p.pts / p.played
-            }))
-            .sort((a, b) => b.rawPPG - a.rawPPG || b.won - a.won || b.played - a.played || b.pts - a.pts);
-    }
-    const potm = eligiblePOTM.length > 0 ? eligiblePOTM[0] : null;
+    const potm = pickTier([
+        {
+            tier: 'qualified',
+            note: () => '',
+            list: () => mapPOTM(monthPlayers.filter(p => p.played >= MIN_GAMES_IMPROVED))
+        },
+        {
+            tier: 'relaxed',
+            note: (w) => `Nobody reached ${MIN_GAMES_IMPROVED} appearances in ${monthName} — qualifier lowered to ${adaptiveMin}.`,
+            list: () => mapPOTM(monthPlayers.filter(p => p.played >= adaptiveMin))
+        },
+        {
+            tier: 'best',
+            note: (w) => `Thin month: best record available, from ${w.played} appearance${w.played === 1 ? '' : 's'}.`,
+            list: () => mapPOTM(monthPlayers)
+        }
+    ]);
 
-    // 2. Most Improved: Resilient qualification
-    let eligibleImproved = Object.values(monthPlayerStats)
-        .filter(p => p.played >= minPOTMGames && (careerStats[p.id]?.played || 0) >= 3)
+    // 2. Most Improved (vs. career baseline)
+    const mapImproved = (arr) => arr
         .map(p => {
             const mPPG = p.pts / p.played;
-            const cPPG = (careerStats[p.id].pts / careerStats[p.id].played);
+            const c = careerStats[p.id];
+            const cPPG = c && c.played ? (c.pts / c.played) : mPPG;
             const delta = mPPG - cPPG;
             return {
                 ...p,
                 monthPPG: mPPG.toFixed(2),
                 careerPPG: cPPG.toFixed(2),
-                delta: delta.toFixed(2),
+                delta: delta >= 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2),
                 rawDelta: delta
             };
         })
-        .filter(p => p.rawDelta > 0)
-        .sort((a, b) => b.rawDelta - a.rawDelta);
+        .sort((a, b) => b.rawDelta - a.rawDelta || b.pts - a.pts);
 
-    if (eligibleImproved.length === 0) {
-        eligibleImproved = Object.values(monthPlayerStats)
-            .map(p => {
-                const mPPG = p.pts / p.played;
-                const cPPG = careerStats[p.id] ? (careerStats[p.id].pts / careerStats[p.id].played) : mPPG;
-                const delta = mPPG - cPPG;
-                return {
-                    ...p,
-                    monthPPG: mPPG.toFixed(2),
-                    careerPPG: cPPG.toFixed(2),
-                    delta: delta >= 0 ? `+${delta.toFixed(2)}` : delta.toFixed(2),
-                    rawDelta: delta
-                };
-            })
-            .sort((a, b) => b.rawDelta - a.rawDelta || b.pts - a.pts);
-    }
-    const mostImproved = eligibleImproved.length > 0 ? eligibleImproved[0] : null;
+    const careerCaps = (p) => (careerStats[p.id] ? careerStats[p.id].played : 0);
 
-    // 3. Iron Men (Top Attendance in Month - Guaranteed Winner)
-    const maxPlayed = Math.max(...Object.values(monthPlayerStats).map(p => p.played), 0);
-    const ironMen = maxPlayed > 0
-        ? Object.values(monthPlayerStats).filter(p => p.played === maxPlayed)
-        : [];
+    const mostImproved = pickTier([
+        {
+            tier: 'qualified',
+            note: () => '',
+            list: () => mapImproved(monthPlayers.filter(p => p.played >= MIN_GAMES_IMPROVED && careerCaps(p) >= 5)).filter(p => p.rawDelta > 0)
+        },
+        {
+            tier: 'relaxed',
+            note: () => `Qualifier lowered to ${adaptiveMin} appearance${adaptiveMin === 1 ? '' : 's'} and 3 career caps for ${monthName}.`,
+            list: () => mapImproved(monthPlayers.filter(p => p.played >= adaptiveMin && careerCaps(p) >= 3)).filter(p => p.rawDelta > 0)
+        },
+        {
+            tier: 'best',
+            // No positive delta anywhere: say so rather than dressing a decline up
+            // as improvement.
+            note: (w) => w.rawDelta > 0
+                ? `Small sample: based on ${w.played} appearance${w.played === 1 ? '' : 's'}.`
+                : `Nobody bettered their career rate in ${monthName} — this is the closest.`,
+            list: () => mapImproved(monthPlayers)
+        }
+    ]);
 
-    // 4. Worst Duo (min 2 games together in month if available)
+    // 3. Iron Men (top attendance — always has a winner when anyone played)
+    const maxPlayed = Math.max(...monthPlayers.map(p => p.played), 0);
+    const ironMen = maxPlayed > 0 ? monthPlayers.filter(p => p.played === maxPlayed) : [];
+
+    // 4. Cold Duo of the Month
     const minDuoGames = Math.max(2, Math.min(MIN_GAMES_PAIR, Math.ceil(monthMatches.length * 0.35)));
-    let eligibleDuos = Object.values(monthDuos)
-        .filter(d => d.played >= minDuoGames)
+    const mapDuos = (arr) => arr
         .map(d => ({
             p1: getPlayerDisplayName(d.p1),
             p2: getPlayerDisplayName(d.p2),
@@ -4192,26 +4217,30 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         }))
         .sort((a, b) => a.winRate - b.winRate || b.played - a.played);
 
-    if (eligibleDuos.length === 0) {
-        eligibleDuos = Object.values(monthDuos)
-            .filter(d => d.played >= 2)
-            .map(d => ({
-                p1: getPlayerDisplayName(d.p1),
-                p2: getPlayerDisplayName(d.p2),
-                played: d.played,
-                won: d.won,
-                winRate: Math.round((d.won / d.played) * 100)
-            }))
-            .sort((a, b) => a.winRate - b.winRate || b.played - a.played);
-    }
-    const worstDuo = eligibleDuos.length > 0 ? eligibleDuos[0] : null;
+    const allDuos = Object.values(monthDuos);
+    const worstDuo = pickTier([
+        {
+            tier: 'qualified',
+            note: () => '',
+            list: () => mapDuos(allDuos.filter(d => d.played >= MIN_GAMES_PAIR))
+        },
+        {
+            tier: 'relaxed',
+            note: () => `No pair reached ${MIN_GAMES_PAIR} games together in ${monthName} — threshold lowered to ${minDuoGames}.`,
+            list: () => mapDuos(allDuos.filter(d => d.played >= minDuoGames))
+        },
+        {
+            tier: 'best',
+            note: () => `No pair played together more than once in ${monthName} — one game only.`,
+            list: () => mapDuos(allDuos)
+        }
+    ]);
 
-    // 5. Ghost of the Month (Regular player with >= 5 career caps who missed most matches this month)
-    let ghost = null;
-    const regularGhosts = Object.entries(careerStats)
-        .filter(([pId, c]) => c.played >= 5)
+    // 5. Ghost of the Month (regular who missed the most)
+    const mapGhosts = (minCaps) => Object.entries(careerStats)
+        .filter(([, c]) => c.played >= minCaps)
         .map(([pId, c]) => {
-            const mPlayed = monthPlayerStats[pId]?.played || 0;
+            const mPlayed = monthPlayerStats[pId] ? monthPlayerStats[pId].played : 0;
             return {
                 id: pId,
                 name: getPlayerDisplayName(pId),
@@ -4223,7 +4252,26 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         .filter(p => p.monthPlayed < monthMatches.length)
         .sort((a, b) => a.monthPlayed - b.monthPlayed || b.careerPlayed - a.careerPlayed);
 
-    ghost = regularGhosts.length > 0 ? regularGhosts[0] : null;
+    const ghost = pickTier([
+        { tier: 'qualified', note: () => '', list: () => mapGhosts(5) },
+        {
+            tier: 'relaxed',
+            note: () => `No 5-cap regular missed a game in ${monthName} — widened to 3 career caps.`,
+            list: () => mapGhosts(3)
+        },
+        {
+            tier: 'best',
+            note: (w) => `Widened to every player on record (${w.careerPlayed} career cap${w.careerPlayed === 1 ? '' : 's'}).`,
+            list: () => mapGhosts(1)
+        }
+    ]);
+
+    // Month-level caveat: a handful of matches cannot support a confident award,
+    // whatever the per-award tier says.
+    const thinMonth = monthMatches.length < 4;
+    const sampleNote = thinMonth
+        ? `Only ${monthMatches.length} match${monthMatches.length === 1 ? '' : 'es'} recorded in ${monthName} ${year} — treat these as indicative.`
+        : '';
 
     return {
         hasMatches: true,
@@ -4232,6 +4280,8 @@ function computeMonthlyAwards(matches, year, month, careerMatches = null) {
         year,
         totalMonthMatches: monthMatches.length,
         maxPlayedInMonth: maxPlayed,
+        thinMonth,
+        sampleNote,
         potm,
         mostImproved,
         ironMen,
@@ -5305,60 +5355,75 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         }
     } catch (e) {}
 
+    /* Item 9: a card whose winner came from a lowered threshold says so, rather
+       than presenting a thin-month result with the same confidence as a full one. */
+    const tierBadge = (award) => (award && award.tier && award.tier !== 'qualified')
+        ? `<span class="badge bg-secondary bg-opacity-50 text-warning fw-bold ms-2" style="font-size:0.6rem; letter-spacing:0.5px" title="Qualification threshold was lowered for this month">PROVISIONAL</span>`
+        : '';
+    const tierNote = (award) => (award && award.note)
+        ? `<div class="text-warning opacity-75 mt-2" style="font-size:0.7rem; line-height:1.3"><i class="fas fa-circle-info me-1"></i>${esc(award.note)}</div>`
+        : '';
+    const emptyAward = (reason) => `<div class="text-muted small py-3">${esc(reason)}</div>`;
+    const noMatchesMsg = `No matches recorded in ${awardsData.monthName} ${curYear}.`;
+
     let potmCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
         <div class="p-3 rounded bg-dark border border-secondary h-100">
-            <span class="text-warning small fw-bold d-block mb-1"><i class="fas fa-crown me-2"></i>PLAYER OF THE MONTH</span>
+            <span class="text-warning small fw-bold d-block mb-1"><i class="fas fa-crown me-2"></i>PLAYER OF THE MONTH${tierBadge(awardsData.potm)}</span>
             ${awardsData.potm ? `
-                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.potm.id}')">${esc(awardsData.potm.name)}</h5>
+                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${esc(awardsData.potm.id)}')">${esc(awardsData.potm.name)}</h5>
                 <div class="text-info fw-bold mb-1">${awardsData.potm.ppg} PPG <span class="text-muted small fw-normal">(${awardsData.potm.played} matches, ${awardsData.potm.won}W)</span></div>
                 <small class="text-muted">Highest points-per-game in ${awardsData.monthName} (${awardsData.potm.played} of ${awardsData.totalMonthMatches} games)</small>
-            ` : '<div class="text-muted small py-3">No fixtures played in this month.</div>'}
+                ${tierNote(awardsData.potm)}
+            ` : emptyAward(noMatchesMsg)}
         </div>
     </div>`;
 
     let improvedCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
         <div class="p-3 rounded bg-dark border border-secondary h-100">
-            <span class="text-success small fw-bold d-block mb-1"><i class="fas fa-chart-line me-2"></i>MOST IMPROVED</span>
+            <span class="text-success small fw-bold d-block mb-1"><i class="fas fa-chart-line me-2"></i>MOST IMPROVED${tierBadge(awardsData.mostImproved)}</span>
             ${awardsData.mostImproved ? `
-                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.mostImproved.id}')">${esc(awardsData.mostImproved.name)}</h5>
-                <div class="text-success fw-bold mb-1">${awardsData.mostImproved.delta} PPG <span class="text-muted small fw-normal">(${awardsData.mostImproved.monthPPG} vs ${awardsData.mostImproved.careerPPG} career)</span></div>
-                <small class="text-muted">Strongest positive form differential relative to baseline</small>
-            ` : '<div class="text-muted small py-3">No fixtures played in this month.</div>'}
+                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${esc(awardsData.mostImproved.id)}')">${esc(awardsData.mostImproved.name)}</h5>
+                <div class="${awardsData.mostImproved.rawDelta > 0 ? 'text-success' : 'text-warning'} fw-bold mb-1">${awardsData.mostImproved.delta} PPG <span class="text-muted small fw-normal">(${awardsData.mostImproved.monthPPG} vs ${awardsData.mostImproved.careerPPG} career)</span></div>
+                <small class="text-muted">${awardsData.mostImproved.rawDelta > 0 ? 'Strongest positive form differential relative to baseline' : 'Closest to their career baseline this month'}</small>
+                ${tierNote(awardsData.mostImproved)}
+            ` : emptyAward(noMatchesMsg)}
         </div>
     </div>`;
 
     let ironMenList = awardsData.ironMen.length > 0 
         ? awardsData.ironMen.map(p => `<span class="badge bg-secondary me-1 mb-1 p-2" style="cursor:pointer" onclick="openPlayerStats('${p.id}')">${esc(p.name)}</span>`).join('')
-        : '<div class="text-muted small py-3">No player attended fixtures this month.</div>';
+        : emptyAward(noMatchesMsg);
 
     const isFullAttendance = awardsData.maxPlayedInMonth === awardsData.totalMonthMatches;
     let ironManCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
         <div class="p-3 rounded bg-dark border border-secondary h-100">
             <span class="text-info small fw-bold d-block mb-1"><i class="fas fa-shield-alt me-2"></i>IRON MEN (${isFullAttendance ? '100% ATTENDANCE' : 'TOP ATTENDANCE'})</span>
             <div class="d-flex flex-wrap pt-1">${ironMenList}</div>
-            <small class="text-muted d-block mt-2">${isFullAttendance ? `Attended all ${awardsData.totalMonthMatches} matches` : `Attended ${awardsData.maxPlayedInMonth} of ${awardsData.totalMonthMatches} matches`} in ${awardsData.monthName}</small>
+            <small class="text-muted d-block mt-2">${isFullAttendance ? `Attended ${awardsData.totalMonthMatches === 1 ? 'the one match' : `all ${awardsData.totalMonthMatches} matches`}` : `Attended ${awardsData.maxPlayedInMonth} of ${awardsData.totalMonthMatches} matches`} in ${awardsData.monthName}</small>
         </div>
     </div>`;
 
     let worstDuoCard = `<div class="col-12 col-md-6 col-lg-6 mb-3">
         <div class="p-3 rounded bg-dark border border-secondary h-100">
-            <span class="text-danger small fw-bold d-block mb-1"><i class="fas fa-heart-broken me-2"></i>COLD DUO OF THE MONTH</span>
+            <span class="text-danger small fw-bold d-block mb-1"><i class="fas fa-heart-broken me-2"></i>COLD DUO OF THE MONTH${tierBadge(awardsData.worstDuo)}</span>
             ${awardsData.worstDuo ? `
                 <h6 class="fw-bold text-white mb-1">${esc(awardsData.worstDuo.p1)} & ${esc(awardsData.worstDuo.p2)}</h6>
-                <div class="text-danger fw-bold mb-1">${awardsData.worstDuo.winRate}% Win Rate <span class="text-muted small fw-normal">(${awardsData.worstDuo.won} wins in ${awardsData.worstDuo.played} games)</span></div>
+                <div class="text-danger fw-bold mb-1">${awardsData.worstDuo.winRate}% Win Rate <span class="text-muted small fw-normal">(${awardsData.worstDuo.won} ${awardsData.worstDuo.won === 1 ? 'win' : 'wins'} in ${awardsData.worstDuo.played} ${awardsData.worstDuo.played === 1 ? 'game' : 'games'})</span></div>
                 <small class="text-muted">Lowest win percentage as teammates in ${awardsData.monthName}</small>
-            ` : `<div class="text-muted small py-3">No repeating pairs with 2+ games together in ${awardsData.monthName}.</div>`}
+                ${tierNote(awardsData.worstDuo)}
+            ` : emptyAward(noMatchesMsg)}
         </div>
     </div>`;
 
     let ghostCard = `<div class="col-12 col-md-6 col-lg-6 mb-3">
         <div class="p-3 rounded bg-dark border border-secondary h-100">
-            <span class="text-muted small fw-bold d-block mb-1"><i class="fas fa-ghost me-2"></i>GHOST OF THE MONTH</span>
+            <span class="text-muted small fw-bold d-block mb-1"><i class="fas fa-ghost me-2"></i>GHOST OF THE MONTH${tierBadge(awardsData.ghost)}</span>
             ${awardsData.ghost ? `
-                <h6 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.ghost.id}')">${esc(awardsData.ghost.name)}</h6>
+                <h6 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${esc(awardsData.ghost.id)}')">${esc(awardsData.ghost.name)}</h6>
                 <div class="text-warning fw-bold mb-1">${awardsData.ghost.monthPlayed} of ${awardsData.totalMonthMatches} attended <span class="text-muted small fw-normal">(${awardsData.ghost.attendanceRate}%)</span></div>
                 <small class="text-muted">Regular player (${awardsData.ghost.careerPlayed} career caps) most missed in ${awardsData.monthName}</small>
-            ` : '<div class="text-muted small py-3">All league regulars attended actively this month!</div>'}
+                ${tierNote(awardsData.ghost)}
+            ` : emptyAward(`Every player on record turned out for ${awardsData.totalMonthMatches === 1 ? 'the one match' : `all ${awardsData.totalMonthMatches} matches`} in ${awardsData.monthName}.`)}
         </div>
     </div>`;
 
@@ -5379,6 +5444,14 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     } else if (adminCitationBtn) {
         citationBanner = `<div class="mb-3 text-end">${adminCitationBtn}</div>`;
     }
+
+    // A handful of matches cannot support a confident award whatever the
+    // per-card tier says, so state the sample size once at the top.
+    const sampleBanner = awardsData.sampleNote
+        ? `<div class="p-2 px-3 mb-3 rounded bg-black bg-opacity-25 border border-warning border-opacity-25 text-warning small">
+               <i class="fas fa-circle-info me-2"></i>${esc(awardsData.sampleNote)}
+           </div>`
+        : '';
 
     // Bootstrap collapse state lives in the DOM, so it is lost when this container
     // is rebuilt. Capture it first — otherwise picking an awards month re-renders
@@ -5463,6 +5536,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
                 </div>
             </div>
             <div class="collapse${awardsOpen ? ' show' : ''}" id="awardsCollapse">
+                ${sampleBanner}
                 ${citationBanner}
                 <div class="row">
                     ${potmCard}
