@@ -1132,7 +1132,7 @@ function fallbackLocalParser(text) {
     };
 
     const cleanPlayerToken = (p) => {
-        return p.replace(/\s*\((?:ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
+        return p.replace(/\s*\((?:r|ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
     };
 
     let outcomeScores = null;
@@ -2539,14 +2539,19 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             let fixtureToResolve = window.activeLinkedFixtureId;
             if (!fixtureToResolve && allFixtures && allFixtures.length > 0) {
                 const scheduledF = allFixtures.find(f => f.status === 'scheduled');
-                if (scheduledF && scheduledF.squads && scheduledF.squads.length >= 2) {
-                    const fP1 = scheduledF.squads[0].players || [];
-                    const fP2 = scheduledF.squads[1].players || [];
-                    const mP1 = (matchData.teams[0] || {}).players || [];
-                    const mP2 = (matchData.teams[1] || {}).players || [];
-                    const overlap1 = fP1.filter(p => mP1.includes(p)).length;
-                    const overlap2 = fP2.filter(p => mP2.includes(p)).length;
-                    if (overlap1 >= 2 && overlap2 >= 2) {
+                if (scheduledF && scheduledF.squads && scheduledF.squads.length >= 2 && matchData.teams) {
+                    const sCount = Math.min(scheduledF.squads.length, matchData.teams.length);
+                    let allMatched = sCount >= 2;
+                    for (let sIdx = 0; sIdx < sCount; sIdx++) {
+                        const fP = scheduledF.squads[sIdx].players || [];
+                        const mP = (matchData.teams[sIdx] || {}).players || [];
+                        const overlap = fP.filter(p => mP.includes(p)).length;
+                        if (overlap < 2 && fP.length > 0) {
+                            allMatched = false;
+                            break;
+                        }
+                    }
+                    if (allMatched) {
                         fixtureToResolve = scheduledF.id;
                     }
                 }
@@ -4652,7 +4657,9 @@ function populateFixtureVenueSelect() {
     select.innerHTML = sorted.map(loc => `<option value="${esc(loc)}" ${loc==='Sportgebouw Bibian Mentel'?'selected':''}>${esc(loc)}</option>`).join('');
 }
 
+let fixturePasteTimer = null;
 window.onFixturePasteInput = (val) => {
+    clearTimeout(fixturePasteTimer);
     const previewBox = document.getElementById('fixtureSquadsPreview');
     const h2hStrip = document.getElementById('fixtureH2HStrip');
     const btnGen = document.getElementById('btnGenFixturePreview');
@@ -4665,86 +4672,154 @@ window.onFixturePasteInput = (val) => {
         return;
     }
 
-    // Split squads by 'vs' or by newlines
-    const rawBlocks = val.split(/(?:^|\n)\s*(?:vs|v|\-{3,}|\={3,})\s*(?:\n|$)/i);
-    let squadLines = [];
-    if (rawBlocks.length >= 2) {
-        squadLines = [rawBlocks[0], rawBlocks[1]];
-    } else {
-        const lines = val.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length >= 2) {
-            squadLines = [lines[0], lines.slice(1).join(', ')];
-        } else {
-            squadLines = [val, ''];
+    if (previewBox) {
+        previewBox.innerHTML = '<div class="text-muted small py-2"><i class="fas fa-spinner fa-spin me-2"></i>Parsing lineup with AI...</div>';
+    }
+    if (btnGen) btnGen.disabled = true;
+
+    fixturePasteTimer = setTimeout(async () => {
+        await processFixturePaste(val);
+    }, 350);
+};
+
+async function processFixturePaste(text) {
+    const previewBox = document.getElementById('fixtureSquadsPreview');
+    const h2hStrip = document.getElementById('fixtureH2HStrip');
+    const btnGen = document.getElementById('btnGenFixturePreview');
+
+    if (!text || !text.trim()) return;
+
+    let parsed = null;
+    try {
+        const parseFn = functions.httpsCallable('parseLineup');
+        const res = await parseFn({ rawText: text });
+        parsed = res.data;
+    } catch (aiErr) {
+        console.warn("parseLineup unavailable/failed for fixture, using local fallback:", aiErr.message);
+        parsed = fallbackLocalParser(text);
+    }
+
+    if (!parsed || !parsed.teams || parsed.teams.length < 2) {
+        if (previewBox) {
+            previewBox.innerHTML = '<div class="alert alert-danger py-1 px-2 mb-0 small"><i class="fas fa-exclamation-triangle me-1"></i>Could not identify at least 2 squads from the pasted text.</div>';
         }
+        if (h2hStrip) h2hStrip.classList.add('d-none');
+        if (btnGen) btnGen.disabled = true;
+        currentParsedFixtureSquads = null;
+        return;
+    }
+
+    // If venue was extracted, update venue select
+    if (parsed.venue) {
+        locationsRegistry.add(parsed.venue.trim());
+        populateFixtureVenueSelect();
+        const vSelect = document.getElementById('fixtureVenueSelect');
+        if (vSelect) vSelect.value = parsed.venue.trim();
+    }
+    if (parsed.date) {
+        const dInput = document.getElementById('fixtureDateTime');
+        if (dInput && !dInput.value) dInput.value = parsed.date;
     }
 
     let hasUnresolved = false;
-    const parsedSquads = squadLines.map((block, sIdx) => {
-        const cleanedBlock = block.replace(/^(?:team\s*[ab]|squad\s*[ab]|yellow|blue|red)[:\-\s]*/i, '');
-        const rawNames = cleanedBlock.split(/[,;\n\t]+/).map(s => s.trim().replace(/^[-*•\d.)\s]+/, '')).filter(Boolean);
-
+    const teamKeys = ['A', 'B', 'C', 'D'];
+    const parsedSquads = parsed.teams.map((t, sIdx) => {
+        const tKey = teamKeys[sIdx] || `T${sIdx+1}`;
         const chips = [];
         const playerIds = [];
+        const rawPlayers = t.players || [];
 
-        rawNames.forEach(rawName => {
-            const res = resolvePlayerInput(rawName, sIdx === 0 ? 'A' : 'B');
+        rawPlayers.forEach(p => {
+            let res = null;
+            if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
+                res = {
+                    status: 'resolved',
+                    id: p.playerId,
+                    displayName: playersRegistry.get(p.playerId).displayName
+                };
+            } else {
+                res = resolvePlayerInput(p.rawName || p.playerId, tKey);
+            }
+
             if (res && res.status === 'resolved') {
                 chips.push(`<span class="badge bg-success bg-opacity-25 text-success me-1 mb-1">✓ ${esc(res.displayName)}</span>`);
                 playerIds.push(res.id);
             } else {
                 hasUnresolved = true;
-                chips.push(`<span class="badge bg-danger bg-opacity-25 text-danger me-1 mb-1">✗ ${esc(rawName)} (Unresolved)</span>`);
+                const unName = p.rawName || p.playerId || 'Unknown';
+                chips.push(`<span class="badge bg-danger bg-opacity-25 text-danger me-1 mb-1">✗ ${esc(unName)} (Unresolved)</span>`);
             }
         });
 
+        const defaultName = sIdx === 0 ? 'Squad A' : (sIdx === 1 ? 'Squad B' : (sIdx === 2 ? 'Squad C' : `Squad ${sIdx+1}`));
         return {
-            name: sIdx === 0 ? 'Squad A' : 'Squad B',
+            name: t.name || defaultName,
+            color: t.color || null,
             chips,
             players: playerIds,
-            rawCount: rawNames.length
+            rawCount: rawPlayers.length
         };
     });
+
+    const is3Squads = parsedSquads.length >= 3;
+    const colClass = is3Squads ? 'col-12 col-md-4' : 'col-6';
 
     if (previewBox) {
         previewBox.innerHTML = `
             <div class="row g-2">
-                <div class="col-6">
-                    <div class="fw-bold text-white small mb-1">Squad A (${parsedSquads[0].players.length} resolved):</div>
-                    <div class="d-flex flex-wrap">${parsedSquads[0].chips.join('') || '<span class="text-muted">Empty</span>'}</div>
-                </div>
-                <div class="col-6">
-                    <div class="fw-bold text-white small mb-1">Squad B (${parsedSquads[1].players.length} resolved):</div>
-                    <div class="d-flex flex-wrap">${parsedSquads[1].chips.join('') || '<span class="text-muted">Empty</span>'}</div>
-                </div>
+                ${parsedSquads.map((sq) => `
+                    <div class="${colClass}">
+                        <div class="fw-bold text-white small mb-1">${esc(sq.name)} (${sq.players.length} resolved):</div>
+                        <div class="d-flex flex-wrap">${sq.chips.join('') || '<span class="text-muted">Empty</span>'}</div>
+                    </div>
+                `).join('')}
             </div>
+            ${parsed.unparsed && parsed.unparsed.length > 0 ? `
+                <div class="text-muted small mt-2 pt-1 border-top border-secondary border-opacity-25">
+                    <i class="fas fa-info-circle me-1"></i>Unparsed lines: ${parsed.unparsed.map(esc).join(' | ')}
+                </div>
+            ` : ''}
             ${hasUnresolved ? '<div class="alert alert-danger py-1 px-2 mt-2 mb-0 small"><i class="fas fa-exclamation-triangle me-1"></i>Unresolved names detected! Hard gate: All players must map to existing roster.</div>' : ''}
         `;
     }
 
-    const isValid = !hasUnresolved && parsedSquads[0].players.length > 0 && parsedSquads[1].players.length > 0;
+    const allSquadsHavePlayers = parsedSquads.every(sq => sq.players.length > 0);
+    const isValid = !hasUnresolved && allSquadsHavePlayers && parsedSquads.length >= 2;
     if (btnGen) btnGen.disabled = !isValid;
 
     if (isValid) {
         currentParsedFixtureSquads = parsedSquads;
         const eloData = computeEloRatings(allMatches).ratings || {};
-        const avgEloA = Math.round(parsedSquads[0].players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / parsedSquads[0].players.length);
-        const avgEloB = Math.round(parsedSquads[1].players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / parsedSquads[1].players.length);
+        const avgElos = parsedSquads.map(sq => {
+            return sq.players.length > 0
+                ? Math.round(sq.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq.players.length)
+                : STARTING_ELO;
+        });
 
         if (h2hStrip) {
             h2hStrip.classList.remove('d-none');
-            h2hStrip.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div><b>Squad A:</b> Avg Elo <span class="text-info fw-bold">${avgEloA}</span></div>
-                    <span class="badge bg-secondary">H2H PREVIEW</span>
-                    <div><b>Squad B:</b> Avg Elo <span class="text-info fw-bold">${avgEloB}</span></div>
-                </div>
-            `;
+            if (parsedSquads.length >= 3) {
+                h2hStrip.innerHTML = `
+                    <div class="d-flex flex-wrap justify-content-around align-items-center gap-2">
+                        ${parsedSquads.map((sq, idx) => `
+                            <div><b>${esc(sq.name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[idx]}</span></div>
+                        `).join('<span class="text-muted">vs</span>')}
+                    </div>
+                `;
+            } else {
+                h2hStrip.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div><b>${esc(parsedSquads[0].name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[0]}</span></div>
+                        <span class="badge bg-secondary">H2H PREVIEW</span>
+                        <div><b>${esc(parsedSquads[1].name)}:</b> Avg Elo <span class="text-info fw-bold">${avgElos[1]}</span></div>
+                    </div>
+                `;
+            }
         }
     } else {
         if (h2hStrip) h2hStrip.classList.add('d-none');
     }
-};
+}
 
 let currentDraftPreviewData = null;
 window.executeGenerateFixturePreview = async () => {
@@ -4989,10 +5064,6 @@ window.recordResultShortcut = (fixtureId) => {
         if (modal) modal.hide();
     }
 
-    // Set Standard match type
-    const rbStd = document.getElementById('typeStandard');
-    if (rbStd) rbStd.click();
-
     // Set Date & Location
     if (f.date) {
         const d = f.date.toDate ? f.date.toDate() : new Date(f.date);
@@ -5012,16 +5083,35 @@ window.recordResultShortcut = (fixtureId) => {
         rawInput: getPlayerDisplayName(pId)
     });
 
-    selectedPlayers.A = (f.squads[0].players || []).map(toChip);
-    selectedPlayers.B = (f.squads[1].players || []).map(toChip);
+    const isTourn = f.squads && f.squads.length >= 3;
+    if (isTourn) {
+        const rbTourn = document.getElementById('typeTournament');
+        if (rbTourn) rbTourn.click();
 
-    const nameA = document.getElementById('nameTeamA');
-    if (nameA) nameA.value = f.squads[0].name || 'Squad A';
-    const nameB = document.getElementById('nameTeamB');
-    if (nameB) nameB.value = f.squads[1].name || 'Squad B';
+        const keys = ['TournA', 'TournB', 'TournC'];
+        keys.forEach((k, i) => {
+            const sq = f.squads[i] || { name: `Squad ${String.fromCharCode(65 + i)}`, players: [] };
+            selectedPlayers[k] = (sq.players || []).map(toChip);
+            const nameEl = document.getElementById(`name${k}`);
+            if (nameEl) nameEl.value = sq.name || (i === 0 ? 'Yellow' : (i === 1 ? 'Blue' : 'Red'));
+            renderList(k);
+        });
+    } else {
+        const rbStd = document.getElementById('typeStandard');
+        if (rbStd) rbStd.click();
 
-    renderList('A');
-    renderList('B');
+        selectedPlayers.A = ((f.squads[0] && f.squads[0].players) || []).map(toChip);
+        selectedPlayers.B = ((f.squads[1] && f.squads[1].players) || []).map(toChip);
+
+        const nameA = document.getElementById('nameTeamA');
+        if (nameA) nameA.value = (f.squads[0] && f.squads[0].name) || 'Squad A';
+        const nameB = document.getElementById('nameTeamB');
+        if (nameB) nameB.value = (f.squads[1] && f.squads[1].name) || 'Squad B';
+
+        renderList('A');
+        renderList('B');
+    }
+
     renderRosterGrid();
     updateSaveButtonState();
     showToast('Match entry pre-populated! Enter score and save.');
@@ -5216,24 +5306,33 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         const dateDisplay = fDate ? formatDate(fDate) : 'Upcoming';
 
         const eloData = computeEloRatings(matches).ratings || {};
-        const sq1 = scheduledFixture.squads[0];
-        const sq2 = scheduledFixture.squads[1];
-        const avgElo1 = sq1.players?.length ? Math.round(sq1.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq1.players.length) : STARTING_ELO;
-        const avgElo2 = sq2.players?.length ? Math.round(sq2.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq2.players.length) : STARTING_ELO;
-
-        nextGameHtml = `
-        <div class="card bg-dark ${awaitingResult ? 'border-warning' : 'border-info'} border-opacity-75 p-3 mb-4 shadow-sm" id="nextGameScheduledCard">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary border-opacity-50">
-                <div class="d-flex align-items-center flex-wrap gap-2">
-                    <span class="badge ${awaitingResult ? 'bg-warning' : 'bg-info'} text-dark fw-bold"><i class="far fa-calendar-alt me-1"></i>${awaitingResult ? 'AWAITING RESULT' : 'NEXT GAME'}</span>
-                    <span class="text-white small fw-bold"><i class="far fa-clock me-1 ${awaitingResult ? 'text-warning' : 'text-info'}"></i>${esc(countdownStr)}</span>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted small"><i class="fas fa-map-marker-alt text-primary me-1"></i>${esc(scheduledFixture.venue || 'Sportgebouw Bibian Mentel')}</span>
-                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none js-share" data-share-type="fixture" data-share-id="${esc(scheduledFixture.id)}" data-share-title="Next Fixture — Elderly Support" title="Share Fixture"><i class="fas fa-share-alt"></i></button>
-                </div>
+        let squadsLayoutHtml = '';
+        if (scheduledFixture.squads && scheduledFixture.squads.length >= 3) {
+            squadsLayoutHtml = `
+            <div class="row g-2 mb-3 text-center align-items-stretch justify-content-center">
+                ${scheduledFixture.squads.map((sq, sIdx) => {
+                    const avgElo = sq.players?.length ? Math.round(sq.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq.players.length) : STARTING_ELO;
+                    return `
+                    <div class="col-12 col-md-4">
+                        <div class="p-2 rounded bg-black bg-opacity-25 h-100 border border-secondary border-opacity-25 d-flex flex-column justify-content-between">
+                            <div>
+                                <h6 class="fw-bold text-white mb-1">${esc(sq.name || `Squad ${String.fromCharCode(65 + sIdx)}`)}</h6>
+                                <div class="text-info small fw-bold mb-1">Avg Elo: ${avgElo}</div>
+                            </div>
+                            <div class="small text-muted mt-1">${renderPlayerPills(sq.players)}</div>
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
             </div>
-            
+            `;
+        } else {
+            const sq1 = scheduledFixture.squads[0] || { name: 'Squad A', players: [] };
+            const sq2 = scheduledFixture.squads[1] || { name: 'Squad B', players: [] };
+            const avgElo1 = sq1.players?.length ? Math.round(sq1.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq1.players.length) : STARTING_ELO;
+            const avgElo2 = sq2.players?.length ? Math.round(sq2.players.reduce((sum, p) => sum + (eloData[p] || STARTING_ELO), 0) / sq2.players.length) : STARTING_ELO;
+
+            squadsLayoutHtml = `
             <div class="row g-2 mb-3 align-items-center text-center">
                 <div class="col-5">
                     <h6 class="fw-bold text-white mb-1">${esc(sq1.name || 'Squad A')}</h6>
@@ -5249,6 +5348,23 @@ async function renderCommunityTab(matches, forcedMonth = null) {
                     <div class="small text-muted">${renderPlayerPills(sq2.players)}</div>
                 </div>
             </div>
+            `;
+        }
+
+        nextGameHtml = `
+        <div class="card bg-dark ${awaitingResult ? 'border-warning' : 'border-info'} border-opacity-75 p-3 mb-4 shadow-sm" id="nextGameScheduledCard">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2 pb-1 border-bottom border-secondary border-opacity-50">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="badge ${awaitingResult ? 'bg-warning' : 'bg-info'} text-dark fw-bold"><i class="far fa-calendar-alt me-1"></i>${awaitingResult ? 'AWAITING RESULT' : 'NEXT GAME'}</span>
+                    <span class="text-white small fw-bold"><i class="far fa-clock me-1 ${awaitingResult ? 'text-warning' : 'text-info'}"></i>${esc(countdownStr)}</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="text-muted small"><i class="fas fa-map-marker-alt text-primary me-1"></i>${esc(scheduledFixture.venue || 'Sportgebouw Bibian Mentel')}</span>
+                    <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none js-share" data-share-type="fixture" data-share-id="${esc(scheduledFixture.id)}" data-share-title="Next Fixture — Elderly Support" title="Share Fixture"><i class="fas fa-share-alt"></i></button>
+                </div>
+            </div>
+            
+            ${squadsLayoutHtml}
 
             ${scheduledFixture.preview ? `
             <div class="p-3 rounded bg-black bg-opacity-40 border border-warning border-opacity-50 mt-2">

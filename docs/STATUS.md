@@ -86,7 +86,9 @@ an opted-out player, or destroy history that has no undo.
   Win%/PPG/games-together toggle, sortable, tap-a-player focus mode on
   narrow screens, tap-a-cell match detail), optimal 5-player lineup, curse
   stat, attendance and milestones, venue goal averages.
-- **Community tab** — next fixture (with an "awaiting result" state once a
+- **Community tab** — next fixture (2-squad Standard or 3-squad Tournament formats,
+  drafted with AI Magic Paste via `parseLineup`, Commissioner prediction/preview,
+  responsive mobile stacking layout, and an "awaiting result" state once a
   scheduled match's time has passed), roast of the week (demotes to "latest
   roast" after 7 days, retires after 30), weekly power rankings, milestone
   watch, monthly awards. Awards use a tiered qualifier — `qualified` →

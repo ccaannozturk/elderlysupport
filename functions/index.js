@@ -388,7 +388,7 @@ PARSING INSTRUCTIONS & EXAMPLES:
    - "Alex Chavista" / "Alex Venezuela" -> alex_chavista
    - "Gui" / "Guillermo" -> guille
    - "Pat" -> patrick
-   - Suffixes like "(Ref)", "(Referee)", "(GK)", "(Keeper)", "(c)", "(Captain)" are roles and MUST be removed from rawName.
+   - Suffixes like "(R)", "(Ref)", "(Referee)", "(GK)", "(Keeper)", "(c)", "(Captain)" are roles and MUST be removed from rawName.
 6. SEPARATORS & VS LINES:
    - Standalone lines containing "Vs", "VS", "vs.", "versus", or "/" are team separators and NOT team names or players.
 7. SCORE & OUTCOME RULES:
@@ -416,7 +416,7 @@ ${rawText}
   for (const t of (parsed.teams || [])) {
     const validatedPlayers = [];
     for (const p of (t.players || [])) {
-      let rawName = (p.rawName || '').replace(/\s*\((?:ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
+      let rawName = (p.rawName || '').replace(/\s*\((?:r|ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
       let pId = p.playerId;
       let conf = typeof p.confidence === 'number' ? p.confidence : 0.5;
 
@@ -2218,17 +2218,38 @@ exports.generateFixturePreview = functions.https.onCall(async (data, context) =>
   });
 
   // Calculate predicted favorite from average Elo
-  const sqA = squadStats[0];
-  const sqB = squadStats[1];
-  const eloDiff = sqA.avgElo - sqB.avgElo;
-  const expWinA = computeExpectedScore(sqA.avgElo, sqB.avgElo);
-  const predictedWinner = eloDiff >= 0 ? sqA.name : sqB.name;
-  const winProbability = Math.round((eloDiff >= 0 ? expWinA : (1 - expWinA)) * 100);
+  let predictedWinner = '';
+  let winProbability = 50;
+  let matchDetailsSquads = '';
+
+  if (squadStats.length >= 3) {
+    const sorted = [...squadStats].sort((a, b) => b.avgElo - a.avgElo);
+    predictedWinner = sorted[0].name;
+    const secondAvg = (sorted[1].avgElo + sorted[2].avgElo) / 2;
+    const expWin = computeExpectedScore(sorted[0].avgElo, secondAvg);
+    winProbability = Math.max(35, Math.min(85, Math.round(expWin * 100)));
+
+    matchDetailsSquads = squadStats.map((sq, idx) =>
+      `- SQUAD ${idx + 1}: ${sq.name} (Average Elo: ${sq.avgElo}) — Lineup: ${sq.playerNames.join(', ')}`
+    ).join('\n');
+  } else {
+    const sqA = squadStats[0];
+    const sqB = squadStats[1];
+    const eloDiff = sqA.avgElo - sqB.avgElo;
+    const expWinA = computeExpectedScore(sqA.avgElo, sqB.avgElo);
+    predictedWinner = eloDiff >= 0 ? sqA.name : sqB.name;
+    winProbability = Math.round((eloDiff >= 0 ? expWinA : (1 - expWinA)) * 100);
+
+    matchDetailsSquads = [
+      `- SQUAD 1: ${sqA.name} (Average Elo: ${sqA.avgElo}) — Lineup: ${sqA.playerNames.join(', ')}`,
+      `- SQUAD 2: ${sqB.name} (Average Elo: ${sqB.avgElo}) — Lineup: ${sqB.playerNames.join(', ')}`
+    ].join('\n');
+  }
 
   // Identify head-to-head storylines
   const storylineItems = [];
-  sqA.players.forEach(pA => {
-    sqB.players.forEach(pB => {
+  squadStats[0].players.forEach(pA => {
+    squadStats[1].players.forEach(pB => {
       storylineItems.push({
         pA: getName(pA),
         pB: getName(pB)
@@ -2236,7 +2257,9 @@ exports.generateFixturePreview = functions.https.onCall(async (data, context) =>
     });
   });
 
-  const flaggedStoryline = `${sqA.name} (avg ${sqA.avgElo} Elo) vs ${sqB.name} (avg ${sqB.avgElo} Elo). Key rivalry clash.`;
+  const flaggedStoryline = squadStats.length >= 3
+    ? `3-Way Tournament: ${squadStats.map(s => `${s.name} (avg ${s.avgElo})`).join(' vs ')}`
+    : `${squadStats[0].name} (avg ${squadStats[0].avgElo} Elo) vs ${squadStats[1].name} (avg ${squadStats[1].avgElo} Elo). Key rivalry clash.`;
 
   const keyDoc = await db.collection('config').doc('gemini').get();
   if (!keyDoc.exists || !keyDoc.data().apiKey) {
@@ -2247,14 +2270,14 @@ exports.generateFixturePreview = functions.https.onCall(async (data, context) =>
   const metaDoc = await db.collection('config').doc('gemini_meta').get();
   const selectedModel = (metaDoc.exists && metaDoc.data().selectedModel) ? metaDoc.data().selectedModel : MODEL_FALLBACK_CHAIN[0];
 
+  const formatLabel = squadStats.length >= 3 ? '3-Team Tournament' : 'Standard Match';
   const prompt = `You are "The Commissioner", the pompous, sharp-tongued, all-knowing authoritative executive of the Elderly Support recreational football league in Amsterdam.
-Write a 2 to 3 sentence official Match Preview & Prediction for the upcoming scheduled fixture.
+Write a 2 to 3 sentence official Match Preview & Prediction for the upcoming scheduled fixture (${formatLabel}).
 
 MATCH DETAILS:
 - Venue: ${venue}
 - Date: ${fixtureDate || 'Upcoming Weekend'}
-- SQUAD 1: ${sqA.name} (Average Elo: ${sqA.avgElo}) — Lineup: ${sqA.playerNames.join(', ')}
-- SQUAD 2: ${sqB.name} (Average Elo: ${sqB.avgElo}) — Lineup: ${sqB.playerNames.join(', ')}
+${matchDetailsSquads}
 - COMPUTED FAVORITE: ${predictedWinner} (${winProbability}% win probability based on team Elo ratings)
 
 STRICT COMMISSIONER GUIDELINES:

@@ -301,20 +301,17 @@ grouped here.
 
 ---
 
-## Phase 8 — Proposed, NOT started
+## Phase 8 — Roast Studio fixture paste & 3-squad fixtures  ✅ complete
 
-Full diagnosis and step-by-step plan: `docs/HANDOVER-PHASE-8.md`.
-Independent of Phase 7 — different files, can run in parallel.
+- [x] **23. Unified AI fixture parsing & role-tag stripping**
+  - Routed Roast Studio's fixture paste box through the `parseLineup` Cloud Function (with a debounced fallback to `fallbackLocalParser`), eliminating the duplicate client-side parser that was resolving team headers as players and dropping 3rd squads.
+  - Added `(R)` to the role-tag list in `parseLineup`'s prompt and post-processing regex in `functions/index.js`, as well as `fallbackLocalParser` in `app.js`.
 
-One item: (20) Roast Studio's fixture paste is wired to its own client-side
-regex parser that never calls the AI, so it resolves team names as players
-("looking for neymar"), ignores `(R)` role markers, and silently drops a
-third team. Route it through `parseLineup` (the Magic Paste Cloud Function),
-add `(R)` to that function's role-tag list — a real gap there too — and
-extend fixtures to hold 3 squads, which is a stack-wide change since the
-parser, `saveFixture`, `generateFixturePreview`, the Community "Next Game"
-card, and the Record Result prefill all assume exactly two
-(3-team support agreed 2026-08-21).
+- [x] **24. Full 3-squad fixture support across the stack**
+  - `generateFixturePreview` in `functions/index.js`: Extended to evaluate 3-team tournament predictions (highest average team Elo) and draft 3-way tournament Commissioner previews.
+  - Community "Next Game" Card (`renderCommunityTab` in `app.js`): Added responsive 3-squad layout (`col-12 col-md-4` grid cards) that stacks cleanly on 360px mobile viewports while preserving the 2-squad "VS" layout for Standard fixtures.
+  - "Record Result" Prefill (`recordResultShortcut` in `app.js`): Prefills a Tournament match (3 teams and rosters) when the fixture has 3 squads and a Standard match when it has 2.
+  - Match Save Resolution: Extended fixture-to-match linking to check overlap across all squads in 3-team matches.
 
 ---
 
