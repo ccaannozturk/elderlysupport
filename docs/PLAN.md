@@ -66,7 +66,7 @@ both **merges** (`Anderson Müller` → `Anderson`, `Guillermo` → `Guille`) an
 **split** (`Javi` was two different people, now `Javi Farres` and `Javi Bernardo`).
 Fuzzy matching alone cannot handle this — the registry must be authoritative.
 
-- [ ] **1. Canonical player registry**
+- [x] **1. Canonical player registry**
   - `players_v2/{playerId}` where `playerId` is a stable slug:
     ```
     { displayName: "Anderson Brazil",
@@ -84,7 +84,7 @@ Fuzzy matching alone cannot handle this — the registry must be authoritative.
     "Anderson" is both a standalone identity and a prefix of others. Never
     auto-snap a longer name to a shorter one.
 
-- [ ] **2. Migration script** (`scripts/migrate.js`)
+- [x] **2. Migration script** (`scripts/migrate.js`)
   - Reads `data/roster-mapping.csv` (maintainer-approved), rewrites all matches
     into `matches_v2` with resolved IDs, builds `players_v2`.
   - **Defaults to `--dry-run`.** Prints a full diff and a reconciliation report
@@ -105,7 +105,7 @@ Fuzzy matching alone cannot handle this — the registry must be authoritative.
       11/07/2026 → Javi Bernardo. Name-only lookup cannot disambiguate this; the
       script needs a per-match override for this one raw name.
 
-- [ ] **4. Resolver with hard gate**
+- [x] **4. Resolver with hard gate**
   - Every entered name resolves against the registry before save is possible:
     - exact alias hit → green chip, auto-accepted
     - single fuzzy candidate above threshold → amber chip, one tap to confirm
@@ -119,7 +119,7 @@ Fuzzy matching alone cannot handle this — the registry must be authoritative.
     is what eliminates the error class — a mistake becomes unsaveable.
   - UI must be chips and bottom sheets, not desktop dropdowns. See item 7.
 
-- [ ] **5. Context constraints**
+- [x] **5. Context constraints**
   - A player cannot appear on two teams in the same match. Exclude already-placed
     players from candidate lists — this auto-resolves the Anderson ambiguity most
     of the time.
