@@ -1,0 +1,3202 @@
+[
+  {
+    "id": "0bjU8TW0A31Dq9aiwRJj",
+    "createTime": "2026-01-24T10:05:27.454472Z",
+    "updateTime": "2026-01-24T13:50:06.574627Z",
+    "data": {
+      "location": "Sporthal Calvijn",
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-24T13:50:06.525Z"
+      },
+      "youtubeLink": "https://youtu.be/64ArNgPAoak?si=hykWdEWIaRD6kra_",
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "score": 5,
+          "teamName": "The 0%ers 📉",
+          "players": [
+            "Miguel",
+            "Can",
+            "Sam",
+            "Damoun",
+            "Desi"
+          ]
+        },
+        {
+          "teamName": "Better call Foul👨🏻‍⚖️ ",
+          "players": [
+            "Marco",
+            "Ole",
+            "Hector",
+            "Stefan",
+            "Daniel Müller"
+          ],
+          "score": 10
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-24T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "1zbIP2lTBcuoBlJvgpkr",
+    "createTime": "2026-02-28T10:40:21.496284Z",
+    "updateTime": "2026-03-04T18:29:39.972350Z",
+    "data": {
+      "colors": [
+        "red",
+        "yellow"
+      ],
+      "youtubeLink": "https://youtu.be/X0QGlknrxtM?si=i4dVbA-ZuRDG3S_-",
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-04T18:29:39.921Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-28T00:00:00Z"
+      },
+      "teams": [
+        {
+          "teamName": "Captain Schettino",
+          "players": [
+            "Desi",
+            "Hector",
+            "Marco",
+            "Ole",
+            "Santi"
+          ],
+          "score": 4
+        },
+        {
+          "score": 9,
+          "players": [
+            "Can",
+            "Enes",
+            "Gustavo",
+            "Kenta",
+            "Malaz"
+          ],
+          "teamName": "Captain Jean-Gus Picard"
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal Calvijn"
+    }
+  },
+  {
+    "id": "24aUfRQ7sOCe5HDkuXXe",
+    "createTime": "2026-02-25T19:25:42.400783Z",
+    "updateTime": "2026-02-26T07:56:31.643740Z",
+    "data": {
+      "type": "Standard",
+      "teams": [
+        {
+          "teamName": "Ramiar-dan ☪️🕋",
+          "score": 3,
+          "players": [
+            "Antraniek",
+            "Gustavo",
+            "Patrick",
+            "Ramiar",
+            "Sam"
+          ]
+        },
+        {
+          "teamName": "RamaCan ☪️🕋",
+          "players": [
+            "Adri",
+            "Ayoube",
+            "Can",
+            "Jure",
+            "Hector"
+          ],
+          "score": 5
+        }
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-26T07:56:31.616Z"
+      },
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-25T00:00:00Z"
+      },
+      "location": "Sportgebouw Bibian Mentel",
+      "youtubeLink": "https://youtu.be/qkyc_RUePx4?si=WboBx65l0Mwpq5hQ",
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "2O6Y56PxFPZllJOiVg8F",
+    "createTime": "2026-01-30T07:17:13.473345Z",
+    "updateTime": "2026-01-30T07:17:13.473345Z",
+    "data": {
+      "colors": [
+        "red",
+        "yellow"
+      ],
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-30T07:17:13.432Z"
+      },
+      "youtubeLink": "https://youtu.be/cxFMlN4bT7U?si=vOwsrtkJaD_VjIuw",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-28T00:00:00Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "teamName": "Street Credge 🕶️",
+          "score": 7,
+          "players": [
+            "Patrick",
+            "Jure",
+            "Kenta",
+            "Malaz",
+            "Sam"
+          ]
+        },
+        {
+          "score": 7,
+          "players": [
+            "Bert",
+            "Ivan",
+            "Manu",
+            "Antraniek",
+            "Daniel Müller"
+          ],
+          "teamName": "My brain says Bert, my heart says Malaz, my balls say: Antra ⚖️"
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "3ROa45Nm7I3NJm2zVeXl",
+    "createTime": "2026-01-31T10:46:37.133260Z",
+    "updateTime": "2026-01-31T10:46:37.133260Z",
+    "data": {
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-31T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "players": [
+            "Guille",
+            "Jeremy",
+            "Malaz",
+            "Marco",
+            "Sam"
+          ],
+          "score": 3,
+          "teamName": "Forza Italia 🇮🇹"
+        },
+        {
+          "players": [
+            "Enes",
+            "Jure",
+            "Kenta",
+            "Ole",
+            "Daniel Müller"
+          ],
+          "teamName": "English Superiority 🇽🇪",
+          "score": 4
+        }
+      ],
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "type": "Standard",
+      "location": "Sporthal Calvijn",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-31T10:46:37.069Z"
+      }
+    }
+  },
+  {
+    "id": "3xAAmHEyAOh03zfxUrM2",
+    "createTime": "2026-06-11T05:41:24.410847Z",
+    "updateTime": "2026-06-11T06:25:39.433217Z",
+    "data": {
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "teams": [
+        {
+          "players": [
+            "Adri",
+            "Ivan",
+            "Patrick",
+            "Ramiar",
+            "Sam"
+          ],
+          "score": 8,
+          "teamName": "Ivancouver Whitecaps 🏔️"
+        },
+        {
+          "teamName": "AhmedMania🌟",
+          "players": [
+            "Ahmed",
+            "Antraniek",
+            "Damoun",
+            "Daniel Gomez",
+            "Marco"
+          ],
+          "score": 5
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal ROC Europaboulevard",
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-06-11T06:25:39.386Z"
+      },
+      "youtubeLink": null,
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-10T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "4T7znwlhjL7Z2jvAP6Bm",
+    "createTime": "2026-07-17T09:56:58.921812Z",
+    "updateTime": "2026-07-17T09:56:58.921812Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/wvp_cHiDpk8?si=CPt4rU4Sdz1wxIKf",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "score": 4,
+          "players": [
+            "Ahmed",
+            "Can",
+            "Gordan",
+            "Hector",
+            "Marco"
+          ],
+          "teamName": "Wadi Degla⚽"
+        },
+        {
+          "teamName": "Damouncracy",
+          "score": 4,
+          "players": [
+            "Damoun",
+            "Jure",
+            "Patrick",
+            "Sam",
+            "Stefan"
+          ]
+        }
+      ],
+      "location": "Sporthallen Zuid",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-15T00:00:00Z"
+      },
+      "type": "Standard",
+      "colors": [
+        "yellow",
+        "blue"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-17T09:56:58.877Z"
+      }
+    }
+  },
+  {
+    "id": "4jMTQBqXWcq5Y726vsuC",
+    "createTime": "2026-03-07T10:41:37.505098Z",
+    "updateTime": "2026-03-07T19:36:21.110439Z",
+    "data": {
+      "colors": [
+        "yellow",
+        "red"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-07T19:36:21.084Z"
+      },
+      "location": "Sporthal Calvijn",
+      "type": "Standard",
+      "youtubeLink": "https://youtu.be/OY6yHCleLWk?is=iLckcN0K1xw2D0QQ",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-07T00:00:00Z"
+      },
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "score": 6,
+          "teamName": "In-Santi-ty FC🤙🏼",
+          "players": [
+            "Enes",
+            "Gordan",
+            "Kenta",
+            "Ole",
+            "Santi"
+          ]
+        },
+        {
+          "teamName": "RED- Refurbished Extremely Delicate",
+          "score": 6,
+          "players": [
+            "Can",
+            "Hector",
+            "Jack",
+            "Malaz",
+            "Stefan"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "65jLy6LB2z10q15aWZuL",
+    "createTime": "2026-01-18T07:32:33.206585Z",
+    "updateTime": "2026-01-18T07:32:33.206585Z",
+    "data": {
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-17T00:00:00Z"
+      },
+      "teams": [
+        {
+          "teamName": "MorroCan! ⚽🇲🇦🥇🪘",
+          "score": 2,
+          "players": [
+            "Can",
+            "Hector",
+            "Jp",
+            "Desi",
+            "Jack"
+          ]
+        },
+        {
+          "teamName": "SamOlegal ⚽️ 🇸🇳 🦁",
+          "score": 6,
+          "players": [
+            "Sam",
+            "Ole",
+            "Marco",
+            "Tom",
+            "Artur"
+          ]
+        }
+      ],
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "yellow",
+        "red"
+      ],
+      "youtubeLink": "https://youtu.be/woXbCwCtRzc?si=SQIFAu32BbRWgSLc",
+      "location": "Sportgebouw Bibian Mentel",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-18T07:32:33.166Z"
+      }
+    }
+  },
+  {
+    "id": "6iDY0QYaVf9zjeX5GG10",
+    "createTime": "2026-05-02T10:52:15.305490Z",
+    "updateTime": "2026-08-07T14:08:28.003699Z",
+    "data": {
+      "colors": [
+        "yellow",
+        "red"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "youtubeLink": "https://youtu.be/a3oiqJwA8zM?si=QxpqFNmQ1_iAo7qC",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-02T00:00:00Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-07T14:08:27.956Z"
+      },
+      "teams": [
+        {
+          "players": [
+            "Andres",
+            "Jonne",
+            "Jure",
+            "Kenta",
+            "Luke",
+            "Malaz",
+            "Santi"
+          ],
+          "teamName": "Summer Love ☀️🍔",
+          "score": 4
+        },
+        {
+          "score": 8,
+          "teamName": "Outdoor Welcome 🍓⚽️",
+          "players": [
+            "Bert",
+            "Can",
+            "Enes",
+            "Gustavo",
+            "Sam",
+            "Stefan",
+            "Tom"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "8Eagl1IoaZ781CGLKaZT",
+    "createTime": "2026-04-25T12:33:28.818293Z",
+    "updateTime": "2026-04-30T09:49:32.074872Z",
+    "data": {
+      "teams": [
+        {
+          "players": [
+            "Gonzalo",
+            "Stefan",
+            "Bert",
+            "Enes"
+          ],
+          "teamName": "Enespanada United 🥐",
+          "score": 8
+        },
+        {
+          "teamName": "Mark de Triomphe🇫🇷",
+          "score": 9,
+          "players": [
+            "Mark",
+            "Sam",
+            "Jure",
+            "Malaz"
+          ]
+        }
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-30T09:49:31.907Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-25T00:00:00Z"
+      },
+      "type": "Standard",
+      "location": "Sportgebouw Bibian Mentel",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": "https://youtu.be/AJ6JGv3CsZo?is=oO9FwW0E0xKpOQcV",
+      "colors": [
+        "red",
+        "blue"
+      ]
+    }
+  },
+  {
+    "id": "8H2rbd8BZdOkTsYkGzmv",
+    "createTime": "2026-05-13T17:49:08.122396Z",
+    "updateTime": "2026-05-13T19:48:02.169603Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "players": [
+            "Jack",
+            "João",
+            "Luis",
+            "Manu",
+            "Stefan"
+          ],
+          "teamName": "Silvarmedal 🥈",
+          "score": 3
+        },
+        {
+          "teamName": "Burelli's bitches🧔🏻‍♂️",
+          "players": [
+            "Damoun",
+            "Daniel Gomez",
+            "Gordan",
+            "Marco",
+            "Sam"
+          ],
+          "score": 5
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-13T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-13T19:48:02.106Z"
+      },
+      "type": "Standard",
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "youtubeLink": "https://youtu.be/aPgEh7j5oH8?is=OOK7i3gK6_lrzaEi"
+    }
+  },
+  {
+    "id": "8NGnGNPtf0gGBaumIp6b",
+    "createTime": "2026-06-06T16:59:27.477583Z",
+    "updateTime": "2026-08-07T10:52:34.009903Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-07T10:52:33.939Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "teams": [
+        {
+          "score": 7,
+          "players": [
+            "Gustavo",
+            "Jure",
+            "Kenta",
+            "Malaz",
+            "Ole",
+            "Stefan"
+          ],
+          "teamName": "Gloria 2 Stefan  💃🏻"
+        },
+        {
+          "score": 11,
+          "players": [
+            "Artur",
+            "Enes",
+            "Jp",
+            "Luke",
+            "Mark",
+            "Nigell"
+          ],
+          "teamName": "Maarteta's Marvellous Machetes 🔪"
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "youtubeLink": "https://youtu.be/ID5Qj_HvSfM?si=gf9-8PQchLkfYCpp",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-06T00:00:00Z"
+      },
+      "colors": [
+        "red",
+        "blue"
+      ]
+    }
+  },
+  {
+    "id": "9Bei3rs5kyRFvNePoCKM",
+    "createTime": "2026-07-05T20:12:54.813495Z",
+    "updateTime": "2026-07-19T08:37:08.038945Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "location": "Zeeburgereiland - Outdoor",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-04T00:00:00Z"
+      },
+      "colors": [
+        "red",
+        "yellow"
+      ],
+      "teams": [
+        {
+          "teamName": "Bosnia and Hectorovina 🇧🇦👴🏼",
+          "players": [
+            "Hector",
+            "Jonne",
+            "Kenta",
+            "Mark",
+            "Sam",
+            "Tom"
+          ],
+          "score": 6
+        },
+        {
+          "teamName": "Gustralia 🦘🪃🇦🇺",
+          "players": [
+            "Gustavo",
+            "Jure",
+            "Malaz",
+            "Maxi",
+            "Milad",
+            "Nigell"
+          ],
+          "score": 6
+        }
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-19T08:37:08.002Z"
+      },
+      "youtubeLink": null
+    }
+  },
+  {
+    "id": "9FHB5UwsuUzg1kAAtNWF",
+    "createTime": "2026-05-12T08:49:40.287046Z",
+    "updateTime": "2026-05-22T06:37:30.720144Z",
+    "data": {
+      "location": "Zeeburgereiland - Outdoor",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-22T06:37:30.674Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-09T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "type": "Tournament",
+      "teams": [
+        {
+          "originalKey": "A",
+          "players": [
+            "Anthony",
+            "Artur",
+            "Enes",
+            "Fabiel",
+            "Ole",
+            "Tom"
+          ],
+          "teamName": "The (H)anta-protocolerious 🦠",
+          "rank": 1,
+          "points": 3
+        },
+        {
+          "players": [
+            "Bert",
+            "Can",
+            "Jonne",
+            "Mark",
+            "Santi",
+            "Rensley"
+          ],
+          "originalKey": "C",
+          "rank": 2,
+          "teamName": "T.A.P.T. Reloaded🪅",
+          "points": 1
+        },
+        {
+          "teamName": "The Six Jack-off 💦",
+          "originalKey": "B",
+          "rank": 3,
+          "points": 0,
+          "players": [
+            "Gonzalo",
+            "Gustavo",
+            "Jack",
+            "Jp",
+            "Malaz",
+            "Milad"
+          ]
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "9cl6NbKYuAoVmkSfokMi",
+    "createTime": "2026-08-15T10:38:27.279709Z",
+    "updateTime": "2026-08-15T10:38:27.279709Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": null,
+      "teams": [
+        {
+          "teamName": "Eclipse united🌓",
+          "score": 9,
+          "players": [
+            "Anderson",
+            "Enes",
+            "Nigell",
+            "Alex Chavista",
+            "Sam",
+            "Stefan"
+          ]
+        },
+        {
+          "score": 13,
+          "teamName": "Pech GeZwollen🤕",
+          "players": [
+            "Antraniek",
+            "Giacomo",
+            "Gustavo",
+            "Hector",
+            "Kenta",
+            "Malaz"
+          ]
+        }
+      ],
+      "type": "Standard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-08-15T00:00:00Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-15T10:38:27.214Z"
+      }
+    }
+  },
+  {
+    "id": "ADAVSu1J7RHCGAt2peXZ",
+    "createTime": "2026-05-22T06:35:46.713705Z",
+    "updateTime": "2026-05-22T06:35:46.713705Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/fvB8ebFahMI?is=Q0UXoBeFUDd2hD_5",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-22T06:35:46.668Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "score": 3,
+          "players": [
+            "Ahmed",
+            "Kenta",
+            "Manu",
+            "Marco",
+            "Oscar"
+          ],
+          "teamName": "Chaos Theory United"
+        },
+        {
+          "score": 3,
+          "players": [
+            "Antraniek",
+            "Can",
+            "Guille",
+            "Ramiar",
+            "Stefan"
+          ],
+          "teamName": "Rustig Aan V2 🥱"
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-20T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "AFXLFKzq3QvNhZQO46DK",
+    "createTime": "2026-04-22T18:22:18.803562Z",
+    "updateTime": "2026-04-25T12:34:23.913959Z",
+    "data": {
+      "teams": [
+        {
+          "score": 5,
+          "players": [
+            "Sam",
+            "Can",
+            "Marco",
+            "Jure",
+            "João"
+          ],
+          "teamName": "Bow chicka João João 💥"
+        },
+        {
+          "score": 5,
+          "teamName": "The Volkanos 🌋",
+          "players": [
+            "Daniel Gomez",
+            "Ramiar",
+            "Patrick",
+            "Volkan",
+            "Stefan"
+          ]
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-22T00:00:00Z"
+      },
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "location": "Sporthal ROC Europaboulevard",
+      "youtubeLink": "https://youtu.be/6vAgckyuPlQ?is=6uKt8ZxaIyZxYAYC",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-25T12:34:23.857Z"
+      },
+      "colors": [
+        "blue",
+        "yellow"
+      ]
+    }
+  },
+  {
+    "id": "Ap49egfNDgWA5LKRej7D",
+    "createTime": "2026-01-21T18:22:16.426174Z",
+    "updateTime": "2026-01-22T08:26:05.054128Z",
+    "data": {
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-22T08:26:04.989Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-21T00:00:00Z"
+      },
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "youtubeLink": "https://youtu.be/qgOsaC8KNOg?si=wH-SsZDI0ADgKfe8",
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "score": 5,
+          "players": [
+            "Sam",
+            "João",
+            "Damoun",
+            "Patrick",
+            "Adri"
+          ],
+          "teamName": "SAMwich🥪"
+        },
+        {
+          "teamName": "Markoesa",
+          "players": [
+            "Hector",
+            "Gordan",
+            "Ayoube",
+            "Can",
+            "Stefan"
+          ],
+          "score": 7
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "BYzdjB0u0cPpFmbuH25Z",
+    "createTime": "2026-08-13T09:05:12.000461Z",
+    "updateTime": "2026-08-13T09:05:59.486006Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-13T09:05:59.429Z"
+      },
+      "location": "Sporthallen Zuid",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-08-12T00:00:00Z"
+      },
+      "youtubeLink": "https://youtu.be/rr4qsdg2qRY?is=WD3VsJoXol1XMkuC",
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "teams": [
+        {
+          "teamName": "Pat-Trickovich",
+          "score": 7,
+          "players": [
+            "Can",
+            "Daniel Müller",
+            "Ole",
+            "Stefan",
+            "Tom"
+          ]
+        },
+        {
+          "teamName": "FC Ruban Krasgordan",
+          "players": [
+            "Ahmed",
+            "Gordan",
+            "Manu",
+            "Patrick",
+            "Ruben"
+          ],
+          "score": 6
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard"
+    }
+  },
+  {
+    "id": "CeMHLFDwmkXHY0T57nVs",
+    "createTime": "2026-04-01T17:38:16.299931Z",
+    "updateTime": "2026-04-01T19:45:31.548936Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": "https://youtu.be/-grAVz0do2I?is=-UflTAPYFp5hlIzO",
+      "teams": [
+        {
+          "players": [
+            "Ramiar",
+            "Can",
+            "João",
+            "Jure",
+            "Daniel Gomez"
+          ],
+          "score": 9,
+          "teamName": "CANishua 🍜"
+        },
+        {
+          "score": 4,
+          "teamName": "Antramos Señor",
+          "players": [
+            "Hector",
+            "Adri",
+            "Antraniek",
+            "Daniel Müller",
+            "Gordan"
+          ]
+        }
+      ],
+      "type": "Standard",
+      "location": "Sporthal ROC Europaboulevard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-01T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-01T19:45:31.445Z"
+      },
+      "colors": [
+        "blue",
+        "red"
+      ]
+    }
+  },
+  {
+    "id": "CfzguETjSD1bhsgwmVTS",
+    "createTime": "2026-08-09T11:47:36.649Z",
+    "updateTime": "2026-08-09T11:47:36.649Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-09T11:47:36.525Z"
+      },
+      "youtubeLink": null,
+      "teams": [
+        {
+          "score": 9,
+          "players": [
+            "Can",
+            "Nino",
+            "Mark",
+            "Hector",
+            "Santi",
+            "Stefan"
+          ],
+          "teamName": "Canito InfantNinos 👨🏻‍🦲💵"
+        },
+        {
+          "teamName": "Antra Ra Rasputins🧔🏻‍♀️🪆",
+          "score": 3,
+          "players": [
+            "Antraniek",
+            "Giacomo",
+            "Ole",
+            "Patrick",
+            "Nigell",
+            "Sam"
+          ]
+        }
+      ],
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-08-08T00:00:00Z"
+      },
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "location": "Zeeburgereiland - Outdoor"
+    }
+  },
+  {
+    "id": "DUOErYw2gAEFSYGkwBin",
+    "createTime": "2026-08-06T07:56:25.460939Z",
+    "updateTime": "2026-08-07T10:49:47.065938Z",
+    "data": {
+      "teams": [
+        {
+          "teamName": "Stefan Enesberg🐅👱🏻‍♂️",
+          "score": 3,
+          "players": [
+            "Antraniek",
+            "Ayman",
+            "Damoun",
+            "Enes",
+            "Gustavo",
+            "Stefan",
+            "Anderson"
+          ]
+        },
+        {
+          "score": 6,
+          "teamName": "Perfect Beer Coolers 🍺🧊",
+          "players": [
+            "Daniel Müller",
+            "Hector",
+            "Manu",
+            "Nino",
+            "Ole",
+            "Oussama",
+            "Ramiar"
+          ]
+        }
+      ],
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-08-05T00:00:00Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-07T10:49:47.022Z"
+      },
+      "youtubeLink": null
+    }
+  },
+  {
+    "id": "GLQFZbW9EGc4Sh5F8daj",
+    "createTime": "2026-03-25T20:25:09.042138Z",
+    "updateTime": "2026-03-25T20:25:09.042138Z",
+    "data": {
+      "youtubeLink": null,
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-25T20:25:08.993Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-25T00:00:00Z"
+      },
+      "colors": [
+        "yellow",
+        "red"
+      ],
+      "type": "Standard",
+      "teams": [
+        {
+          "score": 2,
+          "teamName": "Kenta touch this",
+          "players": [
+            "Desi",
+            "Hector",
+            "João",
+            "Kenta",
+            "Ole"
+          ]
+        },
+        {
+          "players": [
+            "Antraniek",
+            "Daniel Gomez",
+            "Jure",
+            "Marco",
+            "Ramiar"
+          ],
+          "teamName": "Ramiar the King 👑",
+          "score": 2
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "J1IX4W2X4jzGD3Zr2wk5",
+    "createTime": "2026-03-18T19:52:05.226741Z",
+    "updateTime": "2026-03-18T19:52:05.226741Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-18T19:52:05.178Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "youtubeLink": null,
+      "type": "Standard",
+      "colors": [
+        "red",
+        "yellow"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "teamName": "Laces are an eternal problem in this group",
+          "players": [
+            "Antraniek",
+            "Can",
+            "Daniel Müller",
+            "Gordan",
+            "Kenta"
+          ],
+          "score": 8
+        },
+        {
+          "score": 4,
+          "teamName": "Hector’s Horses 🐎 🐴",
+          "players": [
+            "Daniel Gomez",
+            "Hector",
+            "Jack",
+            "João",
+            "Malaz"
+          ]
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-18T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "L4zCP4u8ICW6p3Mfx1Dz",
+    "createTime": "2026-07-25T15:39:09.895622Z",
+    "updateTime": "2026-07-25T15:39:09.895622Z",
+    "data": {
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-25T00:00:00Z"
+      },
+      "type": "Tournament",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-25T15:39:09.847Z"
+      },
+      "youtubeLink": "https://youtu.be/D8ZkdGNW5HA?is=Qa8ybcRl0s9ZU2GY",
+      "teams": [
+        {
+          "teamName": "Canavars 😈",
+          "points": 3,
+          "players": [
+            "Anderson Brazil",
+            "Bert",
+            "Can",
+            "Enes",
+            "Fabiel",
+            "Jure"
+          ],
+          "originalKey": "A",
+          "rank": 1
+        },
+        {
+          "teamName": "We're the Müllers 🚐",
+          "players": [
+            "Daniel Müller",
+            "Jorge",
+            "Miguel",
+            "Anderson",
+            "Ole",
+            "Patrick"
+          ],
+          "rank": 2,
+          "points": 1,
+          "originalKey": "B"
+        },
+        {
+          "rank": 3,
+          "teamName": "The Red Devils 👹",
+          "players": [
+            "Giacomo",
+            "Gustavo",
+            "Hector",
+            "Malaz",
+            "Mark",
+            "Nino"
+          ],
+          "points": 0,
+          "originalKey": "C"
+        }
+      ],
+      "location": "Zeeburgereiland - Outdoor",
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "MdwUseMOMo4P4oMVrdAS",
+    "createTime": "2026-04-18T11:18:45.306494Z",
+    "updateTime": "2026-04-18T11:18:45.306494Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sportgebouw Bibian Mentel",
+      "type": "Standard",
+      "colors": [
+        "yellow",
+        "blue"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-18T11:18:45.258Z"
+      },
+      "youtubeLink": null,
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-18T00:00:00Z"
+      },
+      "teams": [
+        {
+          "score": 6,
+          "teamName": "Dats Jonnejongen",
+          "players": [
+            "Artur",
+            "Gustavo",
+            "Jonne",
+            "Malaz",
+            "Sam"
+          ]
+        },
+        {
+          "teamName": "Santi Galacticos FC",
+          "score": 10,
+          "players": [
+            "Can",
+            "Enes",
+            "Jure",
+            "Santi",
+            "Stefan"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "MxoVuChB5T0wYMepVgST",
+    "createTime": "2026-02-18T18:43:43.860963Z",
+    "updateTime": "2026-02-18T18:43:43.860963Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "type": "Standard",
+      "location": "Sporthal ROC Europaboulevard",
+      "youtubeLink": null,
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-18T18:43:43.822Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-18T00:00:00Z"
+      },
+      "teams": [
+        {
+          "score": 5,
+          "players": [
+            "Ivan",
+            "Stefan",
+            "Fabiel",
+            "Daniel Müller",
+            "Hector"
+          ],
+          "teamName": "Los Master Chiefs👨🏻‍🍳"
+        },
+        {
+          "players": [
+            "Damoun",
+            "Jure",
+            "João",
+            "Antraniek",
+            "Sam"
+          ],
+          "score": 5,
+          "teamName": "Los panaderos 🍞"
+        }
+      ]
+    }
+  },
+  {
+    "id": "NKhvTfOBy6tOQOnzmoeK",
+    "createTime": "2026-07-19T08:36:07.506771Z",
+    "updateTime": "2026-07-19T13:52:02.076290Z",
+    "data": {
+      "teams": [
+        {
+          "teamName": "Los Frigoríficos ❄️",
+          "rank": 1,
+          "originalKey": "A",
+          "players": [
+            "Anderson",
+            "Can",
+            "Jure",
+            "Mark",
+            "Milad",
+            "Jp"
+          ],
+          "points": 3
+        },
+        {
+          "teamName": "General Bullshit's Barmy Army🎖️",
+          "rank": 2,
+          "players": [
+            "Anderson Brazil",
+            "Hector",
+            "Jonne",
+            "Nino",
+            "Patrick",
+            "Stefan"
+          ],
+          "points": 1,
+          "originalKey": "C"
+        },
+        {
+          "teamName": "Bielsa ball 🇦🇷",
+          "rank": 3,
+          "originalKey": "B",
+          "players": [
+            "Behrang",
+            "Enes",
+            "Maarten",
+            "Malaz",
+            "Nigell",
+            "Sam"
+          ],
+          "points": 0
+        }
+      ],
+      "youtubeLink": null,
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-18T00:00:00Z"
+      },
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Tournament",
+      "location": "Zeeburgereiland - Outdoor",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-19T13:52:02.006Z"
+      }
+    }
+  },
+  {
+    "id": "Nd6Gd2vuMzm45ciRNiYD",
+    "createTime": "2026-08-13T09:07:44.635927Z",
+    "updateTime": "2026-08-13T09:07:44.635927Z",
+    "data": {
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-08-12T00:00:00Z"
+      },
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "teams": [
+        {
+          "score": 5,
+          "teamName": "Totally Naked FC🫦",
+          "players": [
+            "Marco",
+            "Mark",
+            "Kenta",
+            "Antraniek",
+            "Gustavo"
+          ]
+        },
+        {
+          "score": 5,
+          "players": [
+            "Hector",
+            "Malaz",
+            "Sam",
+            "Ivan",
+            "Enes"
+          ],
+          "teamName": "Spaanse zigeuner💃"
+        }
+      ],
+      "youtubeLink": null,
+      "location": "Sportgebouw Bibian Mentel",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-13T09:07:44.590Z"
+      }
+    }
+  },
+  {
+    "id": "PFjdfxxPoB9IIlk8vDMt",
+    "createTime": "2026-03-11T19:18:17.763286Z",
+    "updateTime": "2026-03-14T06:39:45.929656Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": "https://youtu.be/Csl1tTz5bhY?is=tUXZBRK_m_F39WDT",
+      "teams": [
+        {
+          "players": [
+            "Marco",
+            "Patrick",
+            "Hector",
+            "Stefan",
+            "Can"
+          ],
+          "score": 2,
+          "teamName": "Fortuna Wormerveer 🇳🇱"
+        },
+        {
+          "players": [
+            "Adri",
+            "Antraniek",
+            "Gordan",
+            "Daniel Müller",
+            "Tom"
+          ],
+          "teamName": "FC Skopsko💻",
+          "score": 4
+        }
+      ],
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-14T06:39:45.884Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-11T00:00:00Z"
+      },
+      "colors": [
+        "yellow",
+        "blue"
+      ]
+    }
+  },
+  {
+    "id": "PjeDwNlKOa1VhFCzPtHD",
+    "createTime": "2026-06-27T15:04:59.250319Z",
+    "updateTime": "2026-07-19T08:37:25.535520Z",
+    "data": {
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-19T08:37:25.464Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-27T00:00:00Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "teams": [
+        {
+          "players": [
+            "Ahmed",
+            "Anderson",
+            "Andres",
+            "Can",
+            "Mark",
+            "Ole"
+          ],
+          "teamName": "The Andre Sons 🍷",
+          "score": 9
+        },
+        {
+          "players": [
+            "Gustavo",
+            "Kenta",
+            "Malaz",
+            "Sam",
+            "Stefan",
+            "Nigell"
+          ],
+          "score": 12,
+          "teamName": "Kenta of the Universe 🌌"
+        }
+      ],
+      "youtubeLink": "https://youtu.be/if6h6hxDbEk",
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "Rmd1FZhGr7jxu6ActFbG",
+    "createTime": "2026-06-18T05:25:06.424927Z",
+    "updateTime": "2026-06-18T05:25:06.424927Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-17T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "location": "Sporthal ROC Europaboulevard",
+      "type": "Standard",
+      "teams": [
+        {
+          "players": [
+            "Ramiar",
+            "Sam",
+            "Daniel Müller",
+            "Adri"
+          ],
+          "score": 3,
+          "teamName": "RamiArgentina 🇦🇷"
+        },
+        {
+          "players": [
+            "Andres",
+            "Marco",
+            "Manu",
+            "Jure",
+            "Antraniek"
+          ],
+          "teamName": "MarCongo🇨🇩",
+          "score": 4
+        }
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-06-18T05:25:06.361Z"
+      }
+    }
+  },
+  {
+    "id": "TAqDC33AqidbLCUIUx6Y",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-14T20:01:24.903150Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-14T20:01:24.863Z"
+      },
+      "teams": [
+        {
+          "score": 5,
+          "teamName": "Narco-terrorist regime 💊💉",
+          "players": [
+            "Hector",
+            "Daniel Müller",
+            "Malaz",
+            "Patrick",
+            "Tom"
+          ]
+        },
+        {
+          "score": 5,
+          "players": [
+            "Can",
+            "Damoun",
+            "Jure",
+            "Marco",
+            "Sam"
+          ],
+          "teamName": "Trump’s Fans🕵️‍♂️"
+        }
+      ],
+      "youtubeLink": "https://www.youtube.com/watch?v=6opXXuPguYg&pp=ygUPZWxkZXJseSBzdXBwb3J0",
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal ROC Europaboulevard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-07T00:00:00Z"
+      },
+      "colors": [
+        "blue",
+        "yellow"
+      ]
+    }
+  },
+  {
+    "id": "TcNHLI3GWh7MMIseWHdX",
+    "createTime": "2026-07-01T20:28:23.023388Z",
+    "updateTime": "2026-07-01T20:28:23.023388Z",
+    "data": {
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthallen Zuid",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-01T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-01T20:28:22.978Z"
+      },
+      "type": "Standard",
+      "teams": [
+        {
+          "teamName": "Cantrada 🇨🇦",
+          "score": 5,
+          "players": [
+            "Damoun",
+            "Antraniek",
+            "Sam",
+            "Jure",
+            "Ramiar"
+          ]
+        },
+        {
+          "teamName": "Marroco🇲🇦",
+          "players": [
+            "Daniel Müller",
+            "Gordan",
+            "Hector",
+            "Stefan",
+            "Marco"
+          ],
+          "score": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "VBytbkCmDke7OmbXJvsO",
+    "createTime": "2026-02-12T12:23:32.957546Z",
+    "updateTime": "2026-02-12T12:23:32.957546Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-11T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "type": "Standard",
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "score": 1,
+          "players": [
+            "Manu",
+            "Sam",
+            "Antraniek",
+            "Tom",
+            "Daniel Müller"
+          ],
+          "teamName": "Manuwell’s Old Boys"
+        },
+        {
+          "teamName": "DtMf",
+          "score": 1,
+          "players": [
+            "Adri",
+            "Stefan",
+            "Hector",
+            "Winston",
+            "Damoun"
+          ]
+        }
+      ],
+      "colors": [
+        "red",
+        "yellow"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-12T12:23:32.882Z"
+      }
+    }
+  },
+  {
+    "id": "VCzDQW5XEcfHtSQTxkQL",
+    "createTime": "2026-04-09T09:29:27.972532Z",
+    "updateTime": "2026-04-09T09:29:27.972532Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-09T09:29:27.904Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "teamName": "SampJurea🍕",
+          "players": [
+            "Hector",
+            "Jure",
+            "Patrick",
+            "Sam",
+            "Tom"
+          ],
+          "score": 6
+        },
+        {
+          "score": 6,
+          "teamName": "Gordan Bleu 🥩",
+          "players": [
+            "Antraniek",
+            "Gordan",
+            "João",
+            "Manu",
+            "Daniel Müller"
+          ]
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "youtubeLink": null,
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-08T00:00:00Z"
+      },
+      "colors": [
+        "red",
+        "yellow"
+      ]
+    }
+  },
+  {
+    "id": "Vu1MKf8XwSGDicTIbyaI",
+    "createTime": "2026-04-04T09:44:41.972258Z",
+    "updateTime": "2026-04-04T10:09:49.642386Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-04T10:09:49.586Z"
+      },
+      "location": "Sporthal Calvijn",
+      "teams": [
+        {
+          "teamName": "Hector protectors",
+          "score": 7,
+          "players": [
+            "Desi",
+            "Kenta",
+            "Enes",
+            "Hector",
+            "Ole"
+          ]
+        },
+        {
+          "teamName": "João CanCelo",
+          "players": [
+            "Malaz",
+            "Can",
+            "Jure",
+            "João",
+            "Daniel Müller"
+          ],
+          "score": 6
+        }
+      ],
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-04T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "colors": [
+        "blue",
+        "red"
+      ]
+    }
+  },
+  {
+    "id": "XDh2kwD0glDoF9PF6vZJ",
+    "createTime": "2026-04-11T09:59:43.568867Z",
+    "updateTime": "2026-04-11T18:48:54.881163Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/yoIGq9GvVeQ?is=iMgHvOA9KqYHYl7W",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "teamName": "Bank Eliminations",
+          "score": 5,
+          "players": [
+            "Artur",
+            "Ayoube",
+            "Can",
+            "Enes",
+            "Stefan"
+          ]
+        },
+        {
+          "score": 6,
+          "teamName": "Goal Diggers",
+          "players": [
+            "Antraniek",
+            "Kenta",
+            "Malaz",
+            "Ole",
+            "Santi"
+          ]
+        }
+      ],
+      "location": "Sportgebouw Bibian Mentel",
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-11T18:48:54.815Z"
+      },
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-11T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "YGVw2BTzHoNaVOtU0UKv",
+    "createTime": "2026-02-04T18:03:01.372950Z",
+    "updateTime": "2026-02-04T18:03:01.372950Z",
+    "data": {
+      "type": "Standard",
+      "teams": [
+        {
+          "players": [
+            "Jure",
+            "Damoun",
+            "Patrick",
+            "Gordan",
+            "Antraniek"
+          ],
+          "teamName": "Hip Hip Jure🎉",
+          "score": 4
+        },
+        {
+          "players": [
+            "Bert",
+            "Stefan",
+            "Daniel Müller",
+            "Hector",
+            "Winston"
+          ],
+          "score": 3,
+          "teamName": "WASHBi 🧺"
+        }
+      ],
+      "youtubeLink": null,
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-04T18:03:01.236Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-04T00:00:00Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "red",
+        "blue"
+      ]
+    }
+  },
+  {
+    "id": "YjW0ohFxqOAv86an16Km",
+    "createTime": "2026-05-23T10:04:24.691800Z",
+    "updateTime": "2026-05-23T17:50:33.849707Z",
+    "data": {
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-23T17:50:33.795Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-23T00:00:00Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "players": [
+            "Chrys",
+            "Fabiel",
+            "Kenta",
+            "Malaz",
+            "Mark",
+            "Ole"
+          ],
+          "score": 6,
+          "teamName": "Ole les Bleus 🇫🇷🥖"
+        },
+        {
+          "score": 6,
+          "players": [
+            "Anderson Brazil",
+            "Antraniek",
+            "Enes",
+            "Jonne",
+            "Luke",
+            "Rensley"
+          ],
+          "teamName": "The devil wears Antra 👹👠"
+        }
+      ],
+      "type": "Standard",
+      "youtubeLink": "https://youtu.be/f1N8y1TH008?is=-wkmiY7bmbJYwJA5"
+    }
+  },
+  {
+    "id": "ax6Qat3DgYrr9Cdh55vY",
+    "createTime": "2026-06-01T08:29:39.338903Z",
+    "updateTime": "2026-06-01T08:29:39.338903Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": "https://youtu.be/IKM5SIDXNY4?si=LN3Swzg5t5XCWrvU",
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-06-01T08:29:39.273Z"
+      },
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-30T00:00:00Z"
+      },
+      "teams": [
+        {
+          "teamName": "SideLoaders",
+          "score": 6,
+          "players": [
+            "Can",
+            "Gustavo",
+            "Hector",
+            "Jonne",
+            "Ole",
+            "Santi",
+            "Stefan"
+          ]
+        },
+        {
+          "teamName": "MalazIsShitAtFreeKicksButIPickedHimAnyway🤡😘",
+          "players": [
+            "Antraniek",
+            "Artur",
+            "Damoun",
+            "Enes",
+            "Luke",
+            "Malaz",
+            "Tom"
+          ],
+          "score": 5
+        }
+      ],
+      "location": "Zeeburgereiland - Outdoor"
+    }
+  },
+  {
+    "id": "ce0SH2AYyAl8mLXZz9Fv",
+    "createTime": "2026-03-28T11:07:07.251237Z",
+    "updateTime": "2026-04-01T19:18:14.159930Z",
+    "data": {
+      "teams": [
+        {
+          "teamName": "Shark Stratos Cordless Stick",
+          "players": [
+            "Can",
+            "Fabiel",
+            "Hector",
+            "Malaz",
+            "Thijs"
+          ],
+          "score": 6
+        },
+        {
+          "teamName": "Dyson V15 Detect Absolute",
+          "score": 9,
+          "players": [
+            "Ayoube",
+            "Enes",
+            "Jure",
+            "Kenta",
+            "Ole"
+          ]
+        }
+      ],
+      "youtubeLink": "https://youtu.be/8VODbjCPMeo?is=haVJcB-ozUeCfP1t",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "yellow",
+        "blue"
+      ],
+      "location": "Sporthal Calvijn",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-28T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-01T19:18:14.101Z"
+      },
+      "type": "Standard"
+    }
+  },
+  {
+    "id": "dqJoWzyqDn1XKXPVLI5p",
+    "createTime": "2026-02-14T10:56:22.959488Z",
+    "updateTime": "2026-02-14T10:56:22.959488Z",
+    "data": {
+      "teams": [
+        {
+          "players": [
+            "Jack",
+            "Jure",
+            "Kenta",
+            "Marco",
+            "Thijs"
+          ],
+          "teamName": "Kentaky Fried Jacken 🍗",
+          "score": 6
+        },
+        {
+          "score": 6,
+          "teamName": "Middle East🧕🏽",
+          "players": [
+            "Damoun",
+            "Enes",
+            "Hector",
+            "Malaz",
+            "Sam"
+          ]
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-14T00:00:00Z"
+      },
+      "type": "Standard",
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-14T10:56:22.932Z"
+      },
+      "youtubeLink": null,
+      "location": "Sporthal Calvijn",
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "gMJmc4zr9AmUDNiqWkYT",
+    "createTime": "2026-06-13T14:51:27.495309Z",
+    "updateTime": "2026-06-13T14:51:27.495309Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/1oZpdnON1ps?si=WknP9WmeJPm2RKZR",
+      "teams": [
+        {
+          "score": 9,
+          "players": [
+            "Sam",
+            "Ahmed",
+            "Santi",
+            "Kenta",
+            "Malaz",
+            "Jonne"
+          ],
+          "teamName": "Infantino Fans 🤑💸"
+        },
+        {
+          "players": [
+            "Chrys",
+            "Mark",
+            "Anthony",
+            "Enes",
+            "Ole",
+            "Luke"
+          ],
+          "teamName": "Guacam-Ole🇲🇽🥑",
+          "score": 10
+        }
+      ],
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-06-13T14:51:27.435Z"
+      },
+      "type": "Standard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-13T00:00:00Z"
+      },
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Zeeburgereiland - Outdoor"
+    }
+  },
+  {
+    "id": "iCmX7CbFKbVb4p5q8mrh",
+    "createTime": "2026-05-06T17:16:00.626461Z",
+    "updateTime": "2026-05-12T08:52:43.580309Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "teamName": "Europaboulevard of broken dreams 🎸",
+          "score": 4,
+          "players": [
+            "Marco",
+            "Sam",
+            "Can",
+            "Daniel Gomez",
+            "Daniel Müller"
+          ]
+        },
+        {
+          "teamName": "Engel di Gordaninho  🦅",
+          "score": 4,
+          "players": [
+            "Ramiar",
+            "Gordan",
+            "Bert",
+            "Stefan",
+            "Patrick"
+          ]
+        }
+      ],
+      "type": "Standard",
+      "youtubeLink": "https://youtu.be/o3embR6kcE0?si=o95VMgrOIgEYNR5R",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-06T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-12T08:52:43.526Z"
+      },
+      "colors": [
+        "red",
+        "yellow"
+      ]
+    }
+  },
+  {
+    "id": "iPswcAtCHewzKh1EjxhO",
+    "createTime": "2026-05-12T08:48:29.317159Z",
+    "updateTime": "2026-05-12T08:48:29.317159Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/DjFUm4g4yh8?si=LVYd_LTatwa8cvZK",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "teamName": "Slippery strikers",
+          "points": 3,
+          "rank": 1,
+          "originalKey": "A",
+          "players": [
+            "Hector",
+            "Marco",
+            "Daniel Müller",
+            "Ole",
+            "Stefan"
+          ]
+        },
+        {
+          "rank": 2,
+          "players": [
+            "Can",
+            "Damoun",
+            "Manu",
+            "Sam",
+            "Daniel Gomez"
+          ],
+          "teamName": "Galácticos 2004-2005",
+          "originalKey": "C",
+          "points": 1
+        },
+        {
+          "teamName": "Pair of Jacks",
+          "originalKey": "B",
+          "rank": 3,
+          "players": [
+            "Desi",
+            "Jack",
+            "Malaz",
+            "Patrick",
+            "Thijs"
+          ],
+          "points": 0
+        }
+      ],
+      "type": "Tournament",
+      "location": "Sporthal Calvijn",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-12T08:48:29.278Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-10T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "iVhopglKAuBjF969vARz",
+    "createTime": "2026-06-20T12:38:45.551574Z",
+    "updateTime": "2026-07-19T08:37:37.522443Z",
+    "data": {
+      "youtubeLink": null,
+      "teams": [
+        {
+          "score": 14,
+          "players": [
+            "Enes",
+            "Jack",
+            "Jure",
+            "Ole",
+            "Rensley",
+            "Nigell"
+          ],
+          "teamName": "Selekshon di futbol Korsou🇨🇼"
+        },
+        {
+          "players": [
+            "Kenta",
+            "Luke",
+            "Malaz",
+            "Sam",
+            "Stefan"
+          ],
+          "score": 10,
+          "teamName": "E onda azul 🇨🇼"
+        }
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-19T08:37:37.480Z"
+      },
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "yellow",
+        "blue"
+      ],
+      "location": "Zeeburgereiland - Outdoor",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-20T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "l7gVJHjUgZ6uSfFgOVuG",
+    "createTime": "2026-06-03T18:42:03.427942Z",
+    "updateTime": "2026-06-03T18:42:17.495930Z",
+    "data": {
+      "location": "Sporthal ROC Europaboulevard",
+      "colors": [
+        "yellow",
+        "red"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-06-03T18:42:17.278Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-03T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "type": "Standard",
+      "teams": [
+        {
+          "players": [
+            "Ahmed",
+            "Antraniek",
+            "Gordan",
+            "Hector",
+            "Kenta"
+          ],
+          "score": 5,
+          "teamName": "Law and Gorder ⚖️"
+        },
+        {
+          "players": [
+            "Daniel Gomez",
+            "Manu",
+            "Marco",
+            "Ramiar",
+            "Sam"
+          ],
+          "teamName": "Headless chickens 🐓",
+          "score": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "laCbxb8upgvNKyK0e6pC",
+    "createTime": "2026-03-21T10:39:10.302034Z",
+    "updateTime": "2026-03-21T17:45:11.776613Z",
+    "data": {
+      "teams": [
+        {
+          "score": 4,
+          "players": [
+            "Gustavo",
+            "Jure",
+            "Kenta",
+            "Malaz",
+            "Ole"
+          ],
+          "teamName": "Jurentus 👵🏻"
+        },
+        {
+          "teamName": "Enesbahce 🇹🇷",
+          "score": 4,
+          "players": [
+            "Can",
+            "Desi",
+            "Enes",
+            "Hector",
+            "Daniel Müller"
+          ]
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-21T00:00:00Z"
+      },
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-21T17:45:11.731Z"
+      },
+      "youtubeLink": "https://youtu.be/_y9FPNbKQzY?is=VRA3I59-HZHrfuc4",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "yellow",
+        "blue"
+      ],
+      "location": "Sporthal Calvijn"
+    }
+  },
+  {
+    "id": "oOdQQVGhYslY6RbuGl78",
+    "createTime": "2026-04-15T19:01:48.431959Z",
+    "updateTime": "2026-04-25T12:34:07.431680Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/JNS-rfRErJQ?is=1kT6g9GCXxC-Lclz",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-25T12:34:07.379Z"
+      },
+      "type": "Standard",
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "location": "Sporthal ROC Europaboulevard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-15T00:00:00Z"
+      },
+      "teams": [
+        {
+          "players": [
+            "Daniel Müller",
+            "João",
+            "Kenta",
+            "Manu",
+            "Stefan"
+          ],
+          "score": 5,
+          "teamName": "Kenta’s Discount Mercenaries"
+        },
+        {
+          "players": [
+            "Ayoube",
+            "Can",
+            "Damoun",
+            "Daniel Gomez",
+            "Gordan"
+          ],
+          "score": 8,
+          "teamName": "Ayoutubers ▶️"
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com"
+    }
+  },
+  {
+    "id": "pJgxHPHgEhth9GnQbtsx",
+    "createTime": "2026-06-25T13:31:46.935743Z",
+    "updateTime": "2026-06-25T13:31:46.935743Z",
+    "data": {
+      "youtubeLink": null,
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-06-25T13:31:46.867Z"
+      },
+      "teams": [
+        {
+          "teamName": "Panic on the Pitch",
+          "score": 7,
+          "players": [
+            "Antraniek",
+            "Guille",
+            "Kenta",
+            "Marco",
+            "Manu"
+          ]
+        },
+        {
+          "score": 4,
+          "teamName": "Shangai SIPG 🇨🇳",
+          "players": [
+            "Can",
+            "Gordan",
+            "Jack",
+            "Oscar",
+            "Patrick"
+          ]
+        }
+      ],
+      "type": "Standard",
+      "location": "Sporthal ROC Europaboulevard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-06-24T00:00:00Z"
+      },
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "blue",
+        "red"
+      ]
+    }
+  },
+  {
+    "id": "pLnuHN0H1ujAFsgN7C1z",
+    "createTime": "2026-07-11T18:27:30.929884Z",
+    "updateTime": "2026-08-07T11:21:52.680719Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/tVn72L-CDyA?is=E0DEJyGWmxTMwlB7",
+      "location": "Zeeburgereiland - Outdoor",
+      "teams": [
+        {
+          "players": [
+            "Anthony",
+            "Enes",
+            "Hector",
+            "Jonne",
+            "Rensley",
+            "Tom"
+          ],
+          "rank": 1,
+          "teamName": "wrinkled scrotums",
+          "originalKey": "B",
+          "points": 3
+        },
+        {
+          "teamName": "Mellow Yellows",
+          "points": 1,
+          "originalKey": "A",
+          "rank": 2,
+          "players": [
+            "Anderson",
+            "Andres",
+            "Can",
+            "Damoun",
+            "Jack",
+            "Javi Bernardo"
+          ]
+        },
+        {
+          "points": 0,
+          "teamName": "Anderslecht",
+          "players": [
+            "Anderson Brazil",
+            "Jure",
+            "Kenta",
+            "Manu",
+            "Mark",
+            "Nigell"
+          ],
+          "rank": 3,
+          "originalKey": "C"
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-11T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-07T11:21:52.617Z"
+      },
+      "type": "Tournament"
+    }
+  },
+  {
+    "id": "pPjlOaCUyWB7WX5EIXsF",
+    "createTime": "2026-08-06T05:52:41.041825Z",
+    "updateTime": "2026-08-06T05:52:41.041825Z",
+    "data": {
+      "teams": [
+        {
+          "players": [
+            "Marco",
+            "Nino",
+            "Daniel Müller",
+            "Patrick",
+            "Damoun"
+          ],
+          "teamName": "Europa boyz 🌍",
+          "score": 2
+        },
+        {
+          "teamName": "The ROW Warriors 🌎",
+          "score": 7,
+          "players": [
+            "Hector",
+            "Stefan",
+            "Andres",
+            "Ramiar",
+            "Jack"
+          ]
+        }
+      ],
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthallen Zuid",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-29T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-06T05:52:40.979Z"
+      },
+      "youtubeLink": null,
+      "type": "Standard"
+    }
+  },
+  {
+    "id": "pZ0mITQ7fjxJN82g2zcH",
+    "createTime": "2026-08-06T07:53:19.488021Z",
+    "updateTime": "2026-08-07T11:21:29.764143Z",
+    "data": {
+      "type": "Tournament",
+      "teams": [
+        {
+          "rank": 1,
+          "points": 3,
+          "players": [
+            "Behrang",
+            "Enes",
+            "Gustavo",
+            "Jack",
+            "Ole",
+            "Santi"
+          ],
+          "teamName": "WeWillLetMarkScore🥅 ⚽️",
+          "originalKey": "B"
+        },
+        {
+          "originalKey": "C",
+          "rank": 2,
+          "teamName": "Sum 41 (year old guys)🎂",
+          "points": 1,
+          "players": [
+            "Anderson",
+            "Can",
+            "Mark",
+            "Miguel",
+            "Ruben",
+            "Javi Farres"
+          ]
+        },
+        {
+          "teamName": "The Ronaldninos🇧🇷",
+          "players": [
+            "Gianfranco",
+            "Malaz",
+            "Nigell",
+            "Nino",
+            "Sam",
+            "Stefan"
+          ],
+          "originalKey": "A",
+          "points": 0,
+          "rank": 3
+        }
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-08-01T00:00:00Z"
+      },
+      "location": "Zeeburgereiland - Outdoor",
+      "youtubeLink": null,
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-07T11:21:29.683Z"
+      }
+    }
+  },
+  {
+    "id": "rJKDaL9pjQLux2MHGQ9J",
+    "createTime": "2026-03-14T12:04:40.819437Z",
+    "updateTime": "2026-03-14T14:59:42.067555Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": "https://youtu.be/C7WAnNWF9gU?is=ke_EBBpEXJ71hzPH",
+      "colors": [
+        "yellow",
+        "red"
+      ],
+      "teams": [
+        {
+          "score": 7,
+          "teamName": "BreakFast FC!! 🍇🥑🫖",
+          "players": [
+            "Can",
+            "Desi",
+            "Ayoube",
+            "Andres",
+            "Malaz"
+          ]
+        },
+        {
+          "score": 7,
+          "players": [
+            "Enes",
+            "Ole",
+            "Gustavo",
+            "Daniel Müller",
+            "Bert"
+          ],
+          "teamName": "Fasting Furious🚗"
+        }
+      ],
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-14T14:59:42.022Z"
+      },
+      "location": "Sporthal Calvijn",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-14T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "tECtKYYoUXp1xH0rLEv3",
+    "createTime": "2026-02-07T11:45:05.925135Z",
+    "updateTime": "2026-02-07T11:45:28.586174Z",
+    "data": {
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "youtubeLink": null,
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "location": "Sporthal Calvijn",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-07T00:00:00Z"
+      },
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-07T11:45:28.535Z"
+      },
+      "teams": [
+        {
+          "players": [
+            "Kenta",
+            "Malaz",
+            "Marco",
+            "Ole",
+            "Gustavo"
+          ],
+          "teamName": "Los MerenGus 😂",
+          "score": 9
+        },
+        {
+          "teamName": "Real Markdrid🏆",
+          "players": [
+            "Alex",
+            "Damoun",
+            "Jack",
+            "Hector",
+            "Mark"
+          ],
+          "score": 6
+        }
+      ]
+    }
+  },
+  {
+    "id": "udRLF8a0MtOmfqjYYafR",
+    "createTime": "2026-03-04T18:28:57.590311Z",
+    "updateTime": "2026-03-04T18:29:58.987405Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "youtubeLink": null,
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "players": [
+            "Adri",
+            "Sam",
+            "Ole",
+            "Antraniek",
+            "Hector"
+          ],
+          "score": 3,
+          "teamName": "SamAntraSpor🐎"
+        },
+        {
+          "players": [
+            "Can",
+            "Gordan",
+            "Patrick",
+            "Jack",
+            "João"
+          ],
+          "score": 8,
+          "teamName": "Boys of Rüṣtü🕶️"
+        }
+      ],
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "type": "Standard",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-03-04T18:29:58.922Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-03-04T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "w2RWehWhtEkigzCNZrV6",
+    "createTime": "2026-07-11T18:24:31.894377Z",
+    "updateTime": "2026-07-11T18:24:31.894377Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-11T18:24:31.826Z"
+      },
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "red",
+        "blue"
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-08T00:00:00Z"
+      },
+      "youtubeLink": "https://youtu.be/hwpO8w1Znv8?is=en_KYLksSbfUL8Jd",
+      "location": "Sporthallen Zuid",
+      "teams": [
+        {
+          "score": 3,
+          "players": [
+            "Ahmed",
+            "Bert",
+            "Gordan",
+            "Hector",
+            "Ramiar"
+          ],
+          "teamName": "Kaap Bertie 🇨🇻"
+        },
+        {
+          "score": 7,
+          "teamName": "Ardanieltina 🇦🇷",
+          "players": [
+            "Can",
+            "Damoun",
+            "Daniel Müller",
+            "Manu",
+            "Marco"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "wyMZ6ZROdDGI6XY9EYQg",
+    "createTime": "2026-02-21T10:41:30.941825Z",
+    "updateTime": "2026-02-21T10:41:30.941825Z",
+    "data": {
+      "teams": [
+        {
+          "score": 4,
+          "players": [
+            "Stefan",
+            "Kenta",
+            "Tom",
+            "Jack",
+            "Marco"
+          ],
+          "teamName": "Kentaky Fried Jacken - Reloaded"
+        },
+        {
+          "teamName": "BodoGuille",
+          "score": 3,
+          "players": [
+            "Damoun",
+            "Malaz",
+            "Hector",
+            "Jure",
+            "Guille"
+          ]
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-02-21T00:00:00Z"
+      },
+      "youtubeLink": null,
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal Calvijn",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-02-21T10:41:30.881Z"
+      }
+    }
+  },
+  {
+    "id": "wzUW6D6I8Ij88GmKHcmb",
+    "createTime": "2026-04-30T09:50:52.470818Z",
+    "updateTime": "2026-04-30T11:27:42.216134Z",
+    "data": {
+      "location": "Sportgebouw Bibian Mentel",
+      "teams": [
+        {
+          "teamName": "Jure Bet - Mission Ayoubelette  🎲",
+          "players": [
+            "Ayoube",
+            "Can",
+            "Enes",
+            "Gordan",
+            "Jure"
+          ],
+          "score": 8
+        },
+        {
+          "score": 5,
+          "players": [
+            "Daniel Gomez",
+            "Damoun",
+            "Luis",
+            "Marco",
+            "Patrick"
+          ],
+          "teamName": "High Risk, No Reward 🎰"
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-04-29T00:00:00Z"
+      },
+      "colors": [
+        "blue",
+        "red"
+      ],
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Standard",
+      "youtubeLink": "https://youtu.be/vNIJF1K60Dc?is=2wPp22wGAAzuOhS5",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-04-30T11:27:42.160Z"
+      }
+    }
+  },
+  {
+    "id": "x5adx5EgABFMycmlpdN5",
+    "createTime": "2026-01-14T20:02:57.458040Z",
+    "updateTime": "2026-01-14T20:16:06.093183Z",
+    "data": {
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "location": "Sporthal ROC Europaboulevard",
+      "teams": [
+        {
+          "score": 5,
+          "players": [
+            "Damoun",
+            "Hector",
+            "Sam",
+            "Tom",
+            "João"
+          ],
+          "teamName": "Damounator 👨‍🦼 "
+        },
+        {
+          "score": 10,
+          "players": [
+            "Can",
+            "Jure",
+            "Patrick",
+            "Stefan",
+            "Gordan"
+          ],
+          "teamName": "CanaryTrick 🐥"
+        }
+      ],
+      "colors": [
+        "blue",
+        "yellow"
+      ],
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-01-14T20:16:06.059Z"
+      },
+      "youtubeLink": "https://youtu.be/xoVdU9_BHgI",
+      "type": "Standard",
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-01-14T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "xeesxuY0uZi08DIILAgs",
+    "createTime": "2026-07-25T15:35:44.852999Z",
+    "updateTime": "2026-07-25T15:35:44.852999Z",
+    "data": {
+      "location": "Sporthallen Zuid",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-07-25T15:35:44.773Z"
+      },
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "type": "Tournament",
+      "youtubeLink": "https://youtu.be/HwLgggHYwOo?is=-9FqCxGyKZOUGtsY",
+      "teams": [
+        {
+          "rank": 1,
+          "teamName": "Five guys, One cup🏆💩",
+          "players": [
+            "Malaz",
+            "Marco",
+            "Sam",
+            "Stefan",
+            "Tom"
+          ],
+          "points": 3,
+          "originalKey": "B"
+        },
+        {
+          "teamName": "Patrik Schit 🇨🇿💩",
+          "originalKey": "C",
+          "players": [
+            "Ahmed",
+            "Gustavo",
+            "Hector",
+            "Jure",
+            "Patrick"
+          ],
+          "points": 1,
+          "rank": 2
+        },
+        {
+          "points": 0,
+          "originalKey": "A",
+          "rank": 3,
+          "players": [
+            "Bert",
+            "Daniel Müller",
+            "Jorge",
+            "Manu",
+            "Ramiar"
+          ],
+          "teamName": "Fortuna Shitstart🌬️"
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-07-22T00:00:00Z"
+      }
+    }
+  },
+  {
+    "id": "yDogU62tySpgPgUMZQsS",
+    "createTime": "2026-05-28T05:21:29.653475Z",
+    "updateTime": "2026-05-28T09:03:12.269341Z",
+    "data": {
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-05-28T09:03:12.204Z"
+      },
+      "teams": [
+        {
+          "teamName": "Ra-moun 🙊",
+          "players": [
+            "Can",
+            "Damoun",
+            "Hector",
+            "Ramiar",
+            "Sam"
+          ],
+          "score": 4
+        },
+        {
+          "teamName": "Rayo Vallecano⚡️",
+          "players": [
+            "Antraniek",
+            "Daniel Gomez",
+            "Gordan",
+            "Kenta",
+            "Marco"
+          ],
+          "score": 4
+        }
+      ],
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-27T00:00:00Z"
+      },
+      "location": "Sporthal ROC Europaboulevard",
+      "youtubeLink": "https://youtu.be/ZaATPGHxmAU?si=ao3TFuSY7gcpSm0f",
+      "type": "Standard",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "colors": [
+        "blue",
+        "red"
+      ]
+    }
+  },
+  {
+    "id": "yQtO5KEe26Pctphf3HYx",
+    "createTime": "2026-05-16T13:10:06.563430Z",
+    "updateTime": "2026-08-07T10:51:03.380499Z",
+    "data": {
+      "youtubeLink": "https://youtu.be/HwVYwsALeNE?is=lTgRegeUofVBA3dR",
+      "timestamp": {
+        "__type": "timestamp",
+        "value": "2026-08-07T10:51:03.309Z"
+      },
+      "date": {
+        "__type": "timestamp",
+        "value": "2026-05-16T00:00:00Z"
+      },
+      "type": "Tournament",
+      "location": "Zeeburgereiland - Outdoor",
+      "updatedBy": "can.ozturk1907@gmail.com",
+      "teams": [
+        {
+          "rank": 1,
+          "players": [
+            "Jonne",
+            "Jp",
+            "Kenta",
+            "Malaz",
+            "Tom",
+            "Yuto"
+          ],
+          "points": 3,
+          "teamName": "Grampus six 🇯🇵",
+          "originalKey": "A"
+        },
+        {
+          "originalKey": "C",
+          "points": 1,
+          "rank": 2,
+          "players": [
+            "Can",
+            "Chris D.",
+            "Gustavo",
+            "Luke",
+            "Ole",
+            "Sam"
+          ],
+          "teamName": "Smoked Samon🍣"
+        },
+        {
+          "originalKey": "B",
+          "points": 0,
+          "players": [
+            "Anderson Brazil",
+            "Antraniek",
+            "Artur",
+            "Miguel",
+            "Stefan"
+          ],
+          "teamName": "Team Wildcard 🃏",
+          "rank": 3
+        }
+      ]
+    }
+  }
+]

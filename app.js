@@ -13,7 +13,18 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const functions = firebase.functions();
 
-if (location.hostname === 'localhost') {
+// Offline IndexedDB Persistence (Item 32)
+try {
+    db.enablePersistence({ synchronizeTabs: true }).catch(err => {
+        if (err.code === 'failed-precondition') {
+            console.warn('Firestore persistence warning: Multiple tabs open');
+        } else if (err.code === 'unimplemented') {
+            console.warn('Firestore persistence not supported in this browser');
+        }
+    });
+} catch (e) {}
+
+if (location.hostname === 'localhost' && window.location.search.includes('useEmulator=true')) {
     db.useEmulator('localhost', 8080);
     auth.useEmulator('http://localhost:9099');
     functions.useEmulator('localhost', 5001);
@@ -1975,6 +1986,7 @@ function renderData() {
                     </div>`;
                 }
                 const ytLink = m.youtubeLink ? `<a href="${esc(safeUrl(m.youtubeLink))}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
+                const shareBtn = `<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2 text-decoration-none" onclick="copyShareLink('match', '${m.id}', 'Match on ${dateStr}', event)" title="Share Match Link" style="font-size:0.75rem;"><i class="fas fa-share-alt"></i></button>`;
 
                 const recapHtml = m.recap ? `
                 <div class="p-2 border-top border-secondary border-opacity-25 bg-black bg-opacity-25 small text-light opacity-90" style="font-size:0.75rem; font-style:italic;">
@@ -1992,8 +2004,11 @@ function renderData() {
                     const pB = esc((tB.players||[]).map(p => getPlayerDisplayName(p)).join(', '));
 
                     html = `
-                    <div class="match-card" onclick="openPlayerStats('${(tA.players||[])[0] || ''}')">
-                        <div class="card-top"><span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> ${ytLink}</div>
+                    <div class="match-card" id="match-${m.id}" onclick="openPlayerStats('${(tA.players||[])[0] || ''}')">
+                        <div class="card-top d-flex justify-content-between align-items-center">
+                            <span><i class="far fa-calendar me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> 
+                            <div class="d-flex align-items-center">${ytLink}${shareBtn}</div>
+                        </div>
                         <div class="card-body-strip">
                             <div class="team-block">
                                 <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${esc(tA.teamName||'A')}</div><div class="t-score ${winA}">${tA.score}</div></div>
@@ -2025,8 +2040,11 @@ function renderData() {
                     const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
 
                     html = `
-                    <div class="match-card" onclick="openPlayerStats('${(r1.players||[])[0] || ''}')" style="border-left: 3px solid #ffea00;">
-                        <div class="card-top"><span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> ${ytLink}</div>
+                    <div class="match-card" id="match-${m.id}" onclick="openPlayerStats('${(r1.players||[])[0] || ''}')" style="border-left: 3px solid #ffea00;">
+                        <div class="card-top d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-trophy text-warning me-1"></i> ${dateStr} <span class="mx-2 opacity-25">|</span> ${esc(m.location)}</span> 
+                            <div class="d-flex align-items-center">${ytLink}${shareBtn}</div>
+                        </div>
                         <div class="p-3 bg-card">
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-white fw-bold"><span class="rank-badge rank-1">1</span> <span class="dot bg-${getCol(r1)}"></span> ${esc(r1.teamName)} <span class="text-warning ms-1" style="font-size:0.75rem">${pts1}</span></span></div><div style="font-size:0.75rem; color:#8b949e; margin-left:32px">${esc((r1.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
                             <div class="tourn-row"><div class="d-flex justify-content-between"><span class="text-muted"><span class="rank-badge bg-secondary">2</span> <span class="dot bg-${getCol(r2)}"></span> ${esc(r2.teamName)} <span class="text-muted ms-1" style="font-size:0.75rem">${pts2}</span></span></div><div style="font-size:0.75rem; color:#666; margin-left:32px">${esc((r2.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</div></div>
@@ -2119,6 +2137,7 @@ function renderData() {
     }
 
     generateInsights(filtered);
+    renderCommunityTab(allMatches);
 }
 
 function generateInsights(matches) {
@@ -2480,6 +2499,9 @@ function generateInsights(matches) {
 }
 
 window.openPlayerStats = (targetIdOrName) => {
+    const resolvedTargetId = resolvePlayerIdentifier(targetIdOrName) || targetIdOrName;
+    window.activeModalPlayerId = resolvedTargetId;
+
     const fYear = document.getElementById('filterYear');
     const fMonth = document.getElementById('filterMonth');
     const year = fYear ? (fYear.value === 'all' ? 'all' : parseInt(fYear.value)) : 2026;
@@ -3499,3 +3521,690 @@ window.openDataHealthAudit = async () => {
     }
 };
 
+/* ======================================================================
+   STAGE E: COMMUNITY LAYER & PWA (ITEMS 25, 28, 29, 32, 38, 39)
+   ====================================================================== */
+
+/** Item 32: Toast Notification Helper */
+window.showToast = (msg) => {
+    const toastEl = document.getElementById('liveToast');
+    const toastMsg = document.getElementById('toastMessage');
+    if (!toastEl || !toastMsg) return;
+    toastMsg.textContent = msg;
+    if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+        const toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+        toast.show();
+    }
+};
+
+/** Item 32: Deep Link Generator & Native Share */
+window.copyShareLink = async (type, id, title = 'Elderly Support League', event = null) => {
+    if (event) event.stopPropagation();
+    const url = `${window.location.origin}${window.location.pathname}?${type}=${encodeURIComponent(id)}`;
+    
+    if (navigator.share && /mobile|android|iphone|ipad/i.test(navigator.userAgent)) {
+        try {
+            await navigator.share({ title, url });
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+        }
+    }
+
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(url);
+            showToast('Link copied to clipboard!');
+        } else {
+            prompt('Copy share link:', url);
+        }
+    } catch (e) {
+        prompt('Copy share link:', url);
+    }
+};
+
+window.shareCurrentPlayer = () => {
+    if (window.activeModalPlayerId) {
+        const name = getPlayerDisplayName(window.activeModalPlayerId);
+        copyShareLink('player', window.activeModalPlayerId, `${name}'s Stats — Elderly Support`);
+    }
+};
+
+/** Item 32: Deep Link Identifier Resolver */
+function resolvePlayerIdentifier(targetIdOrName, registry = playersRegistry) {
+    if (!targetIdOrName) return null;
+    const clean = String(targetIdOrName).trim().toLowerCase();
+    if (registry.has(targetIdOrName)) return targetIdOrName;
+
+    for (const [pId, p] of registry.entries()) {
+        if (pId.toLowerCase() === clean) return pId;
+        if ((p.displayName || '').toLowerCase() === clean) return pId;
+        if ((p.aliases || []).some(a => String(a).toLowerCase() === clean)) return pId;
+    }
+    return null;
+}
+
+let deepLinkHandled = false;
+function handleDeepLinks() {
+    if (deepLinkHandled) return;
+    const params = new URLSearchParams(window.location.search);
+
+    const playerParam = params.get('player');
+    const matchParam = params.get('match');
+    const tabParam = params.get('tab');
+
+    if (playerParam) {
+        deepLinkHandled = true;
+        const resolvedId = resolvePlayerIdentifier(playerParam);
+        if (resolvedId) {
+            setTimeout(() => openPlayerStats(resolvedId), 250);
+        } else {
+            showToast(`Player "${playerParam}" not found.`);
+        }
+    } else if (matchParam) {
+        deepLinkHandled = true;
+        const triggerTab = document.querySelector('[data-bs-target="#matches"]');
+        if (triggerTab && typeof bootstrap !== 'undefined') {
+            bootstrap.Tab.getOrCreateInstance(triggerTab).show();
+        }
+        setTimeout(() => {
+            const card = document.getElementById(`match-${matchParam}`);
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                card.classList.add('border-warning');
+                setTimeout(() => card.classList.remove('border-warning'), 3000);
+            } else {
+                showToast('Match record not found.');
+            }
+        }, 300);
+    } else if (tabParam) {
+        deepLinkHandled = true;
+        const triggerTab = document.querySelector(`[data-bs-target="#${tabParam}"]`);
+        if (triggerTab && typeof bootstrap !== 'undefined') {
+            bootstrap.Tab.getOrCreateInstance(triggerTab).show();
+        }
+    }
+}
+
+/** Item 25: Weekly Power Rankings Computation */
+function computeWeeklyPowerRankings(matches, customCutoffDate = null, customLatestDate = null) {
+    if (!matches || matches.length === 0) {
+        return { dateRangeText: '', hasMatchesInWindow: false, rankings: [] };
+    }
+
+    const sorted = [...matches].filter(m => m.date && m.teams && m.teams.length >= 2).sort((a, b) => {
+        const tA = a.date ? (a.date.toDate ? a.date.toDate().getTime() : new Date(a.date).getTime()) : 0;
+        const tB = b.date ? (b.date.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime()) : 0;
+        if (tA !== tB) return tA - tB;
+        return (a.id || '').localeCompare(b.id || '');
+    });
+
+    if (sorted.length === 0) {
+        return { dateRangeText: '', hasMatchesInWindow: false, rankings: [] };
+    }
+
+    const latestDate = customLatestDate || (sorted[sorted.length - 1].date.toDate ? sorted[sorted.length - 1].date.toDate() : new Date(sorted[sorted.length - 1].date));
+    const cutoffDate = customCutoffDate || new Date(latestDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const matchesInWindow = sorted.filter(m => {
+        const d = m.date.toDate ? m.date.toDate() : new Date(m.date);
+        return d > cutoffDate && d <= latestDate;
+    });
+
+    // 1. Compute Elo as of latestDate
+    const currentEloData = computeEloRatings(sorted.filter(m => {
+        const d = m.date.toDate ? m.date.toDate() : new Date(m.date);
+        return d <= latestDate;
+    }));
+
+    // 2. Compute Elo as of cutoffDate
+    const prevMatches = sorted.filter(m => {
+        const d = m.date.toDate ? m.date.toDate() : new Date(m.date);
+        return d <= cutoffDate;
+    });
+    const prevEloData = computeEloRatings(prevMatches);
+
+    // Map previous ranks among players who had >= MIN_GAMES_RANKED_ELO (5) at cutoff
+    const prevRanked = [...(prevEloData.sortedList || [])]
+        .filter(p => !p.isProvisional)
+        .sort((a, b) => b.rawRating - a.rawRating || a.name.localeCompare(b.name));
+
+    const prevRankMap = new Map();
+    prevRanked.forEach((p, idx) => {
+        prevRankMap.set(p.id, idx + 1);
+    });
+
+    // Current non-provisional vs provisional
+    const currNonProvisional = [...(currentEloData.sortedList || [])]
+        .filter(p => !p.isProvisional)
+        .sort((a, b) => b.rawRating - a.rawRating || a.name.localeCompare(b.name));
+
+    const currProvisional = [...(currentEloData.sortedList || [])]
+        .filter(p => p.isProvisional)
+        .sort((a, b) => b.rawRating - a.rawRating || a.name.localeCompare(b.name));
+
+    const rankings = [];
+
+    currNonProvisional.forEach((p, idx) => {
+        const currRank = idx + 1;
+        const hadPrevRank = prevRankMap.has(p.id);
+        let delta = null;
+        let isNew = false;
+
+        if (hadPrevRank) {
+            delta = prevRankMap.get(p.id) - currRank;
+        } else {
+            isNew = true;
+        }
+
+        rankings.push({
+            rank: currRank,
+            id: p.id,
+            name: p.name,
+            elo: p.rating,
+            rawRating: p.rawRating,
+            matches: p.matches,
+            wins: p.wins,
+            isProvisional: false,
+            delta,
+            isNew
+        });
+    });
+
+    currProvisional.forEach(p => {
+        rankings.push({
+            rank: '-',
+            id: p.id,
+            name: p.name,
+            elo: p.rating,
+            rawRating: p.rawRating,
+            matches: p.matches,
+            wins: p.wins,
+            isProvisional: true,
+            delta: null,
+            isNew: false
+        });
+    });
+
+    return {
+        dateRangeText: `${formatDate(cutoffDate)} – ${formatDate(latestDate)}`,
+        hasMatchesInWindow: matchesInWindow.length > 0,
+        matchesInWindowCount: matchesInWindow.length,
+        rankings
+    };
+}
+
+/** Item 28: Milestone Watch Computation */
+function computeMilestoneWatch(matches, interval = MILESTONE_INTERVAL) {
+    if (!matches) return [];
+
+    const capsMap = {};
+    matches.forEach(m => {
+        if (!m.teams) return;
+        m.teams.forEach(t => {
+            (t.players || []).forEach(p => {
+                capsMap[p] = (capsMap[p] || 0) + 1;
+            });
+        });
+    });
+
+    const watchlist = [];
+    Object.entries(capsMap).forEach(([pId, caps]) => {
+        if (caps <= 0) return;
+        let nextM = Math.ceil((caps + 0.1) / interval) * interval;
+        if (caps % interval === 0) nextM = caps + interval;
+        const away = nextM - caps;
+
+        if (away === 1 || away === 2) {
+            const name = getPlayerDisplayName(pId);
+            watchlist.push({
+                playerId: pId,
+                name,
+                caps,
+                nextMilestone: nextM,
+                away,
+                copy: `${name} — ${caps} caps (${away} away from ${nextM})`
+            });
+        }
+    });
+
+    return watchlist.sort((a, b) => a.away - b.away || b.caps - a.caps);
+}
+
+/** Item 29: Monthly Awards Computation */
+function computeMonthlyAwards(matches, year, month, careerMatches = null) {
+    const allM = careerMatches || matches;
+    const monthMatches = matches.filter(m => matchesFilter(m, year, month));
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const monthName = month !== 'all' ? monthNames[parseInt(month)] : 'All-Time';
+
+    if (monthMatches.length === 0) {
+        return {
+            hasMatches: false,
+            monthName,
+            year,
+            totalMonthMatches: 0,
+            potm: null,
+            mostImproved: null,
+            ironMen: [],
+            worstDuo: null,
+            ghost: null
+        };
+    }
+
+    const monthPlayerStats = {};
+    const monthDuos = {};
+
+    monthMatches.forEach(m => {
+        if (!m.teams || m.teams.length < 2) return;
+        if (m.type === 'Standard') {
+            const tA = m.teams[0], tB = m.teams[1];
+            const sA = tA.score || 0, sB = tB.score || 0;
+            const ptsA = sA > sB ? 3 : (sA === sB ? 1 : 0);
+            const ptsB = sB > sA ? 3 : (sB === sA ? 1 : 0);
+
+            [ { t: tA, pts: ptsA }, { t: tB, pts: ptsB } ].forEach(({ t, pts }) => {
+                const pList = t.players || [];
+                pList.forEach(p => {
+                    if (!monthPlayerStats[p]) monthPlayerStats[p] = { id: p, name: getPlayerDisplayName(p), played: 0, won: 0, drawn: 0, lost: 0, pts: 0 };
+                    monthPlayerStats[p].played++;
+                    monthPlayerStats[p].pts += pts;
+                    if (pts === 3) monthPlayerStats[p].won++;
+                    else if (pts === 1) monthPlayerStats[p].drawn++;
+                    else monthPlayerStats[p].lost++;
+                });
+
+                const sortedP = [...pList].sort();
+                for (let i = 0; i < sortedP.length; i++) {
+                    for (let j = i + 1; j < sortedP.length; j++) {
+                        const key = `${sortedP[i]}__${sortedP[j]}`;
+                        if (!monthDuos[key]) monthDuos[key] = { p1: sortedP[i], p2: sortedP[j], played: 0, won: 0 };
+                        monthDuos[key].played++;
+                        if (pts === 3) monthDuos[key].won++;
+                    }
+                }
+            });
+        } else {
+            m.teams.forEach(t => {
+                const pts = t.points !== undefined ? t.points : (t.rank === 1 ? 3 : (t.rank === 2 ? 1 : 0));
+                (t.players || []).forEach(p => {
+                    if (!monthPlayerStats[p]) monthPlayerStats[p] = { id: p, name: getPlayerDisplayName(p), played: 0, won: 0, drawn: 0, lost: 0, pts: 0 };
+                    monthPlayerStats[p].played++;
+                    monthPlayerStats[p].pts += pts;
+                    if (pts >= 3) monthPlayerStats[p].won++;
+                    else if (pts === 1) monthPlayerStats[p].drawn++;
+                    else monthPlayerStats[p].lost++;
+                });
+            });
+        }
+    });
+
+    // Career player stats for baseline
+    const careerStats = {};
+    allM.forEach(m => {
+        if (!m.teams) return;
+        m.teams.forEach(t => {
+            const pts = m.type === 'Standard' ? (t.score > (m.teams[0] === t ? m.teams[1].score : m.teams[0].score) ? 3 : (t.score === (m.teams[0] === t ? m.teams[1].score : m.teams[0].score) ? 1 : 0)) : (t.points !== undefined ? t.points : (t.rank === 1 ? 3 : 0));
+            (t.players || []).forEach(p => {
+                if (!careerStats[p]) careerStats[p] = { played: 0, pts: 0 };
+                careerStats[p].played++;
+                careerStats[p].pts += pts;
+            });
+        });
+    });
+
+    // 1. POTM (min MIN_GAMES_IMPROVED = 3 matches in month)
+    const eligiblePOTM = Object.values(monthPlayerStats)
+        .filter(p => p.played >= MIN_GAMES_IMPROVED)
+        .map(p => ({
+            ...p,
+            ppg: (p.pts / p.played).toFixed(2),
+            rawPPG: p.pts / p.played
+        }))
+        .sort((a, b) => b.rawPPG - a.rawPPG || b.won - a.won || b.played - a.played);
+
+    const potm = eligiblePOTM.length > 0 ? eligiblePOTM[0] : null;
+
+    // 2. Most Improved (min MIN_GAMES_IMPROVED = 3 matches in month & career >= 5)
+    const eligibleImproved = Object.values(monthPlayerStats)
+        .filter(p => p.played >= MIN_GAMES_IMPROVED && (careerStats[p.id]?.played || 0) >= 5)
+        .map(p => {
+            const mPPG = p.pts / p.played;
+            const cPPG = (careerStats[p.id].pts / careerStats[p.id].played);
+            const delta = mPPG - cPPG;
+            return {
+                ...p,
+                monthPPG: mPPG.toFixed(2),
+                careerPPG: cPPG.toFixed(2),
+                delta: delta.toFixed(2),
+                rawDelta: delta
+            };
+        })
+        .filter(p => p.rawDelta > 0)
+        .sort((a, b) => b.rawDelta - a.rawDelta);
+
+    const mostImproved = eligibleImproved.length > 0 ? eligibleImproved[0] : null;
+
+    // 3. Iron Men (100% attendance if month matches >= MIN_GAMES_IMPROVED = 3)
+    const ironMen = (monthMatches.length >= MIN_GAMES_IMPROVED)
+        ? Object.values(monthPlayerStats).filter(p => p.played === monthMatches.length)
+        : [];
+
+    // 4. Worst Duo (min MIN_GAMES_PAIR = 3 games together in month)
+    const eligibleDuos = Object.values(monthDuos)
+        .filter(d => d.played >= MIN_GAMES_PAIR)
+        .map(d => ({
+            p1: getPlayerDisplayName(d.p1),
+            p2: getPlayerDisplayName(d.p2),
+            played: d.played,
+            won: d.won,
+            winRate: Math.round((d.won / d.played) * 100)
+        }))
+        .sort((a, b) => a.winRate - b.winRate || b.played - a.played);
+
+    const worstDuo = eligibleDuos.length > 0 ? eligibleDuos[0] : null;
+
+    // 5. Ghost of the Month (career caps >= 10, month attendance <= 1 when monthMatches >= 3)
+    let ghost = null;
+    if (monthMatches.length >= MIN_GAMES_IMPROVED) {
+        const regularGhosts = Object.entries(careerStats)
+            .filter(([pId, c]) => c.played >= MIN_APPEARANCES_PPG)
+            .map(([pId, c]) => {
+                const mPlayed = monthPlayerStats[pId]?.played || 0;
+                return {
+                    id: pId,
+                    name: getPlayerDisplayName(pId),
+                    monthPlayed: mPlayed,
+                    careerPlayed: c.played,
+                    attendanceRate: Math.round((mPlayed / monthMatches.length) * 100)
+                };
+            })
+            .filter(p => p.monthPlayed <= 1)
+            .sort((a, b) => a.monthPlayed - b.monthPlayed || b.careerPlayed - a.careerPlayed);
+
+        ghost = regularGhosts.length > 0 ? regularGhosts[0] : null;
+    }
+
+    return {
+        hasMatches: true,
+        monthName,
+        year,
+        totalMonthMatches: monthMatches.length,
+        potm,
+        mostImproved,
+        ironMen,
+        worstDuo,
+        ghost
+    };
+}
+
+/** Item 29: Community Tab Rendering */
+async function renderCommunityTab(matches) {
+    const container = document.getElementById('communityContainer');
+    if (!container) return;
+
+    // 1. Weekly Power Rankings (Item 25)
+    const powerData = computeWeeklyPowerRankings(matches);
+    let powerRankingsRows = '';
+
+    if (!powerData.rankings || powerData.rankings.length === 0) {
+        powerRankingsRows = '<tr><td colspan="5" class="text-center py-4 text-muted small">No ranking data available.</td></tr>';
+    } else {
+        powerData.rankings.forEach(p => {
+            let movementBadge = '';
+            if (p.isProvisional) {
+                movementBadge = `<span class="badge-provisional" title="Provisional (${p.matches}/${MIN_GAMES_RANKED_ELO})">?</span>`;
+            } else if (p.isNew) {
+                movementBadge = `<span class="badge bg-info bg-opacity-25 text-info" style="font-size:0.75rem">★ NEW</span>`;
+            } else if (p.delta > 0) {
+                movementBadge = `<span class="badge bg-success bg-opacity-25 text-success fw-bold" style="font-size:0.75rem">▲ +${p.delta}</span>`;
+            } else if (p.delta < 0) {
+                movementBadge = `<span class="badge bg-danger bg-opacity-25 text-danger fw-bold" style="font-size:0.75rem">▼ ${p.delta}</span>`;
+            } else {
+                movementBadge = `<span class="badge bg-secondary bg-opacity-25 text-muted" style="font-size:0.75rem">― 0</span>`;
+            }
+
+            const rowClass = p.isProvisional ? 'text-muted opacity-75' : '';
+
+            powerRankingsRows += `
+            <tr style="cursor:pointer;" onclick="openPlayerStats('${p.id}')" class="${rowClass}">
+                <td class="ps-3 fw-bold">${p.rank}</td>
+                <td>${movementBadge}</td>
+                <td class="fw-bold text-start ${p.isProvisional ? '' : 'text-light'}">${esc(p.name)}</td>
+                <td class="fw-bold text-warning">${p.elo}</td>
+                <td class="pe-3 text-muted">${p.matches}</td>
+            </tr>`;
+        });
+    }
+
+    const windowNotice = powerData.hasMatchesInWindow
+        ? `<span class="text-success small"><i class="fas fa-check-circle me-1"></i>${powerData.matchesInWindowCount} matches in 7-day window (${powerData.dateRangeText})</span>`
+        : `<span class="text-muted small"><i class="fas fa-info-circle me-1"></i>No matches in the past 7 days (${powerData.dateRangeText}). Movement unchanged.</span>`;
+
+    // 2. Milestone Watch (Item 28)
+    const watchlist = computeMilestoneWatch(matches);
+    let milestoneWatchHtml = '';
+    if (watchlist.length === 0) {
+        milestoneWatchHtml = `<div class="p-3 rounded bg-dark border border-secondary text-muted small text-center"><i class="fas fa-flag-checkered text-secondary me-2"></i>No players currently within 1–2 games of a 25-cap milestone.</div>`;
+    } else {
+        milestoneWatchHtml = `<div class="row g-2">` + watchlist.map(w => `
+            <div class="col-12 col-md-6">
+                <div class="p-2 px-3 rounded bg-dark border border-warning border-opacity-50 d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="openPlayerStats('${w.playerId}')">
+                    <div>
+                        <span class="fw-bold text-white">${esc(w.name)}</span>
+                        <small class="text-muted d-block">${w.caps} Caps</small>
+                    </div>
+                    <span class="badge bg-warning text-dark fw-bold">${w.away} away from ${w.nextMilestone} 🎯</span>
+                </div>
+            </div>
+        `).join('') + `</div>`;
+    }
+
+    // 3. Monthly Awards (Item 29)
+    const fYear = document.getElementById('filterYear');
+    const fMonth = document.getElementById('filterMonth');
+    const curYear = fYear ? (fYear.value === 'all' ? '2026' : fYear.value) : '2026';
+    const curMonth = fMonth ? fMonth.value : 'all';
+
+    const awardsData = computeMonthlyAwards(matches, curYear, curMonth);
+
+    // Fetch cached citation from Firestore if month selected
+    let cachedCitation = '';
+    const awardDocId = `${curYear}-${curMonth}`;
+    try {
+        if (curMonth !== 'all') {
+            const aDoc = await db.collection('awards').doc(awardDocId).get();
+            if (aDoc.exists && aDoc.data().citation) {
+                cachedCitation = aDoc.data().citation;
+            }
+        }
+    } catch (e) {}
+
+    let potmCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
+        <div class="p-3 rounded bg-dark border border-secondary h-100">
+            <span class="text-warning small fw-bold d-block mb-1"><i class="fas fa-crown me-2"></i>PLAYER OF THE MONTH</span>
+            ${awardsData.potm ? `
+                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.potm.id}')">${esc(awardsData.potm.name)}</h5>
+                <div class="text-info fw-bold mb-1">${awardsData.potm.ppg} PPG <span class="text-muted small fw-normal">(${awardsData.potm.played} matches, ${awardsData.potm.won}W)</span></div>
+                <small class="text-muted">Highest points-per-game in ${awardsData.monthName} (min 3 games)</small>
+            ` : '<div class="text-muted small py-3">No player met the 3-match qualification threshold.</div>'}
+        </div>
+    </div>`;
+
+    let improvedCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
+        <div class="p-3 rounded bg-dark border border-secondary h-100">
+            <span class="text-success small fw-bold d-block mb-1"><i class="fas fa-chart-line me-2"></i>MOST IMPROVED</span>
+            ${awardsData.mostImproved ? `
+                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.mostImproved.id}')">${esc(awardsData.mostImproved.name)}</h5>
+                <div class="text-success fw-bold mb-1">+${awardsData.mostImproved.delta} PPG <span class="text-muted small fw-normal">(${awardsData.mostImproved.monthPPG} vs ${awardsData.mostImproved.careerPPG} career)</span></div>
+                <small class="text-muted">Biggest positive form surge relative to baseline</small>
+            ` : '<div class="text-muted small py-3">No qualifying improvement surges recorded.</div>'}
+        </div>
+    </div>`;
+
+    let ironMenList = awardsData.ironMen.length > 0 
+        ? awardsData.ironMen.map(p => `<span class="badge bg-secondary me-1 mb-1 p-2" style="cursor:pointer" onclick="openPlayerStats('${p.id}')">${esc(p.name)}</span>`).join('')
+        : '<div class="text-muted small py-3">No player attended 100% of matches.</div>';
+
+    let ironManCard = `<div class="col-12 col-md-6 col-lg-4 mb-3">
+        <div class="p-3 rounded bg-dark border border-secondary h-100">
+            <span class="text-info small fw-bold d-block mb-1"><i class="fas fa-shield-alt me-2"></i>IRON MEN (100% ATTENDANCE)</span>
+            <div class="d-flex flex-wrap pt-1">${ironMenList}</div>
+            <small class="text-muted d-block mt-2">Attended every match in ${awardsData.monthName} (${awardsData.totalMonthMatches} matches)</small>
+        </div>
+    </div>`;
+
+    let worstDuoCard = `<div class="col-12 col-md-6 col-lg-6 mb-3">
+        <div class="p-3 rounded bg-dark border border-secondary h-100">
+            <span class="text-danger small fw-bold d-block mb-1"><i class="fas fa-heart-broken me-2"></i>COLD DUO OF THE MONTH</span>
+            ${awardsData.worstDuo ? `
+                <h6 class="fw-bold text-white mb-1">${esc(awardsData.worstDuo.p1)} & ${esc(awardsData.worstDuo.p2)}</h6>
+                <div class="text-danger fw-bold mb-1">${awardsData.worstDuo.winRate}% Win Rate <span class="text-muted small fw-normal">(${awardsData.worstDuo.won} wins in ${awardsData.worstDuo.played} games)</span></div>
+                <small class="text-muted">Lowest win percentage as teammates (min 3 games together)</small>
+            ` : '<div class="text-muted small py-3">No duo played 3+ games together this month.</div>'}
+        </div>
+    </div>`;
+
+    let ghostCard = `<div class="col-12 col-md-6 col-lg-6 mb-3">
+        <div class="p-3 rounded bg-dark border border-secondary h-100">
+            <span class="text-muted small fw-bold d-block mb-1"><i class="fas fa-ghost me-2"></i>GHOST OF THE MONTH</span>
+            ${awardsData.ghost ? `
+                <h6 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${awardsData.ghost.id}')">${esc(awardsData.ghost.name)}</h6>
+                <div class="text-warning fw-bold mb-1">${awardsData.ghost.monthPlayed} of ${awardsData.totalMonthMatches} attended <span class="text-muted small fw-normal">(${awardsData.ghost.attendanceRate}%)</span></div>
+                <small class="text-muted">Regular player (${awardsData.ghost.careerPlayed} career caps) most missed this month</small>
+            ` : '<div class="text-muted small py-3">All league regulars attended actively this month!</div>'}
+        </div>
+    </div>`;
+
+    // AI Citation banner
+    let citationBanner = '';
+    const adminCitationBtn = (currentUser && currentUser.email.toLowerCase() === SUPER_ADMIN.toLowerCase() && awardsData.potm && curMonth !== 'all')
+        ? `<button class="btn btn-sm btn-outline-info ms-2" onclick="generateAwardCitation('${curYear}', '${curMonth}', '${esc(awardsData.potm.name)}', '${awardsData.potm.ppg} PPG in ${awardsData.monthName}')"><i class="fas fa-wand-magic-sparkles me-1"></i>↺ Generate Citation</button>`
+        : '';
+
+    if (cachedCitation) {
+        citationBanner = `
+        <div class="p-3 mb-3 rounded bg-black bg-opacity-40 border border-info border-opacity-50">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="text-info fw-bold small"><i class="fas fa-quote-left me-1"></i>Official Award Citation:</span>
+                ${adminCitationBtn}
+            </div>
+            <div class="text-light fst-italic" style="font-size:0.9rem; line-height:1.5;">"${esc(cachedCitation)}"</div>
+        </div>`;
+    } else if (adminCitationBtn) {
+        citationBanner = `<div class="mb-3 text-end">${adminCitationBtn}</div>`;
+    }
+
+    container.innerHTML = `
+        <!-- MILESTONE WATCH (ITEM 28) -->
+        <div class="card bg-dark border-secondary p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-white small m-0"><i class="fas fa-flag-checkered text-warning me-2"></i>MILESTONE WATCH (25-CAP INTERVALS)</h6>
+                <span class="badge bg-secondary">Within 1–2 Games</span>
+            </div>
+            ${milestoneWatchHtml}
+        </div>
+
+        <!-- WEEKLY POWER RANKINGS (ITEM 25) -->
+        <div class="card bg-dark border-secondary p-3 mb-4">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                <h6 class="fw-bold text-white small m-0"><i class="fas fa-bolt text-warning me-2"></i>WEEKLY POWER RANKINGS (7-DAY MOVEMENT)</h6>
+                <div class="mt-1 mt-sm-0">${windowNotice}</div>
+            </div>
+            <small class="text-muted d-block mb-3">Rank delta compares current Elo ranking against Elo ranking 7 days prior. Provisional players (? badge) excluded from movement.</small>
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0 text-center" style="white-space: nowrap;">
+                    <thead>
+                        <tr class="text-muted small border-secondary">
+                            <th class="ps-3 text-start">#</th>
+                            <th>MOVE</th>
+                            <th class="text-start">PLAYER</th>
+                            <th>ELO</th>
+                            <th class="pe-3">CAPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${powerRankingsRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- MONTHLY AWARDS (ITEM 29) -->
+        <div class="card bg-dark border-secondary p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-white small m-0"><i class="fas fa-trophy text-info me-2"></i>MONTHLY AWARDS (${awardsData.monthName} ${curYear})</h6>
+                <small class="text-muted">Auto-filtered by header date</small>
+            </div>
+            ${citationBanner}
+            <div class="row">
+                ${potmCard}
+                ${improvedCard}
+                ${ironManCard}
+            </div>
+            <div class="row">
+                ${worstDuoCard}
+                ${ghostCard}
+            </div>
+        </div>
+    `;
+}
+
+window.generateAwardCitation = async (year, month, recipientName, metricValue) => {
+    if (!currentUser) return alert("Admin login required.");
+    try {
+        const genFn = functions.httpsCallable('generateAwardsCopy');
+        const res = await genFn({
+            awardType: 'Player of the Month',
+            recipientName,
+            metricValue,
+            period: `${month}/${year}`
+        });
+        if (res.data && res.data.ok && res.data.citation) {
+            await db.collection('awards').doc(`${year}-${month}`).set({
+                awardType: 'Player of the Month',
+                recipient: recipientName,
+                metric: metricValue,
+                citation: res.data.citation,
+                generatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                modelUsed: res.data.modelUsed
+            }, { merge: true });
+            showToast('Award citation generated and cached!');
+            renderCommunityTab(allMatches);
+        }
+    } catch (err) {
+        alert("Failed to generate citation: " + err.message);
+    }
+};
+
+// Listen for deep links
+if (typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        handleDeepLinks();
+    });
+}
+if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', () => {
+        handleDeepLinks();
+    });
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        STARTING_ELO,
+        K_STANDARD_REG,
+        K_STANDARD_NEW,
+        K_TOURN_REG,
+        K_TOURN_NEW,
+        MIN_GAMES_RANKED_ELO,
+        MIN_APPEARANCES_PPG,
+        MIN_GAMES_PAIR,
+        MIN_GAMES_IMPROVED,
+        MILESTONE_INTERVAL,
+        computeWeeklyPowerRankings,
+        computeMilestoneWatch,
+        computeMonthlyAwards,
+        resolvePlayerIdentifier,
+        computeEloRatings
+    };
+}

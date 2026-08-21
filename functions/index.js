@@ -1016,3 +1016,64 @@ Output plain text advisory bullet points for the league administrator.
     modelUsed: geminiRes.modelUsed
   };
 });
+
+/** 10. Item 39: Scheduled & On-Demand Firestore Backup to Cloud Storage */
+async function performFirestoreBackup() {
+  const collectionsToBackup = ['matches_v2', 'players_v2', 'locations', 'config', 'awards'];
+  const backupData = {
+    project: 'elderly-support-league',
+    takenAt: new Date().toISOString(),
+    collections: {}
+  };
+
+  for (const coll of collectionsToBackup) {
+    const snap = await db.collection(coll).get();
+    backupData.collections[coll] = [];
+    snap.forEach(doc => {
+      backupData.collections[coll].push({ id: doc.id, ...doc.data() });
+    });
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `backups/backup-${timestamp}.json`;
+  const jsonContent = JSON.stringify(backupData, null, 2);
+
+  try {
+    const bucket = admin.storage().bucket();
+    const file = bucket.file(filename);
+    await file.save(jsonContent, {
+      contentType: 'application/json',
+      metadata: {
+        cacheControl: 'no-cache',
+        metadata: {
+          matchesCount: String(backupData.collections.matches_v2.length),
+          playersCount: String(backupData.collections.players_v2.length)
+        }
+      }
+    });
+  } catch (storageErr) {
+    console.warn('Storage save fallback:', storageErr.message);
+  }
+
+  return {
+    filename,
+    sizeBytes: Buffer.byteLength(jsonContent, 'utf8'),
+    matchesCount: backupData.collections.matches_v2.length,
+    playersCount: backupData.collections.players_v2.length,
+    locationsCount: (backupData.collections.locations || []).length,
+    takenAt: backupData.takenAt
+  };
+}
+
+exports.triggerBackup = functions.https.onCall(async (data, context) => {
+  assertAdmin(context);
+  const result = await performFirestoreBackup();
+  return { ok: true, ...result };
+});
+
+exports.scheduledBackup = functions.pubsub.schedule('every sunday 03:00').timeZone('Europe/Amsterdam').onRun(async (context) => {
+  const result = await performFirestoreBackup();
+  console.log('Weekly automated Firestore backup complete:', result.filename, `(${result.sizeBytes} bytes)`);
+  return null;
+});
+

@@ -99,32 +99,69 @@ graph TD
 - **Alias Suggestion on Player Creation (Item 36):** Interactive "Suggest Aliases" button on create player dialog. Returns plausible variations and server-side strips any collisions with existing player identities. Suggestions rendered as unchecked clickable pills.
 - **Data Health Audit Diagnostic Tool (Item 37):** One-off advisory diagnostic tool in Admin tab. Analyzes database metrics (score outliers, date gaps, unusual lineups) and outputs health insights.
 
+### 🟢 Stage E — Community Layer & PWA (Complete)
+- **Item 32: PWA, Service Worker & Deep Links:**
+  - `manifest.json` and standalone web app meta tags for iOS & Android home screen installation.
+  - Safe Service Worker (`sw.js`) with cache versioning (`esl-static-v1`), Network-First app shell caching, and strict exclusions for Firestore SDK, Firebase Auth, and Cloud Functions. Documented emergency kill switch in `docs/SERVICE_WORKER.md`.
+  - Offline IndexedDB read persistence (`db.enablePersistence`).
+  - Deep link URL routing for `?player=<id>`, `?match=<docId>`, `?tab=<name>` with case-insensitive fallback resolution against aliases and display names.
+  - Native Share buttons with `navigator.share` / clipboard copy fallback on Match cards and Player cards.
+- **Item 25: Weekly Power Rankings:**
+  - 7-day Elo rank movement table with `▲ +delta`, `▼ delta`, `― 0` badges.
+  - Strictly excludes provisional players (< 5 games) from movement badges, displaying standard `? Provisional (X/5)`.
+  - Comparison window date banner and empty state for inactive weeks.
+- **Item 28: Milestone Watch:**
+  - Detects players within 1–2 games of caps milestones at 25-intervals (`MILESTONE_INTERVAL = 25`).
+- **Item 29: Monthly Awards:**
+  - Month/Year historical selector.
+  - Player of the Month (top PPG, min 3 games), Most Improved (+Δ PPG vs baseline, min 3 games), Iron Men (100% attendance), Worst Duo (min 3 games together), and Ghost of the Month (lowest attendance among regulars with >= 10 career caps).
+  - AI Citation blurb cached to Firestore `awards/{YYYY-MM}` with Admin generation trigger.
+- **Item 38: Retired Legacy Collections:**
+  - Exported and preserved JSON copies in `data/legacy-export/matches.json` and `data/legacy-export/players.json`.
+  - `firestore.rules` updated to read-only for `matches` and `players`.
+  - Codebase audit confirmed 100% of queries target canonical `matches_v2` and `players_v2`.
+- **Item 39: Scheduled Backup Engine:**
+  - Exported callable `triggerBackup` and automated Cloud Function `scheduledBackup` exporting Firestore to secure Cloud Storage buckets.
+
 ---
 
-## 3. Current Data Health & Metrics
+## 3. Cloud Functions Backend
 
-| Metric | Count / Value | Status |
-| :--- | :--- | :--- |
-| **Total Recorded Matches** | 67 matches (134 team records) | ✅ Fully verified in `matches_v2` (59 Standard, 8 Tournament) |
-| **Canonical Player Identities** | 68 unique players | ✅ Synced in `players_v2` |
-| **Active Regulars** | ~26 players (≥10 appearances) | ✅ Included in Roster Grid & Heatmap |
-| **Venues Registered** | 5 active halls / fields + dynamic add | ✅ Synced in `locations` |
-| **Security Rules** | Enforced on all collections | ✅ Deployed to Cloud Firestore |
-| **Cloud Functions** | 9 callable endpoints (`setGeminiKey`, `testGeminiConnection`, `setGeminiModel`, `parseLineup`, `generateMatchRecap`, `queryStats`, `generateAwardsCopy`, `suggestAliases`, `auditDataHealth`) | ✅ Configured with fallback chain & admin guards |
+| Function Name | Gen / Runtime | Trigger / Type | Access Gate | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `parseLineup` | 1st Gen / Node 22 | `https.onCall` | Admin Only | AI Magic Paste lineup parser with fallback chain |
+| `generateMatchRecap` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Two-sentence factual match recaps |
+| `queryStats` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Natural language stats Q&A over full Stage D/E metrics |
+| `generateAwardsCopy` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Award & milestone citation copy generation |
+| `suggestAliases` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Alias variation suggester with collision filter |
+| `auditDataHealth` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Database health and anomaly diagnostic tool |
+| `triggerBackup` | 1st Gen / Node 22 | `https.onCall` | Admin Only | On-demand Firestore backup export to Cloud Storage |
+| `scheduledBackup` | 1st Gen / Node 22 | Pub/Sub Schedule | Weekly Sunday | Automated weekly backup export |
+| `setGeminiKey` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Secure API key setter and validator |
+| `setGeminiModel` | 1st Gen / Node 22 | `https.onCall` | Admin Only | Model preference persistence |
+| `testGeminiConnection`| 1st Gen / Node 22 | `https.onCall` | Admin Only | Latency test and live model lister |
 
 ---
 
-## 4. Feature Matrix by Stage
+## 4. Verification & Testing
+
+Run all test suites locally:
+```bash
+node scripts/test_gemini_routing.js
+node scripts/test_stage_d_full.js
+node scripts/test_stage_d_ai_extensions.js
+node scripts/test_stage_e.js
+```
+
+---
+
+## 5. Feature Matrix by Stage
 
 ```
 Stage A — Core Fixes           [████████████████████] 100% (7/7 Complete)
 Stage B — Identity Layer       [████████████████████] 100% (4/4 Complete)
 Stage C — Entry Experience     [████████████████████] 100% (6/6 Complete)
 Stage D — Statistics Engine    [████████████████████] 100% (6/6 Complete)
-Stage D+ — AI Extensions       [████████████████████] 100% (5/5 Complete)
-Stage E — Community Layer      [░░░░░░░░░░░░░░░░░░░░]   0% (Next up)
-```
-
 ---
 
 ## 5. Next Planned Milestones (Stage E)

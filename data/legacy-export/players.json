@@ -1,0 +1,405 @@
+[
+  {
+    "id": "Ahmed",
+    "createTime": "2026-08-13T09:05:12.341728Z",
+    "updateTime": "2026-08-13T09:05:12.341728Z",
+    "data": {}
+  },
+  {
+    "id": "Alex Chavista",
+    "createTime": "2026-08-15T10:38:27.454012Z",
+    "updateTime": "2026-08-15T10:38:27.454012Z",
+    "data": {}
+  },
+  {
+    "id": "Anderson",
+    "createTime": "2026-08-15T10:38:27.454012Z",
+    "updateTime": "2026-08-15T10:38:27.454012Z",
+    "data": {}
+  },
+  {
+    "id": "Andres",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Antraniek",
+    "createTime": "2026-08-09T11:47:36.743815Z",
+    "updateTime": "2026-08-09T11:47:36.743815Z",
+    "data": {}
+  },
+  {
+    "id": "Bert",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Can",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "stats": {
+        "gf": 49,
+        "drawn": 1,
+        "played": 2,
+        "lost": -1,
+        "ga": 28,
+        "won": 2,
+        "points": 7
+      },
+      "name": "Can"
+    }
+  },
+  {
+    "id": "Damoun",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Damoun",
+      "stats": {
+        "gf": 49,
+        "played": 2,
+        "won": 2,
+        "points": 7,
+        "ga": 28,
+        "drawn": 1,
+        "lost": -1
+      }
+    }
+  },
+  {
+    "id": "Daniel Gomez",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Daniel Gomez",
+      "stats": {
+        "points": 4,
+        "gf": 44,
+        "won": 1,
+        "drawn": 1,
+        "lost": -1,
+        "ga": 24,
+        "played": 1
+      }
+    }
+  },
+  {
+    "id": "Daniel Müller",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Daniel Müller",
+      "stats": {
+        "lost": 1,
+        "drawn": 1,
+        "won": 1,
+        "played": 3,
+        "gf": 34,
+        "points": 4,
+        "ga": 53
+      }
+    }
+  },
+  {
+    "id": "Desi",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:24.804987Z",
+    "data": {
+      "stats": {
+        "ga": 8,
+        "played": 0,
+        "points": 0,
+        "drawn": 0,
+        "gf": 6,
+        "won": 0,
+        "lost": 0
+      },
+      "name": "Desi"
+    }
+  },
+  {
+    "id": "Enes",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Giacomo",
+    "createTime": "2026-08-09T11:47:36.743815Z",
+    "updateTime": "2026-08-09T11:47:36.743815Z",
+    "data": {}
+  },
+  {
+    "id": "Gordan",
+    "createTime": "2026-08-13T09:05:12.341728Z",
+    "updateTime": "2026-08-13T09:05:12.341728Z",
+    "data": {}
+  },
+  {
+    "id": "Gustavo",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Hector",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Hector",
+      "stats": {
+        "points": 4,
+        "gf": 34,
+        "won": 1,
+        "played": 3,
+        "drawn": 1,
+        "lost": 1,
+        "ga": 53
+      }
+    }
+  },
+  {
+    "id": "Ivan",
+    "createTime": "2026-08-13T09:07:45.085687Z",
+    "updateTime": "2026-08-13T09:07:45.085687Z",
+    "data": {}
+  },
+  {
+    "id": "Jack",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:24.804987Z",
+    "data": {
+      "name": "Jack",
+      "stats": {
+        "gf": 6,
+        "drawn": 0,
+        "points": 0,
+        "won": 0,
+        "played": 0,
+        "ga": 8,
+        "lost": 0
+      }
+    }
+  },
+  {
+    "id": "Jonne",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Jure",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T20:54:33.206280Z",
+    "data": {
+      "name": "Jure",
+      "stats": {
+        "ga": 4,
+        "lost": 0,
+        "drawn": 0,
+        "points": 3,
+        "won": 1,
+        "gf": 5,
+        "played": 1
+      }
+    }
+  },
+  {
+    "id": "Kenta",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Luke",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Malaz",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:24.804987Z",
+    "data": {
+      "stats": {
+        "points": 0,
+        "ga": 13,
+        "won": 0,
+        "lost": 1,
+        "gf": 10,
+        "played": 1,
+        "drawn": 0
+      },
+      "name": "Malaz"
+    }
+  },
+  {
+    "id": "Manu",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Manu",
+      "stats": {
+        "points": 4,
+        "gf": 44,
+        "lost": -1,
+        "drawn": 1,
+        "won": 1,
+        "ga": 24,
+        "played": 1
+      }
+    }
+  },
+  {
+    "id": "Marco",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Marco",
+      "stats": {
+        "points": 7,
+        "gf": 35,
+        "lost": 0,
+        "drawn": 1,
+        "won": 2,
+        "ga": 52,
+        "played": 3
+      }
+    }
+  },
+  {
+    "id": "Mark",
+    "createTime": "2026-08-09T11:47:36.743815Z",
+    "updateTime": "2026-08-09T11:47:36.743815Z",
+    "data": {}
+  },
+  {
+    "id": "Nigell",
+    "createTime": "2026-08-09T11:47:36.743815Z",
+    "updateTime": "2026-08-09T11:47:36.743815Z",
+    "data": {}
+  },
+  {
+    "id": "Nino",
+    "createTime": "2026-08-09T11:47:36.743815Z",
+    "updateTime": "2026-08-09T11:47:36.743815Z",
+    "data": {}
+  },
+  {
+    "id": "Ole",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "stats": {
+        "played": 2,
+        "drawn": 1,
+        "ga": 48,
+        "points": 4,
+        "lost": 0,
+        "gf": 30,
+        "won": 1
+      },
+      "name": "Ole"
+    }
+  },
+  {
+    "id": "Patrick",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:24.804987Z",
+    "data": {
+      "name": "Patrick",
+      "stats": {
+        "lost": 1,
+        "won": 0,
+        "gf": 10,
+        "played": 1,
+        "points": 0,
+        "ga": 13,
+        "drawn": 0
+      }
+    }
+  },
+  {
+    "id": "Ruben",
+    "createTime": "2026-08-13T09:05:12.341728Z",
+    "updateTime": "2026-08-13T09:05:12.341728Z",
+    "data": {}
+  },
+  {
+    "id": "Sam",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "name": "Sam",
+      "stats": {
+        "played": 2,
+        "gf": 49,
+        "drawn": 1,
+        "won": 2,
+        "ga": 28,
+        "lost": -1,
+        "points": 7
+      }
+    }
+  },
+  {
+    "id": "Santi",
+    "createTime": "2026-08-07T14:08:28.091421Z",
+    "updateTime": "2026-08-07T14:08:28.091421Z",
+    "data": {}
+  },
+  {
+    "id": "Stefan",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:36.491369Z",
+    "data": {
+      "stats": {
+        "ga": 48,
+        "lost": 0,
+        "won": 1,
+        "played": 2,
+        "points": 4,
+        "gf": 30,
+        "drawn": 1
+      },
+      "name": "Stefan"
+    }
+  },
+  {
+    "id": "Thijs",
+    "createTime": "2026-01-12T21:10:06.108246Z",
+    "updateTime": "2026-01-12T21:55:24.804987Z",
+    "data": {
+      "stats": {
+        "gf": 6,
+        "played": 0,
+        "drawn": 0,
+        "ga": 8,
+        "won": 0,
+        "lost": 0,
+        "points": 0
+      },
+      "name": "Thijs"
+    }
+  },
+  {
+    "id": "Tom",
+    "createTime": "2026-01-12T20:54:33.206280Z",
+    "updateTime": "2026-01-12T20:54:33.206280Z",
+    "data": {
+      "stats": {
+        "points": 0,
+        "lost": 1,
+        "won": 0,
+        "gf": 4,
+        "ga": 5,
+        "drawn": 0,
+        "played": 1
+      },
+      "name": "Tom"
+    }
+  }
+]
