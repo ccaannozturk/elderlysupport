@@ -994,14 +994,51 @@ window.parseMagicPaste = async () => {
         const isTourn = parsed.matchType === 'Tournament' || parsed.teams.length >= 3;
         if (isTourn) {
             document.getElementById('typeTournament').click();
-            const keys = ['TournA', 'TournB', 'TournC'];
             
+            // Map tournament teams to slots based on detected colors:
+            // TournA = Yellow, TournB = Blue, TournC = Red
+            const colorSlotMap = {
+                yellow: 'TournA',
+                blue: 'TournB',
+                red: 'TournC'
+            };
+            const defaultSlotNames = {
+                TournA: 'Yellow',
+                TournB: 'Blue',
+                TournC: 'Red'
+            };
+            const defaultRanks = {
+                TournA: 1,
+                TournB: 2,
+                TournC: 3
+            };
+            const allKeys = ['TournA', 'TournB', 'TournC'];
+            const availableKeys = ['TournA', 'TournB', 'TournC'];
+            const teamSlotAssignments = new Array(Math.min(3, parsed.teams.length));
+
+            // Pass 1: Assign teams with explicit matching color to their dedicated slot
             parsed.teams.slice(0, 3).forEach((t, i) => {
-                const k = keys[i];
+                const c = (t.color || '').toLowerCase().trim();
+                const targetKey = colorSlotMap[c];
+                if (targetKey && availableKeys.includes(targetKey)) {
+                    teamSlotAssignments[i] = targetKey;
+                    availableKeys.splice(availableKeys.indexOf(targetKey), 1);
+                }
+            });
+
+            // Pass 2: Assign remaining teams to unused slots in order
+            parsed.teams.slice(0, 3).forEach((t, i) => {
+                if (!teamSlotAssignments[i]) {
+                    teamSlotAssignments[i] = availableKeys.shift() || allKeys[i];
+                }
+            });
+
+            parsed.teams.slice(0, 3).forEach((t, i) => {
+                const k = teamSlotAssignments[i];
                 const nameEl = document.getElementById(`name${k}`);
-                if (nameEl) nameEl.value = t.name || (i === 0 ? 'Yellow' : (i === 1 ? 'Blue' : 'Red'));
+                if (nameEl) nameEl.value = t.name || defaultSlotNames[k];
                 
-                const rankVal = t.rank || (i + 1);
+                const rankVal = t.rank || defaultRanks[k];
                 setTournRank(k, rankVal);
 
                 selectedPlayers[k] = [];
@@ -1118,15 +1155,17 @@ function fallbackLocalParser(text) {
         .filter(l => l && !/^(?:vs\.?|v|against|\/)$/i.test(l));
 
     const extractColor = (str) => {
-        if (/🔴|🟥|\bred\b/i.test(str)) return 'red';
-        if (/🔵|🟦|\bblue\b/i.test(str)) return 'blue';
-        if (/🟡|🟨|\byellow\b/i.test(str)) return 'yellow';
+        if (!str) return null;
+        if (/🔴|🟥|\bred\b|\brood\b/i.test(str)) return 'red';
+        if (/🔵|🟦|\bblue\b|\bblauw\b/i.test(str)) return 'blue';
+        if (/🟡|🟨|\byellow\b|\bgeel\b/i.test(str)) return 'yellow';
         return null;
     };
 
     const cleanTeamName = (str) => {
+        if (!str) return '';
         return str
-            .replace(/\s*(?:in\s*)?(?:🔴|🟥|🔵|🟦|🟡|🟨|red|blue|yellow)\s*:?/gi, '')
+            .replace(/\s*(?:in\s*)?(?:🔴|🟥|🔵|🟦|🟡|🟨|\bred\b|\bblue\b|\byellow\b|\brood\b|\bblauw\b|\bgeel\b)\s*:?/gi, '')
             .replace(/:+$/, '')
             .trim();
     };
@@ -5353,12 +5392,34 @@ window.recordResultShortcut = (fixtureId) => {
         const rbTourn = document.getElementById('typeTournament');
         if (rbTourn) rbTourn.click();
 
-        const keys = ['TournA', 'TournB', 'TournC'];
-        keys.forEach((k, i) => {
-            const sq = f.squads[i] || { name: `Squad ${String.fromCharCode(65 + i)}`, players: [] };
+        const colorSlotMap = { yellow: 'TournA', blue: 'TournB', red: 'TournC' };
+        const defaultSlotNames = { TournA: 'Yellow', TournB: 'Blue', TournC: 'Red' };
+        const allKeys = ['TournA', 'TournB', 'TournC'];
+        const availableKeys = ['TournA', 'TournB', 'TournC'];
+        const squadSlotAssignments = new Array(Math.min(3, f.squads.length));
+
+        // Pass 1: match explicit color
+        f.squads.slice(0, 3).forEach((sq, i) => {
+            const c = (sq.color || '').toLowerCase().trim();
+            const targetKey = colorSlotMap[c];
+            if (targetKey && availableKeys.includes(targetKey)) {
+                squadSlotAssignments[i] = targetKey;
+                availableKeys.splice(availableKeys.indexOf(targetKey), 1);
+            }
+        });
+
+        // Pass 2: remaining squads to available slots
+        f.squads.slice(0, 3).forEach((sq, i) => {
+            if (!squadSlotAssignments[i]) {
+                squadSlotAssignments[i] = availableKeys.shift() || allKeys[i];
+            }
+        });
+
+        f.squads.slice(0, 3).forEach((sq, i) => {
+            const k = squadSlotAssignments[i];
             selectedPlayers[k] = (sq.players || []).map(toChip);
             const nameEl = document.getElementById(`name${k}`);
-            if (nameEl) nameEl.value = sq.name || (i === 0 ? 'Yellow' : (i === 1 ? 'Blue' : 'Red'));
+            if (nameEl) nameEl.value = sq.name || defaultSlotNames[k];
             renderList(k);
         });
     } else {

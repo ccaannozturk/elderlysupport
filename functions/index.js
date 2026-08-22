@@ -369,8 +369,8 @@ PARSING INSTRUCTIONS & EXAMPLES:
 2. "date": Extract match date in YYYY-MM-DD format if mentioned, otherwise null.
 3. "venue": Extract match location if mentioned (one of: "Sporthal ROC Europaboulevard", "Sporthal Calvijn", "Sportgebouw Bibian Mentel", "Sporthallen Zuid", "Zeeburgereiland - Outdoor"), otherwise null.
 4. "teams": Array of team objects with:
-   - "name": Clean team name (remove color mentions like "in 🔴:", "in blue:", trailing colons). E.g. "The Fifantinos 🤑 in 🔴:" -> "The Fifantinos 🤑".
-   - "color": "red" | "blue" | "yellow" | null (detect from emojis 🔴, 🟥, 🔵, 🟦, 🟡, 🟨 or words like "in red", "blue team").
+   - "name": Clean team name (remove color mentions like "in 🔴:", "in 🔵:", "in 🟡:", "in red", "in blue", "in yellow", "(red)", "(blue)", "(yellow)", trailing colons). E.g. "The Fifantinos 🤑 in 🔴:" -> "The Fifantinos 🤑", "Neymark Senior 🇸🇦👴 in 🔴:" -> "Neymark Senior 🇸🇦👴".
+   - "color": "red" | "blue" | "yellow" | null (CRITICAL: detect and assign "red", "blue", or "yellow" based on team emojis 🔴, 🟥, 🔵, 🟦, 🟡, 🟨 or words like "in red", "in blue", "in yellow", "red team", "blue team", "yellow team").
    - "score": integer goals scored for Standard match, otherwise null.
    - "rank": 1, 2, or 3 for Tournament match, otherwise null.
    - "players": Array of player objects:
