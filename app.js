@@ -1154,19 +1154,28 @@ function fallbackLocalParser(text) {
         .map(l => l.trim())
         .filter(l => l && !/^(?:vs\.?|v|against|\/)$/i.test(l));
 
+    const COLOR_EMOJIS_RED = '🔴|🟥|🛑|❤️|🍎|🌹|🚨|🔻|🔺|🩸|🍷|🌶️|🥊|🍒|♦️|🎈|🚩';
+    const COLOR_EMOJIS_BLUE = '🔵|🟦|💙|🔹|🔷|🐬|🌊|🫐|👖|🥶|🧊|🧢|🌐';
+    const COLOR_EMOJIS_YELLOW = '🟡|🟨|💛|☀️|⭐|🌟|🍌|🍋|🧀|🐣|🐥|🌻|🔸|🔶|🌕|👑|⚡|🎗️';
+    const ALL_COLOR_SYMBOLS = `${COLOR_EMOJIS_RED}|${COLOR_EMOJIS_BLUE}|${COLOR_EMOJIS_YELLOW}|red|blue|yellow|rood|blauw|geel|amarillo|azul|rouge|bleu|jaune`;
+
     const extractColor = (str) => {
         if (!str) return null;
-        if (/🔴|🟥|\bred\b|\brood\b/i.test(str)) return 'red';
-        if (/🔵|🟦|\bblue\b|\bblauw\b/i.test(str)) return 'blue';
-        if (/🟡|🟨|\byellow\b|\bgeel\b/i.test(str)) return 'yellow';
+        const s = String(str);
+        if (new RegExp(`${COLOR_EMOJIS_RED}|\\breds?\\b|\\brood\\b|\\brode\\b|\\brojo\\b|\\broja\\b|\\brouge\\b|\\bvermelho\\b`, 'i').test(s)) return 'red';
+        if (new RegExp(`${COLOR_EMOJIS_BLUE}|\\bblues?\\b|\\bblauw\\b|\\bblauwe\\b|\\bazul\\b|\\bbleu\\b`, 'i').test(s)) return 'blue';
+        if (new RegExp(`${COLOR_EMOJIS_YELLOW}|\\byellows?\\b|\\bgeel\\b|\\bgele\\b|\\bamarillo\\b|\\bamarilla\\b|\\bjaune\\b|\\bamarelo\\b`, 'i').test(s)) return 'yellow';
         return null;
     };
 
     const cleanTeamName = (str) => {
         if (!str) return '';
         return str
-            .replace(/\s*(?:in\s*)?(?:🔴|🟥|🔵|🟦|🟡|🟨|\bred\b|\bblue\b|\byellow\b|\brood\b|\bblauw\b|\bgeel\b)\s*:?/gi, '')
-            .replace(/:+$/, '')
+            .replace(new RegExp(`\\[\\s*(?:in\\s*)?(?:${ALL_COLOR_SYMBOLS})(?:\\s*team|\\s*shirts?)?\\s*\\]`, 'gi'), '')
+            .replace(new RegExp(`\\(\\s*(?:in\\s*)?(?:${ALL_COLOR_SYMBOLS})(?:\\s*team|\\s*shirts?)?\\s*\\)`, 'gi'), '')
+            .replace(new RegExp(`\\s*(?:in\\s*)?(?:${COLOR_EMOJIS_RED}|${COLOR_EMOJIS_BLUE}|${COLOR_EMOJIS_YELLOW})+\\s*:?`, 'gi'), '')
+            .replace(/\s+in\s+(?:red|blue|yellow|rood|blauw|geel|amarillo|azul|rouge|bleu|jaune)(?:\s+team|\s+shirts?)?\s*:?/gi, '')
+            .replace(/\s*:\s*$/, '')
             .trim();
     };
 

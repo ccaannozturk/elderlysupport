@@ -369,8 +369,13 @@ PARSING INSTRUCTIONS & EXAMPLES:
 2. "date": Extract match date in YYYY-MM-DD format if mentioned, otherwise null.
 3. "venue": Extract match location if mentioned (one of: "Sporthal ROC Europaboulevard", "Sporthal Calvijn", "Sportgebouw Bibian Mentel", "Sporthallen Zuid", "Zeeburgereiland - Outdoor"), otherwise null.
 4. "teams": Array of team objects with:
-   - "name": Clean team name (remove color mentions like "in 🔴:", "in 🔵:", "in 🟡:", "in red", "in blue", "in yellow", "(red)", "(blue)", "(yellow)", trailing colons). E.g. "The Fifantinos 🤑 in 🔴:" -> "The Fifantinos 🤑", "Neymark Senior 🇸🇦👴 in 🔴:" -> "Neymark Senior 🇸🇦👴".
-   - "color": "red" | "blue" | "yellow" | null (CRITICAL: detect and assign "red", "blue", or "yellow" based on team emojis 🔴, 🟥, 🔵, 🟦, 🟡, 🟨 or words like "in red", "in blue", "in yellow", "red team", "blue team", "yellow team").
+   - "name": Clean team name (remove color mentions like "in 🔴:", "in 🔵:", "in 🟡:", "(red)", "[blue]", "in yellow", "team red", etc., trailing colons). E.g. "The Fifantinos 🤑 in 🔴:" -> "The Fifantinos 🤑", "Neymark Senior 🇸🇦👴 in 🔴:" -> "Neymark Senior 🇸🇦👴".
+   - "color": "red" | "blue" | "yellow" | null.
+     CRITICAL: Use your AI reasoning to detect the team color from ANY format:
+     * Color emojis: 🔴, 🟥, 🛑, ❤️, 🍎, 🌹, 🚨, 🔻, 🔺, 🩸, 🍷, 🌶️, 🥊, 🍒, ♦️, 🎈, 🚩 (RED); 🔵, 🟦, 💙, 🔹, 🔷, 🐬, 🌊, 🫐, 👖, 🥶, 🧊, 🧢, 🌐 (BLUE); 🟡, 🟨, 💛, ☀️, ⭐, 🌟, 🍌, 🍋, 🧀, 🐣, 🐥, 🌻, 🔸, 🔶, 🌕, 👑, ⚡, 🎗️ (YELLOW).
+     * Color words in any language: "in red", "the reds", "red team", "rood", "rode", "rojo", "rouge", "vermelho", "in blue", "the blues", "blue team", "blauw", "blauwe", "azul", "bleu", "in yellow", "the yellows", "yellow team", "geel", "gele", "amarillo", "jaune", "amarelo".
+     * Any wrapper format: "(red)", "[blue]", "{yellow}", "in: 🔴", "- Red -", etc.
+     * In a 3-team tournament, if colors are distinguishable, map each squad to its corresponding color ("red", "blue", or "yellow").
    - "score": integer goals scored for Standard match, otherwise null.
    - "rank": 1, 2, or 3 for Tournament match, otherwise null.
    - "players": Array of player objects:
@@ -432,8 +437,13 @@ ${rawText}
       });
     }
 
-    let teamColor = t.color ? String(t.color).toLowerCase() : null;
-    if (teamColor && !['red', 'blue', 'yellow'].includes(teamColor)) teamColor = null;
+    let teamColor = null;
+    if (t.color) {
+      const s = String(t.color).toLowerCase().trim();
+      if (/red|rood|rode|rojo|roja|rouge|vermelho|🔴|🟥|🛑|❤️|🍎|🌹|🚨|🔻|🔺|🩸|🍷|🌶️|🥊|🍒|♦️|🎈|🚩/i.test(s)) teamColor = 'red';
+      else if (/blue|blauw|blauwe|azul|bleu|🔵|🟦|💙|🔹|🔷|🐬|🌊|🫐|👖|🥶|🧊|🧢|🌐/i.test(s)) teamColor = 'blue';
+      else if (/yellow|geel|gele|amarillo|amarilla|jaune|amarelo|🟡|🟨|💛|☀️|⭐|🌟|🍌|🍋|🧀|🐣|🐥|🌻|🔸|🔶|🌕|👑|⚡|🎗️/i.test(s)) teamColor = 'yellow';
+    }
 
     validatedTeams.push({
       name: t.name || null,
