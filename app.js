@@ -83,6 +83,9 @@ let isSortDesc = true;
 
 function safeText(id, text) { const el = document.getElementById(id); if (el) el.innerText = text; }
 function esc(value) { return (value ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// A value as a quoted JS string for inline onclick="fn(${jsq(x)})". esc() alone is not
+// enough there: the browser decodes &#39; back to ' before running the handler.
+function jsq(value) { return esc(JSON.stringify(String(value ?? ''))); }
 function safeUrl(url) { return /^https?:\/\//i.test(url || '') ? url : ''; }
 
 function getPlayerDisplayName(idOrName) {
@@ -231,12 +234,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            const slug = dispName.toLowerCase()
-                .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
-                .replace(/[^a-z0-9]+/g, '_')
-                .replace(/^_+|_+$/g, '');
-
-            const newPlayerId = slug || `player_${Date.now()}`;
+            // A different person with the same name gets a fresh id (mark_2), never the existing one
+            const sameName = Array.from(playersRegistry.values()).find(p => p.displayName.toLowerCase() === dispName.toLowerCase());
+            if (sameName && !confirm(`A player called "${sameName.displayName}" already exists. Create a second, separate player with the same name?\n\n(Cancel and pick the existing one if it's the same person.)`)) return;
+            const newPlayerId = newPlayerIdFor(dispName);
             const newPlayer = {
                 id: newPlayerId,
                 displayName: dispName,
@@ -261,6 +262,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (teamKey && selectedPlayers[teamKey]) {
                     selectedPlayers[teamKey].push(resolved);
                 }
+                const typed = document.getElementById(`inputPlayer${teamKey}`);
+                if (typed) typed.value = '';
                 renderList(teamKey);
                 renderRosterGrid();
             }
@@ -426,6 +429,42 @@ function getPlacedTeamForPlayer(playerId) {
     return null;
 }
 
+function teamLabel(k) {
+    const el = document.getElementById(k.startsWith('Tourn') ? `name${k}` : `nameTeam${k}`);
+    return (el && el.value.trim()) || (k.startsWith('Tourn') ? ({TournA:'Yellow',TournB:'Blue',TournC:'Red'})[k] : `Team ${k}`);
+}
+
+// True (and tells the organizer) when the player is already in this match
+function alertIfPlaced(playerId) {
+    const k = getPlacedTeamForPlayer(playerId);
+    if (!k) return false;
+    alert(`${getPlayerDisplayName(playerId)} is already on ${teamLabel(k)}.`);
+    return true;
+}
+
+// Chip for one player from a pasted lineup. AI ids are trusted only if not already placed.
+function pastedPlayerChip(p, k) {
+    if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId) && !getPlacedTeamForPlayer(p.playerId)) {
+        const pl = playersRegistry.get(p.playerId);
+        return { status: 'resolved', id: pl.id, displayName: pl.displayName, rawInput: p.rawName || pl.displayName };
+    }
+    const r = resolvePlayerInput(p.rawName || p.playerId, k);
+    if (!r) return null;
+    if (r.status === 'new' || r.status === 'placed') return { status: 'red', rawInput: r.rawInput, candidates: r.top3 || [], top3: r.top3 || [] };
+    return r;
+}
+
+// Id for a brand-new player: slug of the name, suffixed (_2, _3) if already taken
+function newPlayerIdFor(name) {
+    const base = name.toLowerCase()
+        .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || `player_${Date.now()}`;
+    let id = base;
+    for (let n = 2; playersRegistry.has(id); n++) id = `${base}_${n}`;
+    return id;
+}
+
 function resolvePlayerInput(rawInput, teamKey) {
     if (!rawInput) return null;
     // Strip role annotations: (R), (Ref), (Referee), (GK), (c), etc.
@@ -434,23 +473,31 @@ function resolvePlayerInput(rawInput, teamKey) {
     if (!clean) return null;
     const lower = clean.toLowerCase();
 
-    const placedIds = getCurrentlyPlacedPlayerIds(teamKey);
-    const availablePlayers = Array.from(playersRegistry.values()).filter(p => !placedIds.has(p.id));
+    // Placed on ANY team, this one included: a player can't appear twice in a match
+    const placedIds = getCurrentlyPlacedPlayerIds();
+    const allRegistered = Array.from(playersRegistry.values());
+    const availablePlayers = allRegistered.filter(p => !placedIds.has(p.id));
 
-    // 1. Exact alias match (case-insensitive)
-    const exactMatches = availablePlayers.filter(p => {
-        const aliases = (p.aliases || []).map(a => a.toLowerCase());
-        return aliases.includes(lower) || p.displayName.toLowerCase() === lower || p.id.toLowerCase() === lower;
-    });
+    // 1. Exact alias match (case-insensitive) — checked against everyone, so typing
+    // the name of someone already placed says so instead of falling through to a lookalike
+    const isExact = p => (p.aliases || []).map(a => a.toLowerCase()).includes(lower) || p.displayName.toLowerCase() === lower || p.id.toLowerCase() === lower;
+    const exactAll = allRegistered.filter(isExact);
+    const exactMatches = exactAll.filter(p => !placedIds.has(p.id));
 
-    if (exactMatches.length === 1) {
+    if (exactAll.length > 0 && exactMatches.length === 0) {
+        const p = exactAll[0];
+        return { status: 'placed', id: p.id, displayName: p.displayName, rawInput: clean, placedTeam: getPlacedTeamForPlayer(p.id) };
+    }
+
+    if (exactMatches.length === 1 && exactAll.length === 1) {
         return {
             status: 'resolved',
             id: exactMatches[0].id,
             displayName: exactMatches[0].displayName,
             rawInput: clean
         };
-    } else if (exactMatches.length > 1) {
+    } else if (exactMatches.length >= 1) {
+        // Several players share this name/alias — let the organizer pick
         return {
             status: 'red',
             rawInput: clean,
@@ -497,13 +544,17 @@ function resolvePlayerInput(rawInput, teamKey) {
             const pId = p.id.toLowerCase();
             return pDisp.startsWith(lower) || pId.startsWith(lower);
         });
+        // Never auto-accept a prefix: "Jon" may be a newcomer, not Jonne. One tap to confirm.
         if (prefixMatches.length === 1) {
             return {
-                status: 'resolved',
-                id: prefixMatches[0].id,
-                displayName: prefixMatches[0].displayName,
-                rawInput: clean
+                status: 'amber',
+                rawInput: clean,
+                candidate: { id: prefixMatches[0].id, displayName: prefixMatches[0].displayName },
+                top3: [{ id: prefixMatches[0].id, displayName: prefixMatches[0].displayName }]
             };
+        } else if (prefixMatches.length > 1) {
+            const cands = prefixMatches.map(p => ({ id: p.id, displayName: p.displayName }));
+            return { status: 'red', rawInput: clean, candidates: cands, top3: cands.slice(0, 3) };
         }
     }
 
@@ -638,7 +689,7 @@ function renderRosterGrid() {
         else if (placedTeam === 'TournC') { chipClass = 'placed-tourn-c'; badge = '<span class="badge bg-danger ms-1">R</span>'; }
 
         return `
-            <span class="roster-chip ${chipClass}" onclick="toggleRosterPlayer('${p.id}')" title="${esc(p.displayName)}">
+            <span class="roster-chip ${chipClass}" onclick="toggleRosterPlayer(${jsq(p.id)})" title="${esc(p.displayName)}">
                 ${esc(p.displayName)}${badge}
             </span>
         `;
@@ -929,8 +980,6 @@ window.parseMagicPaste = async () => {
     if (btn) btn.disabled = true;
     if (unparsedAlert) unparsedAlert.classList.add('d-none');
 
-    window.cancelEditMode();
-
     try {
         // 1. Try Cloud Function AI Parser
         let parsed = null;
@@ -946,6 +995,9 @@ window.parseMagicPaste = async () => {
         if (!parsed || !parsed.teams || parsed.teams.length < 2) {
             throw new Error("Could not parse match teams from the provided text.");
         }
+
+        // Clear the form only now: a failed parse must not wipe teams entered by hand
+        window.cancelEditMode();
 
         const badgeEl = document.getElementById('magicPasteBadge');
         if (badgeEl) {
@@ -1029,30 +1081,7 @@ window.parseMagicPaste = async () => {
                 setTournRank(k, rankVal);
 
                 selectedPlayers[k] = [];
-                (t.players || []).forEach(p => {
-                    if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
-                        selectedPlayers[k].push({
-                            status: 'resolved',
-                            id: p.playerId,
-                            displayName: playersRegistry.get(p.playerId).displayName,
-                            rawInput: p.rawName || playersRegistry.get(p.playerId).displayName
-                        });
-                    } else {
-                        const resolved = resolvePlayerInput(p.rawName || p.playerId, k);
-                        if (resolved) {
-                            if (resolved.status === 'new') {
-                                selectedPlayers[k].push({
-                                    status: 'red',
-                                    rawInput: p.rawName,
-                                    candidates: resolved.top3,
-                                    top3: resolved.top3
-                                });
-                            } else {
-                                selectedPlayers[k].push(resolved);
-                            }
-                        }
-                    }
-                });
+                (t.players || []).forEach(p => { const c = pastedPlayerChip(p, k); if (c) selectedPlayers[k].push(c); });
                 renderList(k);
             });
         } else {
@@ -1061,61 +1090,26 @@ window.parseMagicPaste = async () => {
             const tB = parsed.teams[1];
 
             document.getElementById('nameTeamA').value = tA.name || 'Team A';
-            document.getElementById('scoreA').value = tA.score !== null && tA.score !== undefined ? tA.score : 0;
+            // No score in the message -> leave blank so the organizer must fill it in (blank != 0)
+            document.getElementById('scoreA').value = tA.score ?? '';
             if (tA.color) {
                 const rb = document.querySelector(`input[name="colorA"][value="${tA.color}"]`);
                 if (rb) rb.checked = true;
             }
 
             selectedPlayers.A = [];
-            (tA.players || []).forEach(p => {
-                if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
-                    selectedPlayers.A.push({
-                        status: 'resolved',
-                        id: p.playerId,
-                        displayName: playersRegistry.get(p.playerId).displayName,
-                        rawInput: p.rawName || playersRegistry.get(p.playerId).displayName
-                    });
-                } else {
-                    const resolved = resolvePlayerInput(p.rawName || p.playerId, 'A');
-                    if (resolved) {
-                        if (resolved.status === 'new') {
-                            selectedPlayers.A.push({ status: 'red', rawInput: p.rawName, candidates: resolved.top3, top3: resolved.top3 });
-                        } else {
-                            selectedPlayers.A.push(resolved);
-                        }
-                    }
-                }
-            });
+            (tA.players || []).forEach(p => { const c = pastedPlayerChip(p, 'A'); if (c) selectedPlayers.A.push(c); });
             renderList('A');
 
             document.getElementById('nameTeamB').value = tB.name || 'Team B';
-            document.getElementById('scoreB').value = tB.score !== null && tB.score !== undefined ? tB.score : 0;
+            document.getElementById('scoreB').value = tB.score ?? '';
             if (tB.color) {
                 const rb = document.querySelector(`input[name="colorB"][value="${tB.color}"]`);
                 if (rb) rb.checked = true;
             }
 
             selectedPlayers.B = [];
-            (tB.players || []).forEach(p => {
-                if (p.playerId && p.confidence >= 0.9 && playersRegistry.has(p.playerId)) {
-                    selectedPlayers.B.push({
-                        status: 'resolved',
-                        id: p.playerId,
-                        displayName: playersRegistry.get(p.playerId).displayName,
-                        rawInput: p.rawName || playersRegistry.get(p.playerId).displayName
-                    });
-                } else {
-                    const resolved = resolvePlayerInput(p.rawName || p.playerId, 'B');
-                    if (resolved) {
-                        if (resolved.status === 'new') {
-                            selectedPlayers.B.push({ status: 'red', rawInput: p.rawName, candidates: resolved.top3, top3: resolved.top3 });
-                        } else {
-                            selectedPlayers.B.push(resolved);
-                        }
-                    }
-                }
-            });
+            (tB.players || []).forEach(p => { const c = pastedPlayerChip(p, 'B'); if (c) selectedPlayers.B.push(c); });
             renderList('B');
         }
 
@@ -1494,13 +1488,13 @@ function renderMatchesList(filtered) {
                 let adminBtns = "";
                 if (isOrganizer(currentUser)) {
                     adminBtns = `<div class="admin-actions">
-                        <button class="btn btn-sm btn-outline-warning py-0 me-2" onclick="regenerateRecap('${m.id}', event)" title="Regenerate AI Match Recap"><i class="fas fa-redo-alt me-1"></i>Recap</button>
-                        <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch('${m.id}', event)">Edit</button> 
-                        ${isSuperAdmin(currentUser) ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch('${m.id}', event)">Delete</button>` : ''}
+                        <button class="btn btn-sm btn-outline-warning py-0 me-2" onclick="regenerateRecap(${jsq(m.id)}, event)" title="Regenerate AI Match Recap"><i class="fas fa-redo-alt me-1"></i>Recap</button>
+                        <button class="btn btn-sm btn-outline-light border-secondary py-0 me-2" onclick="editMatch(${jsq(m.id)}, event)">Edit</button> 
+                        ${isSuperAdmin(currentUser) ? `<button class="btn btn-sm btn-outline-danger py-0" onclick="deleteMatch(${jsq(m.id)}, event)">Delete</button>` : ''}
                     </div>`;
                 }
                 const ytLink = m.youtubeLink ? `<a href="${esc(safeUrl(m.youtubeLink))}" target="_blank" onclick="event.stopPropagation()" style="color:#fa7970; text-decoration:none; font-size:0.75rem; font-weight:600;"><i class="fab fa-youtube"></i> Watch</a>` : '';
-                const shareBtn = `<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2 text-decoration-none" onclick="copyShareLink('match', '${m.id}', 'Match on ${dateStr}', event)" title="Share Match Link" style="font-size:0.75rem;"><i class="fas fa-share-alt"></i></button>`;
+                const shareBtn = `<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-2 text-decoration-none" onclick="copyShareLink('match', ${jsq(m.id)},'Match on ${dateStr}', event)" title="Share Match Link" style="font-size:0.75rem;"><i class="fas fa-share-alt"></i></button>`;
 
                 const previewHtml = (m.preview || m.predictedWinner) ? `
                 <div class="p-2 border-top border-secondary border-opacity-25 bg-black bg-opacity-35 small text-light" style="font-size:0.75rem;">
@@ -1537,12 +1531,12 @@ function renderMatchesList(filtered) {
                         </div>
                         <div class="card-body-strip">
                             <div class="team-block">
-                                <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${cA.charAt(0)}"></span>${esc(tA.teamName||'A')}</div><div class="t-score ${winA}">${tA.score}</div></div>
+                                <div class="team-row mb-2"><div class="t-name ${winA}"><span class="dot bg-${esc(cA.charAt(0))}"></span>${esc(tA.teamName||'A')}</div><div class="t-score ${winA}">${esc(tA.score)}</div></div>
                                 <div class="team-players text-muted small" style="font-size:0.75rem">${pA}</div>
                             </div>
                             <div class="match-meta"><span class="ft-badge">FT</span></div>
                             <div class="team-block text-end">
-                                <div class="team-row mb-2 justify-content-end"><div class="t-score ${winB} me-2">${tB.score}</div><div class="t-name justify-content-end ${winB}">${esc(tB.teamName||'B')}<span class="dot bg-${cB.charAt(0)} ms-2"></span></div></div>
+                                <div class="team-row mb-2 justify-content-end"><div class="t-score ${winB} me-2">${esc(tB.score)}</div><div class="t-name justify-content-end ${winB}">${esc(tB.teamName||'B')}<span class="dot bg-${esc(cB.charAt(0))} ms-2"></span></div></div>
                                 <div class="team-players text-end text-muted small" style="font-size:0.75rem">${pB}</div>
                             </div>
                         </div>
@@ -1562,9 +1556,9 @@ function renderMatchesList(filtered) {
                         const idx = m.teams.indexOf(t); return idx === 0 ? 'y' : (idx === 1 ? 'b' : 'r'); 
                     };
                     
-                    const pts1 = r1.points !== undefined ? `${r1.points} pts` : '';
-                    const pts2 = r2.points !== undefined ? `${r2.points} pts` : '';
-                    const pts3 = r3.points !== undefined ? `${r3.points} pts` : '';
+                    const pts1 = r1.points !== undefined ? `${esc(r1.points)} pts` : '';
+                    const pts2 = r2.points !== undefined ? `${esc(r2.points)} pts` : '';
+                    const pts3 = r3.points !== undefined ? `${esc(r3.points)} pts` : '';
 
                     html = `
                     <div class="match-card" id="match-${m.id}" style="border-left: 3px solid #ffea00;">
@@ -1825,7 +1819,7 @@ function generateInsights(matches) {
             <div class="lineup-grid">
                 ${lineupData.optimal5.map((p, idx) => `
                     <div class="lineup-tile${idx === 0 ? ' is-top' : ''}">
-                        <div class="lineup-tile-inner" onclick="openPlayerStats('${esc(p.id)}')">
+                        <div class="lineup-tile-inner" onclick="openPlayerStats(${jsq(p.id)})">
                             <span class="badge bg-secondary">#${idx + 1}</span>
                             <div class="lineup-name text-truncate">${esc(p.name)}</div>
                             <div class="lineup-rating">${p.rating}</div>
@@ -1841,7 +1835,7 @@ function generateInsights(matches) {
     const powerRankingsRows = eloData.sortedList.slice(0, 10).map((p, idx) => {
         const provBadge = p.isProvisional ? `<span class="badge-provisional ms-2">? Provisional (${p.matches}/${MIN_GAMES_RANKED_ELO})</span>` : '';
         return `
-        <tr style="cursor:pointer" onclick="openPlayerStats('${p.id}')">
+        <tr style="cursor:pointer" onclick="openPlayerStats(${jsq(p.id)})">
             <td class="ps-3 text-start fw-bold"><span class="rank-circle ${idx===0?'r-1':''}">${idx + 1}</span></td>
             <td class="text-start fw-bold text-white">${esc(p.name)} ${provBadge}</td>
             <td class="fw-bold text-warning">${p.rating}</td>
@@ -1958,7 +1952,7 @@ function generateInsights(matches) {
 
     // G. Attendance & Milestones Cards
     const milestonePills = attendData.milestoneAchievers.map(m => `
-        <span class="badge-milestone me-2 mb-2" onclick="openPlayerStats('${m.id}')" style="cursor:pointer">
+        <span class="badge-milestone me-2 mb-2" onclick="openPlayerStats(${jsq(m.id)})" style="cursor:pointer">
             <i class="fas fa-medal text-dark"></i> ${esc(m.name)}: ${m.badges[m.badges.length - 1]}
         </span>
     `).join('') || '<div class="small text-muted">No milestone badges unlocked yet.</div>';
@@ -2363,6 +2357,7 @@ function updateSaveButtonState() {
 window.confirmAmberChip = (k, idx) => {
     const item = selectedPlayers[k][idx];
     if (!item || item.status !== 'amber') return;
+    if (alertIfPlaced(item.candidate.id)) return;
     selectedPlayers[k][idx] = {
         status: 'resolved',
         id: item.candidate.id,
@@ -2385,7 +2380,7 @@ window.openDisambiguateModal = (k, idx) => {
     const container = document.getElementById('disambiguateCandidates');
     if (container) {
         container.innerHTML = candidates.map(c => `
-            <button type="button" class="btn btn-outline-light text-start py-2 px-3 fw-bold" onclick="selectDisambiguatedPlayer('${c.id}')">
+            <button type="button" class="btn btn-outline-light text-start py-2 px-3 fw-bold" onclick="selectDisambiguatedPlayer(${jsq(c.id)})">
                 <i class="fas fa-user me-2 text-warning"></i>${esc(c.displayName)} <small class="text-muted opacity-75">(${esc(c.id)})</small>
             </button>
         `).join('') + `
@@ -2418,7 +2413,7 @@ window.filterDisambiguateRoster = (query) => {
         .filter(p => !q || p.displayName.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.aliases || []).some(a => a.includes(q)))
         .sort((a, b) => a.displayName.localeCompare(b.displayName));
     list.innerHTML = matches.length ? matches.map(p => `
-        <button type="button" class="btn btn-outline-light text-start py-2 px-2 small fw-bold" onclick="selectDisambiguatedPlayer('${p.id}')">
+        <button type="button" class="btn btn-outline-light text-start py-2 px-2 small fw-bold" onclick="selectDisambiguatedPlayer(${jsq(p.id)})">
             <i class="fas fa-user me-2 text-info"></i>${esc(p.displayName)} <small class="text-muted">(${esc(p.id)})</small>
         </button>
     `).join('') : '<div class="small text-muted text-center py-2">No players found.</div>';
@@ -2428,7 +2423,7 @@ window.selectDisambiguatedPlayer = (playerId) => {
     if (!currentModalContext) return;
     const { teamKey, index, item } = currentModalContext;
     const player = playersRegistry.get(playerId);
-    if (!player) return;
+    if (!player || alertIfPlaced(player.id)) return;
 
     selectedPlayers[teamKey][index] = {
         status: 'resolved',
@@ -2459,7 +2454,7 @@ window.openCreatePlayerModal = (rawInput, teamKey, index = null, top3 = []) => {
         if (top3 && top3.length > 0) {
             document.getElementById('closestCandidatesSection').classList.remove('d-none');
             candidatesList.innerHTML = top3.map(c => `
-                <button type="button" class="btn btn-outline-warning text-start py-2 px-3 fw-bold" onclick="selectClosestCandidate('${c.id}')">
+                <button type="button" class="btn btn-outline-warning text-start py-2 px-3 fw-bold" onclick="selectClosestCandidate(${jsq(c.id)})">
                     <i class="fas fa-user-check me-2"></i>Use Existing: <b>${esc(c.displayName)}</b> <small class="text-muted">(${esc(c.id)})</small>
                 </button>
             `).join('');
@@ -2476,7 +2471,7 @@ window.selectClosestCandidate = (playerId) => {
     if (!currentModalContext) return;
     const { teamKey, index, rawInput } = currentModalContext;
     const player = playersRegistry.get(playerId);
-    if (!player) return;
+    if (!player || alertIfPlaced(player.id)) return;
 
     const resolved = {
         status: 'resolved',
@@ -2519,7 +2514,17 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
         }
     }
 
+    // The same player twice in one match would be credited to both sides
+    const allIds = activeTeams.flatMap(k => (selectedPlayers[k] || []).map(p => p.id));
+    const dupIds = [...new Set(allIds.filter((id, i) => allIds.indexOf(id) !== i))];
+    if (dupIds.length) {
+        return alert(`${dupIds.map(getPlayerDisplayName).join(', ')} ${dupIds.length > 1 ? 'are' : 'is'} listed more than once. Remove the duplicate before saving.`);
+    }
+
     if (!isTourn) {
+        if (document.getElementById('scoreA').value === '' || document.getElementById('scoreB').value === '') {
+            return alert('Enter both scores before saving (use 0 for no goals).');
+        }
         const countA = selectedPlayers.A.length;
         const countB = selectedPlayers.B.length;
         if (Math.abs(countA - countB) >= 2) {
@@ -2597,76 +2602,88 @@ document.getElementById('addMatchForm').addEventListener('submit', async (e) => 
             matchData.teams = tArr;
         }
         
-        const docRef = isEdit ? db.collection(DB_CONFIG.collections.matches).doc(editingId) : db.collection(DB_CONFIG.collections.matches).doc();
-        await docRef.set(matchData);
+        const matchesCol = db.collection(DB_CONFIG.collections.matches);
+        const docRef = isEdit ? matchesCol.doc(editingId) : matchesCol.doc();
 
-        // Item 42: Link to scheduled fixture if active or matching
-        try {
-            let fixtureToResolve = window.activeLinkedFixtureId;
-            if (!fixtureToResolve && allFixtures && allFixtures.length > 0) {
-                const scheduledF = allFixtures.find(f => f.status === 'scheduled');
-                if (scheduledF && scheduledF.squads && scheduledF.squads.length >= 2 && matchData.teams) {
-                    const sCount = Math.min(scheduledF.squads.length, matchData.teams.length);
-                    let allMatched = sCount >= 2;
-                    for (let sIdx = 0; sIdx < sCount; sIdx++) {
-                        const fP = scheduledF.squads[sIdx].players || [];
-                        const mP = (matchData.teams[sIdx] || {}).players || [];
-                        const overlap = fP.filter(p => mP.includes(p)).length;
-                        if (overlap < 2 && fP.length > 0) {
-                            allMatched = false;
-                            break;
-                        }
-                    }
-                    if (allMatched) {
-                        fixtureToResolve = scheduledF.id;
+        // Item 42: work out which scheduled fixture (if any) this result belongs to.
+        // Auto-detect only for new matches played within ~a day of the fixture.
+        let fixtureToResolve = window.activeLinkedFixtureId;
+        if (!fixtureToResolve && !isEdit && allFixtures && allFixtures.length > 0) {
+            const matchMs = new Date(dVal).getTime();
+            const scheduledF = allFixtures.find(f => f.status === 'scheduled' && Math.abs(fixtureMillis(f) - matchMs) <= 36 * 3600 * 1000);
+            if (scheduledF && scheduledF.squads && scheduledF.squads.length >= 2 && matchData.teams) {
+                const sCount = Math.min(scheduledF.squads.length, matchData.teams.length);
+                let allMatched = sCount >= 2;
+                for (let sIdx = 0; sIdx < sCount; sIdx++) {
+                    const fP = scheduledF.squads[sIdx].players || [];
+                    const mP = (matchData.teams[sIdx] || {}).players || [];
+                    const overlap = fP.filter(p => mP.includes(p)).length;
+                    if (overlap < 2 && fP.length > 0) {
+                        allMatched = false;
+                        break;
                     }
                 }
+                if (allMatched) {
+                    fixtureToResolve = scheduledF.id;
+                }
             }
-
-            if (fixtureToResolve) {
-                const resolveFn = functions.httpsCallable('resolveFixtureToMatch');
-                await resolveFn({ fixtureId: fixtureToResolve, matchId: docRef.id });
-                window.activeLinkedFixtureId = null;
-            }
-        } catch (resErr) {
-            console.warn("Could not resolve fixture to match:", resErr.message);
         }
 
-        // Stage D+ Item 33: Trigger AI match recap in background (fire-and-forget, never blocks save)
-        try {
-            const genRecapFn = functions.httpsCallable('generateMatchRecap');
-            genRecapFn({ matchId: docRef.id }).catch(recapErr => {
+        // One atomic write: new players + the match. Both land or neither does,
+        // so there are no matches pointing at players that were never saved.
+        const batch = db.batch();
+        const newIds = [...new Set(activeTeams.flatMap(k => selectedPlayers[k] || []).filter(p => p.isNew && p.id).map(p => p.id))];
+        for (const id of newIds) {
+            const pDoc = playersRegistry.get(id);
+            if (!pDoc) continue;
+            // No merge: if the id already exists the write is refused instead of overwriting that player
+            batch.set(db.collection(DB_CONFIG.collections.players).doc(id), {
+                displayName: pDoc.displayName,
+                aliases: pDoc.aliases || [pDoc.displayName.toLowerCase()],
+                active: true,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        if (isEdit) {
+            // update, not set: keeps the recap, fixture link and prediction the functions wrote
+            if (type === 'Tournament') matchData.colors = firebase.firestore.FieldValue.delete();
+            batch.update(docRef, matchData);
+        } else {
+            batch.set(docRef, matchData);
+        }
+
+        const committed = batch.commit();
+        // Offline (no signal at the hall) the commit only resolves once the server has it.
+        // Firestore has already queued the write on the phone, so don't spin forever.
+        const outcome = await Promise.race([
+            committed.then(() => 'saved'),
+            new Promise(r => setTimeout(() => r('queued'), 5000))
+        ]);
+
+        // Fixture link and AI recap need the match on the server; run them once it's there
+        committed.then(async () => {
+            if (fixtureToResolve) {
+                try {
+                    await functions.httpsCallable('resolveFixtureToMatch')({ fixtureId: fixtureToResolve, matchId: docRef.id });
+                } catch (resErr) {
+                    console.warn("Could not resolve fixture to match:", resErr.message);
+                }
+            }
+            // Stage D+ Item 33: AI match recap in background (fire-and-forget)
+            functions.httpsCallable('generateMatchRecap')({ matchId: docRef.id }).catch(recapErr => {
                 console.warn("Background recap generation skipped/failed:", recapErr.message);
             });
-        } catch (e) {
-            console.warn("Could not invoke generateMatchRecap:", e);
-        }
-
-        // Save newly created players to players registry
-        const allSelected = activeTeams.flatMap(k => selectedPlayers[k] || []);
-        const newPlayersToSave = allSelected.filter(p => p.isNew && p.id);
-        if (newPlayersToSave.length > 0) {
-            const batch = db.batch();
-            for (const np of newPlayersToSave) {
-                const pDoc = playersRegistry.get(np.id);
-                if (pDoc) {
-                    batch.set(db.collection(DB_CONFIG.collections.players).doc(np.id), {
-                        displayName: pDoc.displayName,
-                        aliases: pDoc.aliases || [pDoc.displayName.toLowerCase()],
-                        active: true,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true });
-                }
-            }
-            await batch.commit();
-        }
+        }).catch(err => {
+            if (outcome === 'queued') alert("The match saved on this phone could not be uploaded: " + err.message);
+        });
 
         fetchPlayerNames();
         cancelEditMode();
         if(load) load.classList.add('d-none');
+        if (outcome === 'queued') showToast('No signal: match saved on this phone and will upload automatically. Keep the app open until you have signal.');
         const matchesTab = document.querySelector('button[data-bs-target="#matches"]');
         if(matchesTab) bootstrap.Tab.getInstance(matchesTab).show();
-    } catch (err) { 
+    } catch (err) {
         if(load) load.classList.add('d-none'); 
         alert("Error: " + err.message); 
     }
@@ -2754,12 +2771,12 @@ window.deleteMatch = (id, e) => {
             const tA = m.teams[0];
             const tB = m.teams[1];
             teamsInfo = `
-                <div class="d-flex justify-content-between mb-1"><b>${esc(tA.teamName || 'Team A')}</b> <span>${tA.score} goals (${(tA.players||[]).length} players)</span></div>
-                <div class="d-flex justify-content-between"><b>${esc(tB.teamName || 'Team B')}</b> <span>${tB.score} goals (${(tB.players||[]).length} players)</span></div>
+                <div class="d-flex justify-content-between mb-1"><b>${esc(tA.teamName || 'Team A')}</b> <span>${esc(tA.score)} goals (${(tA.players||[]).length} players)</span></div>
+                <div class="d-flex justify-content-between"><b>${esc(tB.teamName || 'Team B')}</b> <span>${esc(tB.score)} goals (${(tB.players||[]).length} players)</span></div>
             `;
         } else {
             teamsInfo = (m.teams || []).map((t, idx) => `
-                <div class="d-flex justify-content-between mb-1"><b>${idx+1}. ${esc(t.teamName)}</b> <span>${t.points || 0} pts (${(t.players||[]).length} players)</span></div>
+                <div class="d-flex justify-content-between mb-1"><b>${idx+1}. ${esc(t.teamName)}</b> <span>${esc(t.points || 0)} pts (${(t.players||[]).length} players)</span></div>
             `).join('');
         }
 
@@ -2802,7 +2819,8 @@ window.cancelEditMode = () => {
     safeText('formTitle', "NEW MATCH ENTRY"); safeText('saveBtn', "SAVE RECORD");
     const saveBtn = document.getElementById('saveBtn'); if(saveBtn) saveBtn.classList.replace('btn-warning','btn-light');
     const cancelBtn = document.getElementById('cancelEditBtn'); if(cancelBtn) cancelBtn.classList.add('d-none');
-    document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset(); 
+    document.getElementById('editMatchId').value=""; document.getElementById('addMatchForm').reset();
+    window.activeLinkedFixtureId = null; // an abandoned "Record result" must not link the next save
     selectedPlayers={A:[],B:[],TournA:[],TournB:[],TournC:[]}; ['A','B','TournA','TournB','TournC'].forEach(k=>renderList(k)); 
     document.querySelectorAll('.border input[type="number"]').forEach(i=>i.value="");
     renderRosterGrid();
@@ -2819,14 +2837,14 @@ function openMatchModalLogic(id) {
         const tA=m.teams[0], tB=m.teams[1];
         const pA = esc((tA.players||[]).map(p => getPlayerDisplayName(p)).join(', '));
         const pB = esc((tB.players||[]).map(p => getPlayerDisplayName(p)).join(', '));
-        body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${m.colors?.[0]||'blue'} mb-1">${esc(tA.teamName||'A')}</span><div class="display-4 fw-bold text-white">${tA.score}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${m.colors?.[1]||'red'} mb-1">${esc(tB.teamName||'B')}</span><div class="display-4 fw-bold text-white">${tB.score}</div></div></div><div class="row text-center small text-light"><div class="col-6">${pA}</div><div class="col-6">${pB}</div></div>`;
+        body.innerHTML=`<div class="text-center mb-3 text-muted small letter-spacing-1">${date}</div><div class="d-flex justify-content-center align-items-center mb-4"><div class="text-center w-50"><span class="badge bg-${esc(m.colors?.[0]||'blue')} mb-1">${esc(tA.teamName||'A')}</span><div class="display-4 fw-bold text-white">${esc(tA.score)}</div></div><div class="text-muted">-</div><div class="text-center w-50"><span class="badge bg-${esc(m.colors?.[1]||'red')} mb-1">${esc(tB.teamName||'B')}</span><div class="display-4 fw-bold text-white">${esc(tB.score)}</div></div></div><div class="row text-center small text-light"><div class="col-6">${pA}</div><div class="col-6">${pB}</div></div>`;
     } else {
         const r1=m.teams.find(t=>t.rank===1)||m.teams[0];
         const r2=m.teams.find(t=>t.rank===2)||m.teams[1];
         const r3=m.teams.find(t=>t.rank===3)||m.teams[2];
-        const pts1 = r1.points !== undefined ? `(${r1.points} pts)` : '';
-        const pts2 = r2.points !== undefined ? `(${r2.points} pts)` : '';
-        const pts3 = r3.points !== undefined ? `(${r3.points} pts)` : '';
+        const pts1 = r1.points !== undefined ? `(${esc(r1.points)} pts)` : '';
+        const pts2 = r2.points !== undefined ? `(${esc(r2.points)} pts)` : '';
+        const pts3 = r3.points !== undefined ? `(${esc(r3.points)} pts)` : '';
         
         body.innerHTML=`<div class="text-center mb-3 text-muted small">${date} (Tourn)</div><div class="text-center mb-3"><span class="badge bg-warning text-dark mb-2">WINNER</span><h3 class="fw-bold text-white">${esc(r1.teamName)} <span class="text-warning fs-6">${pts1}</span></h3><small class="text-light">${esc((r1.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</small></div><ul class="list-group list-group-flush bg-dark small"><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>2. ${esc(r2.teamName)} <span class="text-muted">${pts2}</span></span><span>${esc((r2.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</span></li><li class="list-group-item bg-dark text-white d-flex justify-content-between"><span>3. ${esc(r3.teamName)} <span class="text-muted">${pts3}</span></span><span>${esc((r3.players||[]).map(p => getPlayerDisplayName(p)).join(', '))}</span></li></ul>`;
     }
@@ -2890,18 +2908,17 @@ function setupEnterKeys() {
 function addPlayer(k) { 
     const i = document.getElementById(`inputPlayer${k}`); 
     let v = i.value.trim(); 
-    if(!v) return; 
-    i.value = "";
+    if(!v) return;
 
-    const placedIds = getCurrentlyPlacedPlayerIds();
     const result = resolvePlayerInput(v, k);
     if(!result) return;
+    // 'new' keeps the typed name in the box until the player is actually created,
+    // so dismissing the Create Player dialog doesn't lose it
+    if(result.status !== 'new') i.value = "";
 
-    if(result.status === 'resolved') {
-        if (placedIds.has(result.id)) {
-            alert(`Player "${result.displayName}" is already placed on a team.`);
-            return;
-        }
+    if(result.status === 'placed') {
+        alert(`${result.displayName} is already on ${teamLabel(result.placedTeam)}.`);
+    } else if(result.status === 'resolved') {
         selectedPlayers[k].push(result);
         renderList(k);
     } else if(result.status === 'amber') {
@@ -2912,7 +2929,7 @@ function addPlayer(k) {
         renderList(k);
         openDisambiguateModal(k, selectedPlayers[k].length - 1);
     } else if(result.status === 'new') {
-        openCreatePlayerModal(v, k, null, result.top3);
+        openCreatePlayerModal(result.rawInput, k, null, result.top3);
     }
     renderRosterGrid();
     i.focus(); 
@@ -3157,7 +3174,7 @@ window.suggestPlayerAliases = async () => {
         if (data && data.ok && data.suggestions && data.suggestions.length > 0) {
             if (list) {
                 list.innerHTML = data.suggestions.map(alias => `
-                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:0.75rem;" onclick="appendSuggestedAlias('${esc(alias)}', this)">
+                    <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size:0.75rem;" onclick="appendSuggestedAlias(${jsq(alias)}, this)">
                         + ${esc(alias)}
                     </button>
                 `).join('');
@@ -4892,16 +4909,16 @@ function renderParsedFixtureSquads() {
             if (p.status === 'amber' && p.candidate) {
                 return `
                 <div class="btn-group btn-group-sm me-1 mb-1">
-                    <button type="button" class="btn btn-sm btn-warning py-0 px-2 fw-bold" style="font-size:0.75rem" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, '${p.candidate.id}')" title="Tap to accept candidate ${esc(p.candidate.displayName)}">
+                    <button type="button" class="btn btn-sm btn-warning py-0 px-2 fw-bold" style="font-size:0.75rem" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, ${jsq(p.candidate.id)})" title="Tap to accept candidate ${esc(p.candidate.displayName)}">
                         ? ${esc(p.rawInput)} → <b>${esc(p.candidate.displayName)}</b> <i class="fas fa-check ms-1"></i>
                     </button>
                     <button type="button" class="btn btn-sm btn-warning dropdown-toggle dropdown-toggle-split py-0 px-1" data-bs-toggle="dropdown"></button>
                     <ul class="dropdown-menu dropdown-menu-dark shadow" style="z-index: 1060;">
                         <li><h6 class="dropdown-header">Match Candidates</h6></li>
-                        <li><button type="button" class="dropdown-item small" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, '${p.candidate.id}')"><i class="fas fa-user-check me-2 text-warning"></i>${esc(p.candidate.displayName)}</button></li>
+                        <li><button type="button" class="dropdown-item small" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, ${jsq(p.candidate.id)})"><i class="fas fa-user-check me-2 text-warning"></i>${esc(p.candidate.displayName)}</button></li>
                         <li><hr class="dropdown-divider"></li>
-                        <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-search me-2"></i>🔍 Search Roster...</button></li>
-                        <li><button type="button" class="dropdown-item small text-success" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-user-plus me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
+                        <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, ${jsq(p.rawInput)})"><i class="fas fa-search me-2"></i>🔍 Search Roster...</button></li>
+                        <li><button type="button" class="dropdown-item small text-success" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, ${jsq(p.rawInput)})"><i class="fas fa-user-plus me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
                     </ul>
                 </div>`;
             }
@@ -4916,11 +4933,11 @@ function renderParsedFixtureSquads() {
                     <ul class="dropdown-menu dropdown-menu-dark shadow" style="z-index: 1060;">
                         <li><h6 class="dropdown-header">Select Which Player</h6></li>
                         ${p.candidates.map(c => `
-                            <li><button type="button" class="dropdown-item small" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, '${c.id}')"><i class="fas fa-user me-2 text-warning"></i>${esc(c.displayName)} <small class="text-muted">(${esc(c.id)})</small></button></li>
+                            <li><button type="button" class="dropdown-item small" onclick="resolveFixtureCandidate(${sIdx}, ${pIdx}, ${jsq(c.id)})"><i class="fas fa-user me-2 text-warning"></i>${esc(c.displayName)} <small class="text-muted">(${esc(c.id)})</small></button></li>
                         `).join('')}
                         <li><hr class="dropdown-divider"></li>
-                        <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-search me-2"></i>🔍 Search Roster...</button></li>
-                        <li><button type="button" class="dropdown-item small text-success" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-user-plus me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
+                        <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, ${jsq(p.rawInput)})"><i class="fas fa-search me-2"></i>🔍 Search Roster...</button></li>
+                        <li><button type="button" class="dropdown-item small text-success" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, ${jsq(p.rawInput)})"><i class="fas fa-user-plus me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
                     </ul>
                 </div>`;
             }
@@ -4933,8 +4950,8 @@ function renderParsedFixtureSquads() {
                 </button>
                 <ul class="dropdown-menu dropdown-menu-dark shadow" style="z-index: 1060;">
                     <li><h6 class="dropdown-header">Unmatched Player</h6></li>
-                    <li><button type="button" class="dropdown-item small text-success fw-bold" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-check me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
-                    <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, '${esc(p.rawInput)}')"><i class="fas fa-search me-2"></i>🔍 Manually Match from Roster</button></li>
+                    <li><button type="button" class="dropdown-item small text-success fw-bold" onclick="acceptFixtureNewPlayer(${sIdx}, ${pIdx}, ${jsq(p.rawInput)})"><i class="fas fa-check me-2"></i>+ Add "${esc(p.rawInput)}" as New Player</button></li>
+                    <li><button type="button" class="dropdown-item small text-info" onclick="openFixtureManualSearch(${sIdx}, ${pIdx}, ${jsq(p.rawInput)})"><i class="fas fa-search me-2"></i>🔍 Manually Match from Roster</button></li>
                 </ul>
             </div>`;
         }).join('');
@@ -5023,11 +5040,7 @@ window.acceptFixtureNewPlayer = (sIdx, pIdx, rawName) => {
     const cleanName = (rawName || item.rawInput || '').trim();
     if (!cleanName) return;
 
-    const slug = cleanName.toLowerCase()
-        .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-    const newPlayerId = slug || `player_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+    const newPlayerId = newPlayerIdFor(cleanName);
 
     const newPlayer = {
         id: newPlayerId,
@@ -5056,8 +5069,8 @@ window.acceptAllUnresolvedFixturePlayers = () => {
                     p.id = p.candidate.id;
                     p.displayName = p.candidate.displayName;
                 } else {
-                    const targetName = (p.candidates && p.candidates[0]) ? p.candidates[0].displayName : (p.rawInput || 'New Player');
-                    acceptFixtureNewPlayer(sIdx, pIdx, targetName);
+                    // "Accept as new" means the typed name, not the closest existing player's name
+                    acceptFixtureNewPlayer(sIdx, pIdx, p.rawInput || 'New Player');
                 }
             }
         });
@@ -5080,7 +5093,7 @@ window.openFixtureManualSearch = (sIdx, pIdx, rawName) => {
             <input type="text" class="form-control form-control-sm mb-2" id="fixtureSearchRosterFilter" placeholder="Type player name..." style="font-size:16px;" oninput="filterFixtureRosterSearch(this.value)">
             <div id="fixtureRosterSearchResults" class="d-grid gap-1" style="max-height: 240px; overflow-y: auto;">
                 ${allPlayers.map(p => `
-                    <button type="button" class="btn btn-outline-light text-start py-1 px-2 small fw-bold" onclick="selectFixtureManualMatch('${p.id}')">
+                    <button type="button" class="btn btn-outline-light text-start py-1 px-2 small fw-bold" onclick="selectFixtureManualMatch(${jsq(p.id)})">
                         <i class="fas fa-user me-2 text-info"></i>${esc(p.displayName)} <small class="text-muted">(${esc(p.id)})</small>
                     </button>
                 `).join('')}
@@ -5112,7 +5125,7 @@ window.filterFixtureRosterSearch = (query) => {
         return p.displayName.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || aliases.includes(q);
     });
     list.innerHTML = filtered.map(p => `
-        <button type="button" class="btn btn-outline-light text-start py-1 px-2 small fw-bold" onclick="selectFixtureManualMatch('${p.id}')">
+        <button type="button" class="btn btn-outline-light text-start py-1 px-2 small fw-bold" onclick="selectFixtureManualMatch(${jsq(p.id)})">
             <i class="fas fa-user me-2 text-info"></i>${esc(p.displayName)} <small class="text-muted">(${esc(p.id)})</small>
         </button>
     `).join('');
@@ -5179,24 +5192,25 @@ window.publishCurrentFixture = async () => {
         // Permanently register any newly added debutant players to Firestore players_v2
         if (currentDraftPreviewData.squads) {
             const batch = db.batch();
-            let newPlayerCount = 0;
+            const newDocs = [];
             currentDraftPreviewData.squads.forEach(sq => {
                 (sq.players || []).forEach(pId => {
                     const pDoc = playersRegistry.get(pId);
-                    if (pDoc && pDoc.isNew) {
-                        newPlayerCount++;
+                    if (pDoc && pDoc.isNew && !newDocs.includes(pDoc)) {
+                        newDocs.push(pDoc);
+                        // No merge: if the id somehow exists, the write is refused instead of overwriting that player
                         batch.set(db.collection(DB_CONFIG.collections.players).doc(pId), {
                             displayName: pDoc.displayName,
                             aliases: pDoc.aliases || [pDoc.displayName.toLowerCase()],
                             active: true,
                             createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                        }, { merge: true });
-                        delete pDoc.isNew;
+                        });
                     }
                 });
             });
-            if (newPlayerCount > 0) {
+            if (newDocs.length > 0) {
                 await batch.commit();
+                newDocs.forEach(d => delete d.isNew); // only once actually saved, so a retry re-sends them
                 fetchPlayerNames();
             }
         }
@@ -5247,7 +5261,7 @@ function renderExistingFixturesList() {
         const sq1Names = (f.squads?.[0]?.players || []).map(getPlayerDisplayName).join(', ');
         const sq2Names = (f.squads?.[1]?.players || []).map(getPlayerDisplayName).join(', ');
 
-        let statusBadge = `<span class="badge bg-secondary font-monospace">${f.status}</span>`;
+        let statusBadge = `<span class="badge bg-secondary font-monospace">${esc(f.status)}</span>`;
         if (isScheduled) statusBadge = `<span class="badge bg-info text-dark font-monospace fw-bold">SCHEDULED</span>`;
         if (isPlayed) {
             statusBadge = f.predictionResult === 'correct'
@@ -5267,8 +5281,8 @@ function renderExistingFixturesList() {
                 ${f.predictedWinner ? `<small class="text-warning font-monospace" style="font-size:0.7rem;">🎯 Pick: ${esc(f.predictedWinner)}</small>` : ''}
             </div>
             <div class="d-flex gap-2">
-                ${isScheduled ? `<button class="btn btn-sm btn-primary fw-bold py-1 px-2" onclick="recordResultShortcut('${f.id}')" style="font-size:0.75rem;"><i class="fas fa-clipboard-check me-1"></i>Record Result</button>` : ''}
-                ${f.status !== 'archived' ? `<button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="archiveFixtureHandler('${f.id}')" style="font-size:0.75rem;">Archive</button>` : ''}
+                ${isScheduled ? `<button class="btn btn-sm btn-primary fw-bold py-1 px-2" onclick="recordResultShortcut(${jsq(f.id)})" style="font-size:0.75rem;"><i class="fas fa-clipboard-check me-1"></i>Record Result</button>` : ''}
+                ${f.status !== 'archived' ? `<button class="btn btn-sm btn-outline-secondary py-1 px-2" onclick="archiveFixtureHandler(${jsq(f.id)})" style="font-size:0.75rem;">Archive</button>` : ''}
             </div>
         </div>
         `;
@@ -5382,6 +5396,8 @@ window.recordResultShortcut = (fixtureId) => {
     const f = allFixtures.find(x => x.id === fixtureId);
     if (!f || !f.squads || f.squads.length < 2) return;
 
+    // Start from a clean form: otherwise an open edit would be overwritten with this result
+    window.cancelEditMode();
     window.activeLinkedFixtureId = fixtureId;
 
     // Switch to match entry tab
@@ -5723,7 +5739,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
             <div class="p-3 rounded bg-black bg-opacity-40 border border-warning border-opacity-50 mt-2">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                     <span class="text-warning fw-bold small"><i class="fas fa-feather-alt me-1"></i>The Commissioner's Preview:</span>
-                    ${scheduledFixture.predictedWinner ? `<span class="badge bg-warning text-dark font-monospace fw-bold" style="font-size:0.75rem">🎯 Pick: ${esc(scheduledFixture.predictedWinner)} (${scheduledFixture.predictedWinnerOdds || 55}% odds)</span>` : ''}
+                    ${scheduledFixture.predictedWinner ? `<span class="badge bg-warning text-dark font-monospace fw-bold" style="font-size:0.75rem">🎯 Pick: ${esc(scheduledFixture.predictedWinner)} (${esc(scheduledFixture.predictedWinnerOdds || 55)}% odds)</span>` : ''}
                 </div>
                 <div class="text-light fst-italic" style="font-size:0.9rem; line-height:1.5;">"${esc(scheduledFixture.preview)}"</div>
             </div>
@@ -5747,7 +5763,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
                     <span class="text-muted small">Target: <b class="text-white">${esc(latestRoast.targetPlayerName)}</b></span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-secondary font-monospace" style="font-size:0.7rem">Intensity ${latestRoast.intensity || 3}/5</span>
+                    <span class="badge bg-secondary font-monospace" style="font-size:0.7rem">Intensity ${esc(latestRoast.intensity || 3)}/5</span>
                     <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none js-share" data-share-type="roast" data-share-id="${esc(latestRoast.id)}" data-share-title="Roast: ${esc(latestRoast.targetPlayerName)}" title="Share Roast"><i class="fas fa-share-alt"></i></button>
                 </div>
             </div>
@@ -5784,7 +5800,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
             const rowClass = p.isProvisional ? 'text-muted opacity-75' : '';
 
             powerRankingsRows += `
-            <tr style="cursor:pointer;" onclick="openPlayerStats('${p.id}')" class="${rowClass}">
+            <tr style="cursor:pointer;" onclick="openPlayerStats(${jsq(p.id)})" class="${rowClass}">
                 <td class="ps-3 fw-bold">${p.rank}</td>
                 <td>${movementBadge}</td>
                 <td class="fw-bold text-start ${p.isProvisional ? '' : 'text-light'}">${esc(p.name)}</td>
@@ -5806,7 +5822,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     } else {
         milestoneWatchHtml = `<div class="row g-2">` + watchlist.map(w => `
             <div class="col-12 col-md-6">
-                <div class="p-2 px-3 rounded bg-dark border border-warning border-opacity-50 d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="openPlayerStats('${w.playerId}')">
+                <div class="p-2 px-3 rounded bg-dark border border-warning border-opacity-50 d-flex justify-content-between align-items-center" style="cursor:pointer;" onclick="openPlayerStats(${jsq(w.playerId)})">
                     <div>
                         <span class="fw-bold text-white">${esc(w.name)}</span>
                         <small class="text-muted d-block">${w.caps} Caps</small>
@@ -5866,7 +5882,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         <div class="p-3 rounded bg-dark border border-secondary h-100">
             <span class="text-warning small fw-bold d-block mb-1"><i class="fas fa-crown me-2"></i>PLAYER OF THE MONTH${tierBadge(awardsData.potm)}</span>
             ${awardsData.potm ? `
-                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${esc(awardsData.potm.id)}')">${esc(awardsData.potm.name)}</h5>
+                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats(${jsq(awardsData.potm.id)})">${esc(awardsData.potm.name)}</h5>
                 <div class="text-info fw-bold mb-1">${awardsData.potm.ppg} PPG <span class="text-muted small fw-normal">(${awardsData.potm.played} matches, ${awardsData.potm.won}W)</span></div>
                 <small class="text-muted">Highest points-per-game in ${awardsData.monthName} (${awardsData.potm.played} of ${awardsData.totalMonthMatches} games)</small>
                 ${tierNote(awardsData.potm)}
@@ -5878,7 +5894,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         <div class="p-3 rounded bg-dark border border-secondary h-100">
             <span class="text-success small fw-bold d-block mb-1"><i class="fas fa-chart-line me-2"></i>MOST IMPROVED${tierBadge(awardsData.mostImproved)}</span>
             ${awardsData.mostImproved ? `
-                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${esc(awardsData.mostImproved.id)}')">${esc(awardsData.mostImproved.name)}</h5>
+                <h5 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats(${jsq(awardsData.mostImproved.id)})">${esc(awardsData.mostImproved.name)}</h5>
                 <div class="${awardsData.mostImproved.rawDelta > 0 ? 'text-success' : 'text-warning'} fw-bold mb-1">${awardsData.mostImproved.delta} PPG <span class="text-muted small fw-normal">(${awardsData.mostImproved.monthPPG} vs ${awardsData.mostImproved.careerPPG} career)</span></div>
                 <small class="text-muted">${awardsData.mostImproved.rawDelta > 0 ? 'Strongest positive form differential relative to baseline' : 'Closest to their career baseline this month'}</small>
                 ${tierNote(awardsData.mostImproved)}
@@ -5887,7 +5903,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
     </div>`;
 
     let ironMenList = awardsData.ironMen.length > 0 
-        ? awardsData.ironMen.map(p => `<span class="badge bg-secondary me-1 mb-1 p-2" style="cursor:pointer" onclick="openPlayerStats('${p.id}')">${esc(p.name)}</span>`).join('')
+        ? awardsData.ironMen.map(p => `<span class="badge bg-secondary me-1 mb-1 p-2" style="cursor:pointer" onclick="openPlayerStats(${jsq(p.id)})">${esc(p.name)}</span>`).join('')
         : emptyAward(noMatchesMsg);
 
     const isFullAttendance = awardsData.maxPlayedInMonth === awardsData.totalMonthMatches;
@@ -5915,7 +5931,7 @@ async function renderCommunityTab(matches, forcedMonth = null) {
         <div class="p-3 rounded bg-dark border border-secondary h-100">
             <span class="text-muted small fw-bold d-block mb-1"><i class="fas fa-ghost me-2"></i>GHOST OF THE MONTH${tierBadge(awardsData.ghost)}</span>
             ${awardsData.ghost ? `
-                <h6 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats('${esc(awardsData.ghost.id)}')">${esc(awardsData.ghost.name)}</h6>
+                <h6 class="fw-bold text-white mb-1" style="cursor:pointer;" onclick="openPlayerStats(${jsq(awardsData.ghost.id)})">${esc(awardsData.ghost.name)}</h6>
                 <div class="text-warning fw-bold mb-1">${awardsData.ghost.monthPlayed} of ${awardsData.totalMonthMatches} attended <span class="text-muted small fw-normal">(${awardsData.ghost.attendanceRate}%)</span></div>
                 <small class="text-muted">Regular player (${awardsData.ghost.careerPlayed} career caps) most missed in ${awardsData.monthName}</small>
                 ${tierNote(awardsData.ghost)}
