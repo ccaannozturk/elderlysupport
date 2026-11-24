@@ -1,0 +1,43 @@
+name: Deploy site to Firebase Hosting
+
+# Pushing to main puts the app live at elderlysupportfc.nl, the same way
+# GitHub Pages used to. Hosting ONLY: Firestore rules and Cloud Functions are
+# still deployed by hand after review (see docs/SETUP.md).
+#
+# Needs one repository secret, FIREBASE_SERVICE_ACCOUNT_ELDERLY_SUPPORT_LEAGUE,
+# created by running `firebase init hosting:github` once on the maintainer's machine.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'public-data/**'   # served from GitHub Pages, not Firebase
+      - 'docs/**'
+      - '**/*.md'
+      - 'backups/**'
+      - 'data/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'functions/**'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+  workflow_dispatch:          # "Run workflow" button for a manual redeploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ELDERLY_SUPPORT_LEAGUE }}
+          projectId: elderly-support-league
+          channelId: live

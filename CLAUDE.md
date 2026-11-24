@@ -7,7 +7,11 @@ in Amsterdam (est. 2020). Owner: Can Öztürk. A second organizer account
 (`elderly.group.futsal@gmail.com`) runs day-to-day operations alongside him —
 see "Access model" below.
 
-Live site is served from GitHub Pages off `main`.
+Live site is https://elderlysupportfc.nl, served by Firebase Hosting and deployed
+automatically on every push to `main` by `.github/workflows/deploy-hosting.yml`
+(hosting only — rules and functions are still deployed by hand). GitHub Pages
+still serves `main` too: it hosts `public-data/league.json` for the chatbot and
+redirects the old app URL to the new domain.
 
 ## Architecture — READ THIS BEFORE PROPOSING CHANGES
 

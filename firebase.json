@@ -17,7 +17,19 @@
       "docs/**",
       "data/**",
       "backups/**",
-      "emulator-data/**"
+      "emulator-data/**",
+      "functions/**",
+      "tests/**",
+      "public-data/**",
+      "**/*.md",
+      "firestore.rules",
+      "firestore.indexes.json"
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(html|js|json)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
     ]
   },
   "emulators": {

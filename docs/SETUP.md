@@ -239,8 +239,9 @@ Then sign in as admin and confirm Roast Studio still sees drafts.
 
 ### 6. Then ship the client
 
-Merge the branch to `main`. GitHub Pages serves `main`, so that is what puts the
-matching client queries live. Hard-refresh afterwards — the service worker caches
+Merge the branch to `main`. The `deploy-hosting` workflow publishes `main` to
+Firebase Hosting, so that is what puts the matching client queries live (check
+the Actions tab for a green run). Hard-refresh afterwards — the service worker caches
 `app.js`, so a soft reload can keep serving the old one.
 
 ### If something looks wrong
