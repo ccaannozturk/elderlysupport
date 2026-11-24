@@ -214,20 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(row) window.openPlayerStats(row.dataset.player);
     });
 
-    const disambiguateCreateBtn = document.getElementById('disambiguateCreateNewBtn');
-    if(disambiguateCreateBtn) {
-        disambiguateCreateBtn.addEventListener('click', () => {
-            const modalEl = document.getElementById('disambiguateModal');
-            if (modalEl) {
-                const modal = bootstrap.Modal.getInstance(modalEl);
-                if (modal) modal.hide();
-            }
-            if (currentModalContext) {
-                openCreatePlayerModal(currentModalContext.item.rawInput, currentModalContext.teamKey, currentModalContext.index, currentModalContext.item.top3 || []);
-            }
-        });
-    }
-
     const confirmCreateBtn = document.getElementById('confirmCreatePlayerBtn');
     if(confirmCreateBtn) {
         confirmCreateBtn.addEventListener('click', () => {
@@ -408,7 +394,7 @@ function levenshteinDistance(a, b) {
                 matrix[i][j] = Math.min(
                     matrix[i - 1][j - 1] + 1,
                     matrix[i][j - 1] + 1,
-                    matrix[i - 1] + 1
+                    matrix[i - 1][j] + 1
                 );
             }
         }
@@ -536,7 +522,8 @@ function resolvePlayerInput(rawInput, teamKey) {
     }
 
     candidateDistances.sort((a, b) => a.distance - b.distance);
-    const top3 = candidateDistances.slice(0, 3).map(c => ({ id: c.player.id, displayName: c.player.displayName }));
+    // Infinity = every alias was skipped by the length guard; not a real suggestion
+    const top3 = candidateDistances.filter(c => Number.isFinite(c.distance)).slice(0, 3).map(c => ({ id: c.player.id, displayName: c.player.displayName }));
     const closeCandidates = candidateDistances.filter(c => c.distance <= 2);
 
     if (closeCandidates.length === 1) {
@@ -2391,19 +2378,50 @@ window.openDisambiguateModal = (k, idx) => {
     if (!item) return;
     currentModalContext = { teamKey: k, index: idx, item };
 
-    safeText('disambiguatePrompt', `Multiple player matches found for "${item.rawInput}". Tap one to select:`);
+    const candidates = item.candidates || item.top3 || [];
+    safeText('disambiguatePrompt', candidates.length
+        ? `Closest matches for "${item.rawInput}". Tap one, or search the full roster:`
+        : `No close match for "${item.rawInput}". Search the full roster:`);
     const container = document.getElementById('disambiguateCandidates');
     if (container) {
-        const candidates = item.candidates || item.top3 || [];
         container.innerHTML = candidates.map(c => `
             <button type="button" class="btn btn-outline-light text-start py-2 px-3 fw-bold" onclick="selectDisambiguatedPlayer('${c.id}')">
                 <i class="fas fa-user me-2 text-warning"></i>${esc(c.displayName)} <small class="text-muted opacity-75">(${esc(c.id)})</small>
             </button>
-        `).join('');
+        `).join('') + `
+            <input type="search" class="form-control form-control-sm mt-2" id="disambiguateRosterFilter" placeholder="Search all players..." style="font-size:16px;" oninput="filterDisambiguateRoster(this.value)">
+            <div id="disambiguateRosterResults" class="d-grid gap-1" style="max-height: 240px; overflow-y: auto;"></div>`;
+        filterDisambiguateRoster('');
+    }
+
+    // Assigned (not addEventListener) so the fixture flow's handler on the same button is replaced, not stacked
+    const createNewBtn = document.getElementById('disambiguateCreateNewBtn');
+    if (createNewBtn) {
+        createNewBtn.onclick = () => {
+            const modalEl = document.getElementById('disambiguateModal');
+            if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+            openCreatePlayerModal(item.rawInput, k, idx, item.top3 || []);
+        };
     }
 
     const modalEl = document.getElementById('disambiguateModal');
     if (modalEl) new bootstrap.Modal(modalEl).show();
+};
+
+window.filterDisambiguateRoster = (query) => {
+    const list = document.getElementById('disambiguateRosterResults');
+    if (!list || !currentModalContext) return;
+    const q = (query || '').toLowerCase().trim();
+    const placedIds = getCurrentlyPlacedPlayerIds();
+    const matches = Array.from(playersRegistry.values())
+        .filter(p => !placedIds.has(p.id) && (q || p.active !== false))
+        .filter(p => !q || p.displayName.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.aliases || []).some(a => a.includes(q)))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    list.innerHTML = matches.length ? matches.map(p => `
+        <button type="button" class="btn btn-outline-light text-start py-2 px-2 small fw-bold" onclick="selectDisambiguatedPlayer('${p.id}')">
+            <i class="fas fa-user me-2 text-info"></i>${esc(p.displayName)} <small class="text-muted">(${esc(p.id)})</small>
+        </button>
+    `).join('') : '<div class="small text-muted text-center py-2">No players found.</div>';
 };
 
 window.selectDisambiguatedPlayer = (playerId) => {
