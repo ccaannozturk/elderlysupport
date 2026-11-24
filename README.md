@@ -3,7 +3,7 @@
 A single-page match tracker and leaderboard for a recreational football/futsal
 group in Amsterdam (est. 2020). Live at:
 
-**https://ccaannozturk.github.io/elderlysupport/**
+**https://elderlysupportfc.nl**
 
 ## What it does
 
