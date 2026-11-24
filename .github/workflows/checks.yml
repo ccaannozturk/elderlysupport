@@ -1,0 +1,33 @@
+name: Checks
+
+# Cheap safety net on every push: the app's JS must parse, and the Elo copy in
+# functions/ must still agree with stats-core.js. Reads only; deploys nothing.
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: JavaScript parses
+        run: |
+          for f in app.js stats-core.js sw.js functions/index.js; do
+            node --check "$f" && echo "ok  $f"
+          done
+
+      - name: Elo parity (functions vs stats-core)
+        run: node tests/elo-parity.test.js
+
+      - name: Match-entry player matching
+        run: node tests/player-resolve.test.js
