@@ -322,7 +322,8 @@ exports.setGeminiModel = functions.https.onCall(async (data, context) => {
 });
 
 /** 4. AI Magic Lineup Parser */
-exports.parseLineup = functions.https.onCall(async (data, context) => {
+// 120s: a full-roster prompt on a thinking model can outlast the 60s default
+exports.parseLineup = functions.runWith({ timeoutSeconds: 120 }).https.onCall(async (data, context) => {
   assertOrganizer(context);
 
   const rawText = data && data.rawText ? String(data.rawText).trim() : '';
@@ -399,6 +400,12 @@ PARSING INSTRUCTIONS & EXAMPLES:
 7. SCORE & OUTCOME RULES:
    - Natural language outcomes like "red team won 3-2" or "Fifantinos won 3-2" mean the red/winning team scored 3 goals, and the other team scored 2 goals. Assign scores to respective teams accordingly.
 8. "unparsed": Array of raw lines from the input that could not be parsed as team headers, scores, or players.
+9. FORMAT VARIES EVERY WEEK — work from meaning, not layout:
+   - The team name and its players may be on one line or on separate lines; blank lines carry no meaning.
+   - WhatsApp *bold* / _italic_ markers are formatting: strip the * and _ characters from names.
+   - Emojis next to a team name are part of the name unless they are a color marker; e.g. "*Ejackulators* 💦🥵 Can, Jack 🔵 (blue shirts)" -> name "Ejackulators 💦🥵", color "blue", players Can, Jack.
+   - "(blue shirts)", "in blue", "wearing yellow" etc. set the team color and are not part of the name or a player.
+10. Return ONE JSON object (not an array) with keys matchType, date, venue, teams, unparsed.
 
 RAW INPUT:
 """
@@ -411,10 +418,14 @@ ${rawText}
 
   let parsed;
   try {
+    // Tolerate code fences or chatter around the JSON: take the outermost {...}
     const cleanedText = rawOutputText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-    parsed = JSON.parse(cleanedText);
+    const first = cleanedText.search(/[[{]/);
+    const last = Math.max(cleanedText.lastIndexOf('}'), cleanedText.lastIndexOf(']'));
+    parsed = JSON.parse(first >= 0 && last > first ? cleanedText.slice(first, last + 1) : cleanedText);
+    if (Array.isArray(parsed)) parsed = parsed.find(x => x && Array.isArray(x.teams)) || { teams: parsed };
   } catch (parseErr) {
-    throw new functions.https.HttpsError('internal', `Failed to parse AI output as JSON: ${parseErr.message}`);
+    throw new functions.https.HttpsError('internal', `Failed to parse AI output as JSON (${geminiRes.modelUsed}): ${parseErr.message}. Output started: ${rawOutputText.slice(0, 120)}`);
   }
 
   const validatedTeams = [];

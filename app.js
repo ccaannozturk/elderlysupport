@@ -985,7 +985,7 @@ window.parseMagicPaste = async () => {
         let parsed = null;
         let aiError = null;
         try {
-            const parseFn = functions.httpsCallable('parseLineup');
+            const parseFn = functions.httpsCallable('parseLineup', { timeout: 130000 }); // function allows 120s
             const res = await parseFn({ rawText: text });
             parsed = res.data;
             if (!parsed || !parsed.teams || parsed.teams.length < 2) throw new Error('AI found fewer than two teams.');
@@ -4817,7 +4817,7 @@ async function processFixturePaste(text) {
 
     let parsed = null;
     try {
-        const parseFn = functions.httpsCallable('parseLineup');
+        const parseFn = functions.httpsCallable('parseLineup', { timeout: 130000 });
         const res = await parseFn({ rawText: text });
         parsed = res.data;
     } catch (aiErr) {
