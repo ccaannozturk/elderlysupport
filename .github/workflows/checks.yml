@@ -31,3 +31,6 @@ jobs:
 
       - name: Match-entry player matching
         run: node tests/player-resolve.test.js
+
+      - name: Magic Paste local parser
+        run: node tests/magic-paste.test.js

@@ -983,17 +983,20 @@ window.parseMagicPaste = async () => {
     try {
         // 1. Try Cloud Function AI Parser
         let parsed = null;
+        let aiError = null;
         try {
             const parseFn = functions.httpsCallable('parseLineup');
             const res = await parseFn({ rawText: text });
             parsed = res.data;
+            if (!parsed || !parsed.teams || parsed.teams.length < 2) throw new Error('AI found fewer than two teams.');
         } catch (aiErr) {
             console.warn("Cloud Function parseLineup unavailable or failed, falling back to local parser:", aiErr);
+            aiError = `${aiErr.code ? aiErr.code + ': ' : ''}${aiErr.message || aiErr}`;
             parsed = fallbackLocalParser(text);
         }
 
         if (!parsed || !parsed.teams || parsed.teams.length < 2) {
-            throw new Error("Could not parse match teams from the provided text.");
+            throw new Error(`Could not parse match teams from the provided text.${aiError ? `\n\nAI parser error: ${aiError}` : ''}`);
         }
 
         // Clear the form only now: a failed parse must not wipe teams entered by hand
@@ -1014,9 +1017,11 @@ window.parseMagicPaste = async () => {
             } else {
                 badgeEl.innerText = 'Regex Fallback';
                 badgeEl.className = 'badge bg-secondary';
-                badgeEl.title = 'Local parser used';
+                badgeEl.title = aiError ? `Local parser used. AI error: ${aiError}` : 'Local parser used';
             }
         }
+        // Hover titles don't exist on a phone: say why the AI was skipped
+        if (aiError) window.showToast(`AI parser failed, used local parser. ${aiError}`);
 
         // 2. Set Date & Venue if found
         if (parsed.date) {
@@ -1152,6 +1157,7 @@ function fallbackLocalParser(text) {
     const cleanTeamName = (str) => {
         if (!str) return '';
         return str
+            .replace(/\*/g, '') // WhatsApp *bold*
             .replace(new RegExp(`\\[\\s*(?:in\\s*)?(?:${ALL_COLOR_SYMBOLS})(?:\\s*team|\\s*shirts?)?\\s*\\]`, 'gi'), '')
             .replace(new RegExp(`\\(\\s*(?:in\\s*)?(?:${ALL_COLOR_SYMBOLS})(?:\\s*team|\\s*shirts?)?\\s*\\)`, 'gi'), '')
             .replace(new RegExp(`\\s*(?:in\\s*)?(?:${COLOR_EMOJIS_RED}|${COLOR_EMOJIS_BLUE}|${COLOR_EMOJIS_YELLOW})+\\s*:?`, 'gi'), '')
@@ -1161,13 +1167,28 @@ function fallbackLocalParser(text) {
     };
 
     const cleanPlayerToken = (p) => {
-        return p.replace(/\s*\((?:r|ref|referee|gk|keeper|c|captain|sub)\)/gi, '').trim();
+        return p.replace(/\s*\((?:r|ref|referee|gk|keeper|c|captain|sub)\)/gi, '').replace(/[.*]+$/, '').trim();
+    };
+
+    // "*Team* 🎮 Ann, Bob 🔵 (blue shirts)" or "Team: Ann, Bob" on one line -> [header, players]
+    const splitInlineTeam = (line) => {
+        if (!line.includes(',')) return null;
+        const m = line.match(/^\*([^*]+)\*(.*)$/) || line.match(/^([^,:]+):(.*)$/);
+        if (!m) return null;
+        const rest = m[2];
+        const lead = rest.match(/^[^\p{L}\p{N}(]*/u)[0]; // emojis right after the name belong to it
+        const players = rest.slice(lead.length);
+        const color = extractColor(players);
+        const stripped = players
+            .replace(new RegExp(`[(\\[]\\s*(?:in\\s+)?(?:${ALL_COLOR_SYMBOLS})(?:\\s*team|\\s*shirts?)?\\s*[)\\]]`, 'gi'), '')
+            .replace(new RegExp(`${COLOR_EMOJIS_RED}|${COLOR_EMOJIS_BLUE}|${COLOR_EMOJIS_YELLOW}`, 'g'), '');
+        return [`${m[1]}${lead}${color ? ` (${color})` : ''}`, stripped];
     };
 
     let outcomeScores = null;
     const remainingLines = [];
 
-    for (const line of rawLines) {
+    for (const line of rawLines.flatMap(l => splitInlineTeam(l) || [l])) {
         const outcomeMatch = line.match(/(.*?)(?:team\s*)?(?:won|beat|defeats?)\s*(\d+)\s*[-:]\s*(\d+)/i)
             || line.match(/^(\d+)\s*[-:]\s*(\d+)$/);
         if (outcomeMatch) {
@@ -1209,7 +1230,7 @@ function fallbackLocalParser(text) {
         const colorA = extractColor(lineA) || 'blue';
         const colorB = extractColor(lineB) || (colorA === 'blue' ? 'red' : 'blue');
 
-        let scoreA = 0, scoreB = 0;
+        let scoreA = null, scoreB = null; // no score in the message -> blank, like the AI path
         if (outcomeScores) {
             if (outcomeScores.winnerColor) {
                 if (colorA === outcomeScores.winnerColor) {
