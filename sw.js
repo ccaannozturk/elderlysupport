@@ -1,6 +1,6 @@
 /**
  * Service Worker: Elderly Support League PWA
- * Cache Version: esl-static-v3
+ * Cache Version: esl-static-v4
  *
  * EMERGENCY KILL SWITCH:
  * If the service worker ever misbehaves or serves stale assets that cannot be cleared:
@@ -9,7 +9,7 @@
  * 3. Deploy to production. All clients will automatically unregister the worker on next load.
  */
 
-const CACHE_NAME = 'esl-static-v3';
+const CACHE_NAME = 'esl-static-v4';
 
 // Static Shell Assets to Pre-cache
 const STATIC_ASSETS = [
