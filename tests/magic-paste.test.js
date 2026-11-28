@@ -16,7 +16,8 @@ vm.createContext(ctx);
 vm.runInContext(src.slice(start, src.indexOf('\n}\n', start) + 2), ctx);
 const parse = ctx.fallbackLocalParser;
 
-const names = t => t.players.map(p => p.rawName);
+// Array.from: arrays made inside the vm context have another prototype, which deepStrictEqual rejects
+const names = t => Array.from(t.players, p => p.rawName);
 
 // Team name and players on separate lines, WhatsApp *bold*, a (ref) tag
 const twoLine = parse(`*Ejackulators* 💦🥵
